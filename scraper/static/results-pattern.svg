@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- stars -->
+    <path d="m70 62 5 12 13 1-10 8 3 13-11-7-11 7 3-13-10-8 13-1z" stroke="#d96f4f" stroke-width="2.2" opacity=".18"/>
+    <path d="m612 74 4 9 10 1-8 6 3 10-9-6-9 6 3-10-8-6 10-1z" stroke="#1a746f" stroke-width="2" opacity=".15"/>
+    <path d="m865 348 5 11 12 1-9 8 3 12-11-7-10 7 3-12-10-8 13-1z" stroke="#d96f4f" stroke-width="2.2" opacity=".16"/>
+    <path d="m365 414 3 8 9 1-7 6 2 9-7-5-8 5 3-9-7-6 9-1z" stroke="#c28a32" stroke-width="2" opacity=".14"/>
+
+    <!-- shells -->
+    <g stroke="#d98768" stroke-width="2" opacity=".18">
+      <path d="M188 165c-21 0-34 16-34 35h68c0-19-13-35-34-35z"/>
+      <path d="m188 166-1 34m-17-29 8 29m27-29-9 29m-39-15 21 15m41-15-22 15"/>
+      <path d="M154 200h68"/>
+    </g>
+    <g stroke="#1a746f" stroke-width="2" opacity=".13">
+      <path d="M738 408c-18 0-30 14-30 31h60c0-17-12-31-30-31z"/>
+      <path d="m738 409v30m-15-25 7 25m23-25-7 25m-35-13 19 13m35-13-19 13"/>
+      <path d="M708 439h60"/>
+    </g>
+
+    <!-- citrus slices -->
+    <g stroke="#c28a32" stroke-width="2" opacity=".16">
+      <circle cx="432" cy="116" r="27"/>
+      <circle cx="432" cy="116" r="21"/>
+      <path d="m432 95v21l16-13m-16 13 20 7m-20-7 7 20m-7-20-12 17m12-17-21 1m21-1-13-16"/>
+    </g>
+    <g stroke="#d96f4f" stroke-width="2" opacity=".15">
+      <circle cx="93" cy="398" r="24"/>
+      <circle cx="93" cy="398" r="18"/>
+      <path d="m93 380v18l14-11m-14 11 17 6m-17-6 6 17m-6-17-11 14m11-14-18 1m18-1-11-13"/>
+    </g>
+
+    <!-- peaches and leaves -->
+    <g stroke="#d96f4f" stroke-width="2.2" opacity=".18">
+      <path d="M298 274c-20-24-58-8-56 22 2 27 30 44 56 58 26-14 54-31 56-58 2-30-36-46-56-22z"/>
+      <path d="M298 274c-5 18-4 44 0 80"/>
+      <path d="M298 272c8-20 25-23 38-19-6 15-20 23-38 19z"/>
+    </g>
+    <g stroke="#1a746f" stroke-width="2" opacity=".14">
+      <path d="M820 94c-16-19-45-6-43 18 2 20 23 33 43 43 20-10 41-23 43-43 2-24-27-37-43-18z"/>
+      <path d="M820 94c-4 14-3 33 0 61"/>
+      <path d="M820 92c6-15 19-17 29-14-5 11-15 17-29 14z"/>
+    </g>
+
+    <!-- cherries -->
+    <g stroke="#d96f4f" stroke-width="2" opacity=".17">
+      <path d="M526 340c2-24 14-37 31-45m-2 45c-2-23 2-39 14-53"/>
+      <circle cx="520" cy="354" r="14"/>
+      <circle cx="559" cy="354" r="14"/>
+      <path d="M557 295c11-11 23-9 31-4-8 10-19 12-31 4z"/>
+    </g>
+
+    <!-- small leaves and sparkles -->
+    <g stroke="#1a746f" stroke-width="2" opacity=".13">
+      <path d="M128 286c17-20 35-17 46-8-12 17-28 21-46 8zm0 0 32-4"/>
+      <path d="M653 230c18-22 38-18 49-8-13 18-30 22-49 8zm0 0 34-5"/>
+      <path d="M895 164c14-17 29-14 38-7-10 14-23 17-38 7zm0 0 26-4"/>
+    </g>
+    <g stroke="#c28a32" stroke-width="2" opacity=".15">
+      <path d="M344 92v20m-10-10h20M679 450v18m-9-9h18M908 54v16m-8-8h16M452 462v14m-7-7h14"/>
+    </g>
+  </g>
+</svg>

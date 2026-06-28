@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JobLink Beta</title>
+  <link rel="icon" href="{{ url_for('static', filename='brand-mark.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <img src="{{ url_for('static', filename='brand-mark.svg') }}" alt="" width="34" height="34">
+      <div>
+        <strong>JobLink</strong>
+        <span>Private beta</span>
+      </div>
+    </div>
+    <div class="health" id="healthStatus"><span></span> Local scraper</div>
+  </header>
+
+  <main>
+    <section class="input-band" aria-labelledby="inputTitle">
+      <div class="section-heading">
+        <div>
+          <h1 id="inputTitle">Job links</h1>
+          <span class="counter" id="linkCounter">0 / 20</span>
+        </div>
+        <button class="button button-quiet" type="button" id="clearButton" disabled>
+          <i data-lucide="trash-2" aria-hidden="true"></i>
+          Clear links
+        </button>
+      </div>
+      <label class="sr-only" for="jobLinks">Job links, one per line</label>
+      <textarea id="jobLinks" rows="6" spellcheck="false" placeholder="https://company.com/careers/job-id&#10;https://www.linkedin.com/jobs/view/job-id"></textarea>
+      <div class="input-actions">
+        <div class="input-controls">
+          <label class="date-field" for="appliedDate">
+            <span>Date applied</span>
+            <input id="appliedDate" type="date">
+          </label>
+          <div class="validation-message" id="validationMessage" role="status"></div>
+        </div>
+        <button class="button button-primary" type="button" id="extractButton" disabled>
+          <i data-lucide="sparkles" aria-hidden="true"></i>
+          Extract jobs
+        </button>
+      </div>
+      <div class="progress" id="progress" hidden>
+        <div class="progress-track"><span id="progressBar"></span></div>
+        <span id="progressText">Preparing</span>
+      </div>
+    </section>
+
+    <section class="results-band" aria-labelledby="resultsTitle">
+      <div class="results-toolbar">
+        <div>
+          <h2 id="resultsTitle">Results</h2>
+          <div class="summary" aria-live="polite">
+            <span><b id="totalCount">0</b> total</span>
+            <span class="summary-ready"><b id="readyCount">0</b> ready</span>
+            <span class="summary-review"><b id="reviewCount">0</b> review</span>
+            <span class="summary-error"><b id="errorCount">0</b> errors</span>
+          </div>
+        </div>
+        <div class="toolbar-actions">
+          <button class="button button-quiet" type="button" id="retryAllButton" disabled>
+            <i data-lucide="rotate-cw" aria-hidden="true"></i>
+            Retry review
+          </button>
+          <button class="button button-quiet" type="button" id="clearResultsButton" disabled>
+            <i data-lucide="trash-2" aria-hidden="true"></i>
+            Clear selected
+          </button>
+          <button class="button button-secondary" type="button" id="chooseWorkbookButton">
+            <i data-lucide="upload" aria-hidden="true"></i>
+            Choose tracker
+          </button>
+          <input id="workbookFile" class="sr-only" type="file" accept=".xlsx,.xlsm">
+          <span class="file-name" id="workbookName">No tracker selected</span>
+          <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
+            <i data-lucide="file-plus-2" aria-hidden="true"></i>
+            Update tracker
+          </button>
+          <button class="button button-secondary" type="button" id="downloadButton" disabled>
+            <i data-lucide="download" aria-hidden="true"></i>
+            Download Excel
+          </button>
+        </div>
+      </div>
+
+      <div class="empty-state" id="emptyState">
+        <img src="{{ url_for('static', filename='empty-jobs.svg') }}" alt="" width="180" height="120">
+        <strong>No jobs yet</strong>
+      </div>
+
+      <div class="table-wrap" id="tableWrap" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col" class="select-column"><span class="sr-only">Select</span></th>
+              <th scope="col">Status</th>
+              <th scope="col">Company</th>
+              <th scope="col">Job title</th>
+              <th scope="col">Location</th>
+              <th scope="col">Work type</th>
+              <th scope="col">Salary</th>
+              <th scope="col">Source</th>
+              <th scope="col" class="actions-column"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

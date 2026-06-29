@@ -6,6 +6,9 @@ Paste in job links from company career pages or job boards, and the tool tries t
 
 It is especially meant for students, new grads, and anyone applying to a lot of roles at once.
 
+> Status: Early public beta. This project is actively being improved.
+
+
 ## Why I Built This
 
 When you are applying to a lot of jobs, the tracking part can quietly turn into its own chore. Every posting has a company name, title, location, salary note, link, and follow-up date to copy somewhere. It is easy to lose time, make small mistakes, or stop tracking things clearly.

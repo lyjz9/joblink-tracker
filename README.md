@@ -6,7 +6,6 @@ Overview
 - VBA macros can call the local Python server and populate a worksheet row from a job URL.
 
 What's included
-- `outputs/job_tracker_template.xlsx` - ready-to-open Excel tracker template with columns already split.
 - `VBA/JobTracker.bas` - VBA module with macros to call the local server.
 - `scraper/app.py` - Flask app exposing `/scrape` and `/export` endpoints.
 - `scraper/browser_scraper_v2.py` - browser-backed scraper for JavaScript-heavy pages and company websites.
@@ -46,7 +45,7 @@ Invoke-RestMethod -Uri http://127.0.0.1:5000/scrape -Method Post -ContentType "a
 ```
 
 Excel Setup
-- Open `outputs/job_tracker_template.xlsx`.
+- Create a workbook with an `Applications` sheet and paste the headers from `excel_layout.csv` into row 1.
 - Save it as a macro-enabled workbook: `File > Save As > Excel Macro-Enabled Workbook (*.xlsm)`.
 - Import `VBA/JobTracker.bas`: `Developer > Visual Basic > File > Import File`.
 - If Excel asks about macros, choose Enable Content for this workbook.
@@ -55,8 +54,8 @@ Excel Setup
 
 Excel Batch Setup (Recommended)
 
-1. Open `outputs/job_tracker_excel_integration.xlsx` and save it as `Job_Application_Tracker.xlsm` in the main `job` folder or the `outputs` folder.
-2. The workbook already includes the `Input` and `Applications` sheets with the correct headers.
+1. Create sheets named `Input` and `Applications`.
+2. Add the headers shown in `excel_layout.csv` to `Applications`, and add `Job Link`, `Source`, `Notes`, `Process Status`, `Processed At`, and `Error Message` to `Input`.
 3. Import `VBA/JobTracker.bas` using `Developer > Visual Basic > File > Import File`.
 4. Add a button on the Input sheet and assign the `ProcessInputLinks` macro.
 5. Paste one job link per row under `Job Link`. Leave `Process Status` blank or enter `Pending`.

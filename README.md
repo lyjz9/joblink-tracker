@@ -1,23 +1,41 @@
-Job Tracker - Excel VBA Template + Python Scraper
+# JobLink Tracker
 
-Overview
-- Excel template to store and track job applications.
-- Python Flask scraper to extract job details from company career pages and job boards.
-- VBA macros can call the local Python server and populate a worksheet row from a job URL.
+JobLink Tracker is a Python + Excel project for job seekers who are tired of copying the same details into a spreadsheet over and over.
 
-What's included
-- `VBA/JobTracker.bas` - VBA module with macros to call the local server.
-- `scraper/app.py` - Flask app exposing `/scrape` and `/export` endpoints.
-- `scraper/browser_scraper_v2.py` - browser-backed scraper for JavaScript-heavy pages and company websites.
-- `scraper/scraper.py` - HTML parsing helpers and fallback extraction.
-- `export/exporter.py` - creates a `.xlsx` from job records matching the tracker columns.
-- `excel_layout.csv` - plain CSV header row for manual setup if needed.
-- `process_excel_links.py` - reads pending links from Excel and appends scraped jobs to the tracker.
-- `requirements.txt` - Python package list.
+Paste in job links from company career pages or job boards, and the tool tries to pull out the details you usually track by hand: company, job title, location, work type, salary, and source. From there, you can review the results and save them into an Excel tracker.
 
-Quick Start
+It is especially meant for students, new grads, and anyone applying to a lot of roles at once.
 
-1. Create a Python 3.11 environment:
+## Why I Built This
+
+When you are applying to a lot of jobs, the tracking part can quietly turn into its own chore. Every posting has a company name, title, location, salary note, link, and follow-up date to copy somewhere. It is easy to lose time, make small mistakes, or stop tracking things clearly.
+
+JobLink Tracker is my attempt to make that process less annoying. It does not try to replace your judgment. It just handles some of the repetitive copying, then lets you review and edit everything before saving.
+
+## Features
+
+- Pull company, job title, location, salary, and work type from job posting links.
+- Save results in an Excel-friendly application tracker format.
+- Process one link at a time or a batch of links from an Excel workbook.
+- Flag rows that may need a manual review.
+- Help reduce repetitive copy-and-paste work during a job search.
+
+## How It Works
+
+1. Paste job posting URLs into the web beta, command line, or Excel input sheet.
+2. JobLink Tracker opens each posting and looks for useful job details.
+3. Review anything marked for manual review, especially when a site blocks automation or the result looks incomplete.
+4. Save the cleaned rows to an Excel tracker.
+
+## Current Tracker Columns
+
+```text
+Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary Range, Follow-up, Source
+```
+
+## Setup
+
+JobLink Tracker is currently tested with Python 3.11.
 
 ```powershell
 py -3.11 -m venv .venv
@@ -26,74 +44,108 @@ pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-2. Test one job link directly:
+On macOS or Linux, use `python3` instead of `py -3.11` if needed.
+
+## Usage
+
+To test one job link directly:
 
 ```powershell
 python test_scraper.py "https://example.com/job-posting-url"
 ```
 
-3. Run the local scraper server:
+To run the local web app:
 
 ```powershell
 python scraper\app.py
 ```
 
-4. Test the server endpoint from another PowerShell window:
+Then open:
+
+```text
+http://127.0.0.1:5000
+```
+
+To test the API endpoint:
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:5000/scrape -Method Post -ContentType "application/json" -Body '{"url":"https://example.com/job-posting-url"}'
 ```
 
-Excel Setup
-- Create a workbook with an `Applications` sheet and paste the headers from `excel_layout.csv` into row 1.
-- Save it as a macro-enabled workbook: `File > Save As > Excel Macro-Enabled Workbook (*.xlsm)`.
-- Import `VBA/JobTracker.bas`: `Developer > Visual Basic > File > Import File`.
-- If Excel asks about macros, choose Enable Content for this workbook.
-- Select a cell in the `Job link` column and run `FetchJobDetailsForActiveRow`.
-- To process multiple pasted links, select those cells in the `Job link` column and run `FetchJobDetailsForSelection`.
+## Excel Workflow
 
-Excel Batch Setup (Recommended)
+If you want to use the Excel workflow, create a macro-enabled workbook with these sheets:
 
-1. Create sheets named `Input` and `Applications`.
-2. Add the headers shown in `excel_layout.csv` to `Applications`, and add `Job Link`, `Source`, `Notes`, `Process Status`, `Processed At`, and `Error Message` to `Input`.
-3. Import `VBA/JobTracker.bas` using `Developer > Visual Basic > File > Import File`.
-4. Add a button on the Input sheet and assign the `ProcessInputLinks` macro.
-5. Paste one job link per row under `Job Link`. Leave `Process Status` blank or enter `Pending`.
-6. Click `Process Links`. The macro runs the scraper quietly in the background, processes every pending link, and saves the workbook. No PowerShell window or scraper server is required.
-7. New jobs appear in `Applications`; each input row shows `Done`, `Needs Manual Review`, `Duplicate`, or `Error`.
+- `Applications`
+- `Input`
 
-You can test the same workflow without a button:
+Paste the headers from `excel_layout.csv` into the `Applications` sheet. In the `Input` sheet, add these headers:
 
-```powershell
-python process_excel_links.py "C:\Users\jzeng\Documents\job\outputs\Job_Application_Tracker.xlsm"
+```text
+Job Link, Source, Notes, Process Status, Processed At, Error Message
 ```
 
-Testing Notes
-- Start with company career pages when possible. They usually contain better structured job data than reposts on aggregator sites.
-- If a field is wrong or missing, copy the test output and the URL. That gives enough detail to tune the scraper for that website pattern.
-- Some sites block automation, require login, or hide job details behind private APIs. Those cases may need a site-specific fallback.
-- Source should be a readable label such as Indeed, LinkedIn, Glassdoor, Greenhouse, or Company Website.
-- Work Type should be Remote, Hybrid, Onsite, or n/a. If the posting does not explicitly say the work type, use n/a.
-- Salary should show n/a when no trustworthy salary is found.
+Import `VBA/JobTracker.bas` using `Developer > Visual Basic > File > Import File`. If you want a button in the workbook, assign it to the `ProcessInputLinks` macro.
 
-Current Tracker Columns
-- Date Applied
-- Company
-- Job Title
-- Job link
-- Status
-- Location
-- Work Type
-- Salary Range
-- Follow-up
-- Source
+You can also test the same workflow without a button by passing the path to your own workbook:
 
-Private Web Beta
+```powershell
+python process_excel_links.py "path\to\your\Job_Application_Tracker.xlsm"
+```
 
-- Double-click `Open_JobLink_Beta.vbs` to start the private beta without PowerShell.
+For a workbook in the current folder:
+
+```powershell
+python process_excel_links.py ".\Job_Application_Tracker.xlsm"
+```
+
+## Private Web Beta
+
+On Windows, double-click `Open_JobLink_Beta.vbs` to start the local beta without opening PowerShell manually.
+
 - The browser opens at `http://127.0.0.1:5050`.
 - Choose the date applied, paste up to 20 job links, select `Extract jobs`, edit any result cells, and download the results to Excel.
-- `Clear links` only clears the pasted links. Use the row checkbox plus `Clear selected`, or the row remove button, to remove results.
-- To add results to an existing tracker, select `Choose tracker`, pick an `.xlsx` or `.xlsm` file, then select `Update tracker`. In Chrome or Edge, the app can save into the selected workbook after browser permission; close the workbook in Excel first. If direct save is not available, the app downloads an updated copy instead. The original job URL stays visible in the link column.
-- Rows marked `Review` have missing or suspicious fields. Use the retry button on the row or `Retry review` to try extraction again, then edit any remaining fields manually.
-- The local beta is available only on this computer. Public sharing requires a hosted deployment.
+- To add results to an existing tracker, select `Choose tracker`, pick an `.xlsx` or `.xlsm` file, then select `Update tracker`.
+- Rows marked `Review` have missing or suspicious fields. Retry the row or edit the remaining fields manually.
+
+This beta runs locally on your computer. It is not a hosted public app yet.
+
+## Testing Notes
+
+- Start with company career pages when possible. They usually contain cleaner job data than reposts on aggregator sites.
+- Some sites block automation, require login, or hide job details behind private APIs, so results will not be perfect for every link.
+- Source should be a readable label such as Indeed, LinkedIn, Glassdoor, Greenhouse, or Company Website.
+- Work Type should be Remote, Hybrid, Onsite, or n/a.
+- Salary should show n/a when no trustworthy salary is found.
+
+## Focus
+
+- Make salary extraction more reliable, especially hourly pay, yearly ranges, and LinkedIn base-pay text.
+- Clean up location results when pages include extra words like posting status, job category, or repeated page text.
+- Improve work type detection so Remote, Hybrid, Onsite, and n/a are not guessed too aggressively.
+- Handle expired, login-only, or blocked postings more clearly instead of returning confusing fields.
+- Improve source labels for school career sites, reposts, and company career pages.
+- Add a small set of real test links that cover the tricky cases found during testing.
+- Add screenshots or a short demo once the main workflow feels stable.
+
+## Contributing
+
+Feedback, issues, and pull requests are welcome. This project is still early, so even small notes are useful.
+
+Helpful contributions include parser fixes for specific job boards, sample links for testing, clearer setup docs, and better error messages for blocked sites.
+
+If you report a scraping issue, include:
+
+- The job posting URL.
+- What field was wrong or missing.
+- The output you expected.
+
+## Known Limitations
+
+JobLink Tracker is a helper, not a perfect scraper. Extraction quality varies across job boards and company career pages. Some sites block automation, require login, or render job details behind private APIs.
+
+The goal is to reduce repetitive tracking work, but you should still review results before saving them.
+
+## License
+
+MIT

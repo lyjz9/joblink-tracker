@@ -46,6 +46,22 @@
           Extract jobs
         </button>
       </div>
+      <div class="beta-note">
+        <i data-lucide="info" aria-hidden="true"></i>
+        Direct company or ATS links work best. Sites with human checks may block scraping; browser capture is in beta for pages you can open yourself.
+      </div>
+      <div class="capture-panel" aria-labelledby="captureTitle">
+        <div>
+          <h2 id="captureTitle">Blocked job page?</h2>
+          <p>Install the Chrome extension from <b>browser_extension/joblink_capture</b>. On a blocked job page, click <b>JobLink Capture</b> in Chrome to capture the full loaded page, then come back and load it here.</p>
+        </div>
+        <div class="capture-actions">
+          <button class="button button-secondary" type="button" id="loadCapturesButton">
+            <i data-lucide="inbox" aria-hidden="true"></i>
+            Load captured jobs
+          </button>
+        </div>
+      </div>
       <div class="progress" id="progress" hidden>
         <div class="progress-track"><span id="progressBar"></span></div>
         <span id="progressText">Preparing</span>

@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "JobLink Capture",
+  "version": "0.2.1",
+  "description": "Send the full opened job page to the local JobLink Beta app.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": [
+    "http://127.0.0.1:5050/*",
+    "http://localhost:5050/*"
+  ],
+  "action": {
+    "default_title": "JobLink Capture",
+    "default_popup": "popup.html"
+  }
+}

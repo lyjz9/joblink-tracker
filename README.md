@@ -38,16 +38,16 @@ Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary 
 
 ## Setup
 
-JobLink Tracker is currently tested with Python 3.11.
+JobLink Tracker is currently tested with Python 3.11 and 3.12.
 
 ```powershell
-py -3.11 -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-On macOS or Linux, use `python3` instead of `py -3.11` if needed.
+If Python 3.12 is not installed, Python 3.11 also works. On macOS or Linux, use `python3` instead of `py -3.12` if needed.
 
 ## Usage
 
@@ -108,17 +108,34 @@ On Windows, double-click `Open_JobLink_Beta.vbs` to start the local beta without
 
 - The browser opens at `http://127.0.0.1:5050`.
 - Choose the date applied, paste up to 20 job links, select `Extract jobs`, edit any result cells, and download the results to Excel.
-- To add results to an existing tracker, select `Choose tracker`, pick an `.xlsx` or `.xlsm` file, then select `Update tracker`.
+- `Clear links` only clears the pasted links. Use row checkboxes, `Clear selected`, or a row remove button to remove results.
+- To add results to an existing tracker, select `Choose tracker`, pick an `.xlsx` or `.xlsm` file, then select `Update tracker`. Close the workbook in Excel first so the app can save the updated file cleanly.
 - Rows marked `Review` have missing or suspicious fields. Retry the row or edit the remaining fields manually.
+- If a site blocks automated access, open the job page yourself and use the Chrome capture extension in `browser_extension/joblink_capture`.
 
 This beta runs locally on your computer. It is not a hosted public app yet.
+
+## Browser Capture For Blocked Sites
+
+Some sites, including a few job boards with human checks or login walls, may block direct scraping. JobLink Tracker includes a small Chrome extension for pages that you can open manually.
+
+1. Start JobLink Beta first.
+2. In Chrome, open `chrome://extensions`.
+3. Turn on `Developer mode`.
+4. Select `Load unpacked`.
+5. Choose the `browser_extension/joblink_capture` folder from this project.
+6. Open the blocked job page and finish any human check if the site asks.
+7. Click `JobLink Capture` from Chrome's extension menu, then select `Capture full job page`.
+8. Return to JobLink Tracker and select `Load captured jobs`.
+
+Browser capture is still a helper, not a guarantee. Review captured results before saving them to a tracker.
 
 ## Testing Notes
 
 - Start with company career pages when possible. They usually contain cleaner job data than reposts on aggregator sites.
-- Some sites block automation, require login, or hide job details behind private APIs, so results will not be perfect for every link.
+- Some sites block automation, require login, or hide job details behind private APIs, so results will not be perfect for every link. Use browser capture for pages that you can open yourself.
 - Source should be a readable label such as Indeed, LinkedIn, Glassdoor, Greenhouse, or Company Website.
-- Work Type should be Remote, Hybrid, Onsite, or n/a.
+- Work Type should be Remote, Hybrid, Onsite, or n/a. If the posting does not explicitly say the work type, use n/a.
 - Salary should show n/a when no trustworthy salary is found.
 
 ## Focus

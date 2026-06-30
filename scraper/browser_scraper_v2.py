@@ -32,6 +32,11 @@ JOB_BOARDS = {
     'indeed': ['indeed.com'],
     'glassdoor': ['glassdoor.com'],
     'ziprecruiter': ['ziprecruiter.com'],
+    'monster': ['monster.com'],
+    'wellfound': ['wellfound.com'],
+    'upwork': ['upwork.com'],
+    'simplyhired': ['simplyhired.com'],
+    'dice': ['dice.com'],
     'greenhouse': ['greenhouse.io', 'greenhouse.com', 'boards.greenhouse.io'],
     'lever': ['lever.co', 'jobs.lever.co'],
     'workday': ['myworkdayjobs.com', 'wd1.myworkdayjobs.com', 'wd3.myworkdayjobs.com', 'wd5.myworkdayjobs.com'],
@@ -40,6 +45,7 @@ JOB_BOARDS = {
     'workable': ['workable.com'],
     'bamboohr': ['bamboohr.com'],
     'icims': ['icims.com'],
+    'breezy': ['breezy.hr'],
 }
 
 SOURCE_LABELS = {
@@ -47,6 +53,11 @@ SOURCE_LABELS = {
     'indeed': 'Indeed',
     'glassdoor': 'Glassdoor',
     'ziprecruiter': 'ZipRecruiter',
+    'monster': 'Monster',
+    'wellfound': 'Wellfound',
+    'upwork': 'Upwork',
+    'simplyhired': 'SimplyHired',
+    'dice': 'Dice',
     'greenhouse': 'Greenhouse',
     'lever': 'Lever',
     'workday': 'Workday',
@@ -55,6 +66,7 @@ SOURCE_LABELS = {
     'workable': 'Workable',
     'bamboohr': 'BambooHR',
     'icims': 'iCIMS',
+    'breezy': 'Breezy',
     'company_website': 'Company Website',
 }
 
@@ -107,6 +119,7 @@ FIELD_SELECTORS = {
 ATS_HINTS = {
     'greenhouse': {
         'title': ['h1', 'h2.app-title', '.opening__title', '[data-qa="job-title"]'],
+        'location': ['.job__location', '.posting-categories .location', '.location'],
         'description': ['#content', '[data-qa="job-description"]', '.opening__description'],
     },
     'lever': {
@@ -154,7 +167,7 @@ LOCATION_RE = re.compile(
     rf'\b(?:Remote|Hybrid|United States|US|USA|[A-Z][A-Za-z.\'-]+(?:\s+[A-Z][A-Za-z.\'-]+){{0,3}},\s*(?:{US_STATE}|United States|USA|Canada|UK|[A-Z][a-z]+))\b'
 )
 SALARY_RE = re.compile(
-    r'(?:Base pay range\s*)?(?:USD\s*)?\$\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)?(?:\s*(?:-|to|and)\s*(?:USD\s*)?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)?)?(?:\s*(?:per|/)\s*(?:year|yr|hour|hr|annum))?|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\s*(?:-|to|and)\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\b|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:-|to|and)\s*\d+(?:,\d{3})*(?:\.\d+)?\s*USD\b',
+    r'(?:Base pay range\s*)?(?:USD\s*)?\$\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)?(?:\s*(?:-|\u2013|\u2014|to|and)\s*(?:USD\s*)?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\+?\s*(?:k|K)?)?(?:\s*(?:per|/|a)\s*(?:year|yr|hour|hr|annum|week|wk))?|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\s*(?:-|\u2013|\u2014|to|and)\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\b|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:-|\u2013|\u2014|to|and)\s*\d+(?:,\d{3})*(?:\.\d+)?\s*USD\b',
     re.IGNORECASE,
 )
 
@@ -198,9 +211,10 @@ def _blocked_page_error(text):
     low = (text or '').lower()
     blocked_markers = (
         'access denied', 'humans only', 'verify you are human', 'captcha',
-        'confirm you are human',
+        'confirm you are human', 'verify you are a human',
         'blocked automated access', 'enable javascript', 'internet explorer 11 is no longer supported',
-        'please log in', 'sign in to view',
+        'please log in', 'sign in to view', 'just a moment...', 'enable javascript and cookies',
+        'checking your browser', 'please enable cookies',
     )
     if any(marker in low for marker in blocked_markers):
         return 'Website blocked automated access to this posting.'
@@ -257,6 +271,8 @@ def _greenhouse_api_result(url):
         'salary': _extract_salary(content_text),
         'source': 'Greenhouse',
     })
+    if not data['location']:
+        return None
     return _public_result(data)
 
 
@@ -317,8 +333,111 @@ def _smartrecruiters_api_result(url):
     return _public_result(data)
 
 
+def _icims_iframe_url(url):
+    if _detect_platform(url) != 'icims':
+        return ''
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+    if query.get('in_iframe') == ['1']:
+        return url
+    separator = '&' if parsed.query else '?'
+    return f'{url}{separator}in_iframe=1'
+
+
+def _text_after_label(text, label, stop_labels):
+    pattern = rf'\b{re.escape(label)}\b\s+(.+?)(?=\s+(?:{"|".join(re.escape(item) for item in stop_labels)})\b|$)'
+    match = re.search(pattern, text or '', flags=re.I)
+    return _clean_value(match.group(1)) if match else ''
+
+
+def _icims_company_from_about(soup, full_text):
+    for heading in soup.select('h2, h3, .iCIMS_InfoField_Job'):
+        if heading.get_text(' ', strip=True).lower() != 'about us':
+            continue
+        body = heading.find_next('div', class_=lambda value: value and 'iCIMS_InfoMsg_Job' in ' '.join(value if isinstance(value, list) else [value]))
+        if not body:
+            continue
+        for line in body.get_text('\n', strip=True).splitlines():
+            company = _clean_company(line)
+            if _reasonable('company', company):
+                return company
+    match = re.search(r'\bAbout Us\s+(.+?)(?=\s+(?:Founded|As a|The company|You Will|Essential Responsibilities)\b)', full_text or '', flags=re.I)
+    if match:
+        company = _clean_company(match.group(1))
+        if _reasonable('company', company):
+            return company
+    return ''
+
+
+def _icims_location(value):
+    value = _clean_value(value)
+    if not value:
+        return ''
+    if value.upper() in {'US', 'USA'}:
+        return 'United States'
+    return _clean_location(value)
+
+
+def _icims_work_type(full_text):
+    if re.search(r'\b(?:this is a remote position|#li-remote|remote,\s*full[-\s]?time|remote position)\b', full_text or '', flags=re.I):
+        return 'Remote'
+    if re.search(r'\b(?:this is a hybrid position|hybrid position|hybrid schedule)\b', full_text or '', flags=re.I):
+        return 'Hybrid'
+    if re.search(r'\b(?:onsite|on-site|in-office|in office|in-person)\b', full_text or '', flags=re.I):
+        return 'Onsite'
+    return _extract_work_type(full_text)
+
+
+def _icims_iframe_result(url):
+    iframe_url = _icims_iframe_url(url)
+    if not iframe_url:
+        return None
+    try:
+        response = requests.get(
+            iframe_url,
+            timeout=20,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
+        )
+        if response.status_code != 200:
+            return None
+    except requests.RequestException:
+        return None
+
+    soup = BeautifulSoup(response.text, 'html.parser')
+    full_text = _normalize_text(soup.get_text(' ', strip=True))
+    if not full_text or not re.search(r'\b(?:Job ID|Job Locations|iCIMS)\b', full_text, flags=re.I):
+        return None
+
+    data = _empty_result(url, 'icims')
+    data['job_title'] = _clean_title(_first_text(soup, ['.iCIMS_Header', 'h1'], 'job_title'))
+    if _looks_generic_title(data['job_title']):
+        data['job_title'] = ''
+
+    data['company'] = _icims_company_from_about(soup, full_text)
+    data['location'] = _icims_location(_text_after_label(
+        full_text,
+        'Job Locations',
+        ('Posted Date', 'Job ID', '# of Openings', 'Category', 'About Us'),
+    ))
+    data['work_type'] = _icims_work_type(full_text)
+    data['salary'] = _extract_contextual_salary(full_text) or _extract_salary(full_text)
+
+    if not data['job_title']:
+        url_hints = _extract_url_hints(url, 'icims')
+        data['job_title'] = _clean_title(url_hints.get('job_title', ''), data['company'])
+    if not data['company']:
+        data['company'] = _clean_company(_infer_company_from_url(url, 'icims'))
+    if not data['location']:
+        data['location'] = _extract_location(full_text)
+
+    if not data['job_title'] and not data['company']:
+        return None
+    return _public_result(data)
+
+
 def _clean_value(value):
     value = _normalize_text(value)
+    value = value.replace('\u2013', '-').replace('\u2014', '-')
     value = re.sub(r'^(job title|title|company|location|salary|compensation)\s*[:\-]\s*', '', value, flags=re.I)
     return value.strip(' |,-')
 
@@ -357,7 +476,7 @@ def _clean_company(value):
 
 
 def _state_abbrev(value):
-    clean = _normalize_text(value).lower()
+    clean = re.sub(r'\s+state$', '', _normalize_text(value).lower()).strip()
     if clean.upper() in US_STATE_ABBR_TO_NAME:
         return clean.upper()
     return US_STATE_NAME_TO_ABBR.get(clean, '')
@@ -396,6 +515,8 @@ def _clean_location(value):
     value = re.sub(r'\bKorea,\s*Republic of\b', 'South Korea', value, flags=re.I)
     value = re.sub(r'\bNYC\b', 'New York, NY', value)
     value = re.sub(r'\s+', ' ', value).strip()
+    if re.search(r'^(?:anywhere\s+in\s+)?(?:the\s+)?United States$', value, flags=re.I):
+        return 'United States'
 
     remote_region = _remote_region_location(value)
     if remote_region:
@@ -483,6 +604,38 @@ def _clean_location(value):
     return ', '.join(unique[:2])
 
 
+def _extract_amazon_locations(text):
+    locations = []
+    for state, city in re.findall(r'\bUSA,\s*([A-Z]{2}),\s*([A-Za-z][A-Za-z.\' -]+?)(?=\s+USA,|\s+Job details|\s+Recommended jobs|\s*$)', text or ''):
+        location = _clean_location(f'{city}, {state}')
+        if location and location not in locations:
+            locations.append(location)
+    return '; '.join(locations[:3])
+
+
+def _looks_generic_title(value):
+    low = _clean_value(value).lower()
+    if not low:
+        return True
+    blocked = {
+        'access denied', 'humans only', 'www.ziprecruiter.com', 'jooble.org',
+        'digitalhire', 'tal healthcare', "let's confirm you are human",
+        'just a moment...', 'job details', 'search jobs', 'jobs',
+    }
+    if low in blocked:
+        return True
+    return bool(re.match(r'^(?:www\.)?[\w-]+\.(?:com|org|net|ai|jobs)$', low))
+
+
+def _looks_generic_company(value):
+    low = _clean_company(value).lower()
+    return low in {
+        '', 'n/a', 'none', 'job', 'jobs', 'app', 'embed', 'careers',
+        'monster', 'wellfound', 'jooble', 'naukri', 'talents', 'useparallel',
+        'ziprecruiter',
+    }
+
+
 def _reasonable(field, value):
     if not value:
         return False
@@ -492,7 +645,7 @@ def _reasonable(field, value):
     if field == 'job_title':
         blocked = ['sign in', 'apply now', 'search jobs', 'job details', 'careers', 'privacy', 'current openings']
         low = value.lower()
-        return not any(term in low for term in blocked) and low != 'jobs' and not low.endswith(' jobs')
+        return not _looks_generic_title(value) and not any(term in low for term in blocked) and low != 'jobs' and not low.endswith(' jobs')
     if field == 'company':
         low = value.lower()
         blocked_exact = {'careers', 'jobs', 'job search', 'apply', 'privacy', 'cookies'}
@@ -605,6 +758,191 @@ def _extract_contextual_salary(text):
     return ''
 
 
+def _extract_ziprecruiter_fields(soup, full_text, meta_title=''):
+    if _blocked_page_error(' '.join([meta_title or '', full_text[:1000]])):
+        return {}
+
+    fields = {}
+    title = ''
+    title_tag = soup.title.get_text(' ', strip=True) if soup.title else ''
+    title_source = title_tag if re.search(r'\bjob\s+in\b', title_tag, flags=re.I) else (meta_title or title_tag)
+    match = re.search(r'^(.*?)\s+job\s+in\s+', title_source, flags=re.I)
+    if match:
+        title = _clean_title(match.group(1))
+    if not title:
+        for heading in soup.select('h1, h2'):
+            candidate = _clean_title(heading.get_text(' ', strip=True))
+            if candidate and _reasonable('job_title', candidate):
+                title = candidate
+                break
+    if title:
+        fields['job_title'] = title
+
+    prefix = (full_text or '').split(' Job description ', 1)[0]
+    after_title = _text_after_last_title(prefix, title) if title else prefix
+
+    company = ''
+    location = ''
+    if after_title:
+        company, location = _split_ziprecruiter_company_location(after_title)
+
+    if not company:
+        about = re.search(
+            r'\bAbout\s+(.+?)(?=\s+(?:Industry|Company size|Headquarters location|Year founded|Website|Social media)\b)',
+            full_text or '',
+            flags=re.I,
+        )
+        if about:
+            company = _clean_company(about.group(1))
+
+    if not location and title_source:
+        loc_title = re.search(r'\bjob\s+in\s+(.+?)\s+at\s+ZipRecruiter\b', title_source, flags=re.I)
+        if loc_title:
+            location = _clean_location(loc_title.group(1))
+
+    if company:
+        fields['company'] = company
+    if location:
+        fields['location'] = location
+
+    header_text = after_title[:500]
+    work_type = _extract_work_type(header_text)
+    if not work_type:
+        fields['work_type'] = 'n/a'
+    if work_type:
+        fields['work_type'] = work_type
+    salary = _extract_salary(after_title[:500]) or _extract_salary(prefix[:1000]) or _extract_contextual_salary(full_text)
+    if salary:
+        fields['salary'] = salary
+    return fields
+
+
+def _extract_simplyhired_fields(soup, full_text, page_title=''):
+    fields = {}
+    title = _first_text(soup, ['h1'], 'job_title')
+    title_match = re.search(r'^(.*?)\s+-\s+(.+?)\s+\|\s+(.+)$', page_title or '')
+    if not title and title_match:
+        title = _clean_title(title_match.group(1))
+    if title:
+        fields['job_title'] = title
+    if title_match:
+        fields['company'] = _clean_company(title_match.group(2))
+        fields['location'] = _clean_location(title_match.group(3))
+    if not fields.get('company') and title:
+        pattern = rf'{re.escape(title)}\s+(.+?)\s+-\s+\d+(?:\.\d+)?\s+'
+        match = re.search(pattern, full_text or '', flags=re.I)
+        if match:
+            fields['company'] = _clean_company(match.group(1))
+    if not fields.get('location'):
+        location = _extract_location(full_text)
+        if location:
+            fields['location'] = location
+    salary = _extract_contextual_salary(full_text) or _extract_salary(full_text)
+    if salary:
+        fields['salary'] = salary
+    explicit_work_type_text = page_title or ''
+    explicit_match = re.search(
+        r'\b(?:Location|Work\s*type|Workplace)\s*:\s*(Remote|Hybrid|On[-\s]?site|In[-\s]?office|In[-\s]?person)\b',
+        full_text or '',
+        flags=re.I,
+    )
+    if explicit_match:
+        explicit_work_type_text = explicit_match.group(0)
+    work_type = _extract_work_type(explicit_work_type_text)
+    if work_type:
+        fields['work_type'] = work_type
+    else:
+        fields['work_type'] = 'n/a'
+    return fields
+
+
+def _extract_breezy_fields(soup, full_text, page_title=''):
+    fields = {}
+    title_match = re.search(r'^(.*?)\s+at\s+(.+?)$', page_title or '', flags=re.I)
+    if title_match:
+        fields['job_title'] = _clean_title(title_match.group(1))
+        fields['company'] = _clean_company(title_match.group(2))
+    headings = [_clean_value(elem.get_text(' ', strip=True)) for elem in soup.select('h1')]
+    if len(headings) >= 2:
+        if not fields.get('company'):
+            fields['company'] = _clean_company(headings[0])
+        if not fields.get('job_title') or _looks_generic_title(fields.get('job_title')):
+            fields['job_title'] = _clean_title(headings[1], fields.get('company', ''))
+    location = _first_text(soup, ['li.location', '.location', '[class*="location" i]'], 'location')
+    if location:
+        fields['location'] = location
+    salary = _first_text(soup, ['li.salary-range', '.salary-range', '[class*="salary" i]'], 'salary')
+    salary = _extract_salary(salary) or _extract_contextual_salary(full_text) or _extract_salary(full_text)
+    if salary:
+        fields['salary'] = salary
+    work_type = _extract_work_type(full_text)
+    if work_type:
+        fields['work_type'] = work_type
+    return fields
+
+
+def _text_after_last_title(prefix, title):
+    prefix = prefix or ''
+    title = title or ''
+    if not prefix or not title:
+        return prefix
+    pattern = r'\s+'.join(re.escape(part) for part in title.split())
+    matches = list(re.finditer(pattern, prefix, flags=re.I))
+    if matches:
+        return prefix[matches[-1].end():].strip()
+    title_words = [word for word in re.findall(r'[A-Za-z0-9]+', title.lower()) if len(word) > 1]
+    prefix_words = list(re.finditer(r'[A-Za-z0-9]+', prefix.lower()))
+    if not title_words or len(prefix_words) < len(title_words):
+        return prefix
+    for index in range(len(prefix_words) - len(title_words), -1, -1):
+        window = [match.group(0) for match in prefix_words[index:index + len(title_words)]]
+        if window == title_words:
+            return prefix[prefix_words[index + len(title_words) - 1].end():].strip()
+    return prefix
+
+
+def _split_ziprecruiter_company_location(after_title):
+    text = _normalize_text(after_title)
+    city_suffixes = [
+        ('new', 'york'), ('san', 'francisco'), ('los', 'angeles'), ('jersey', 'city'),
+        ('long', 'island', 'city'), ('white', 'plains'), ('salt', 'lake', 'city'),
+        ('garden', 'city'), ('great', 'neck'), ('palo', 'alto'), ('santa', 'clara'),
+        ('las', 'vegas'), ('st', 'louis'), ('st', 'paul'), ('washington',),
+        ('manhattan',), ('brooklyn',), ('queens',), ('bronx',), ('trenton',),
+        ('woodmere',), ('baltimore',), ('seattle',), ('franklin',), ('chicago',),
+    ]
+    state_names = '|'.join(re.escape(name.title()) for name in US_STATE_NAME_TO_ABBR)
+    city_pattern = rf'\b(?P<city>[A-Z][A-Za-z.\'&-]+(?:\s+[A-Z][A-Za-z.\'&-]+){{0,5}}),\s*(?P<state>{US_STATE}|{state_names})\b'
+    for match in re.finditer(city_pattern, text):
+        before = text[:match.start()].strip()
+        city_words = re.findall(r"[A-Za-z.']+", match.group('city'))
+        lowered = [word.lower().strip(".") for word in city_words]
+        state = _state_abbrev(match.group('state')) or match.group('state')
+        for suffix in sorted(city_suffixes, key=len, reverse=True):
+            if len(lowered) >= len(suffix) and tuple(lowered[-len(suffix):]) == suffix:
+                company_tail = city_words[:-len(suffix)]
+                company = _clean_company(' '.join(part for part in (before, ' '.join(company_tail)) if part))
+                city = ' '.join(word.title() for word in city_words[-len(suffix):])
+                location = _clean_location(f'{city}, {state}')
+                return company, location
+        if len(city_words) > 1:
+            company = _clean_company(' '.join(part for part in (before, ' '.join(city_words[:-1])) if part))
+            location = _clean_location(f'{city_words[-1].title()}, {state}')
+            return company, location
+        return _clean_company(before), _clean_location(f'{match.group("city")}, {state}')
+    remote_match = re.search(r'^(?P<company>.+?)\s+(?P<location>Remote|United States)(?=\s*(?:•|\$|Hybrid|Remote|Onsite|On-site|Posted|$))', text)
+    if remote_match:
+        return _clean_company(remote_match.group('company')), _clean_location(remote_match.group('location'))
+    return '', ''
+
+
+def _work_type_conflict(text):
+    low = (text or '').lower()
+    has_remote = any(term in low for term in ('remote', 'work from home', 'work-from-home', 'telework', 'telecommute'))
+    has_onsite = any(term in low for term in ('on-site', 'onsite', 'in-office', 'in office', 'in person', 'on site'))
+    return has_remote and has_onsite and 'hybrid' not in low
+
+
 def _extract_location(text):
     clean = []
     for match in LOCATION_RE.finditer(text or ''):
@@ -643,7 +981,8 @@ def _extract_location_from_url(url):
             multi_word_cities = [
                 ('new', 'york'), ('san', 'francisco'), ('san', 'jose'), ('los', 'angeles'),
                 ('jersey', 'city'), ('long', 'island', 'city'), ('new', 'brunswick'),
-                ('white', 'plains'), ('salt', 'lake', 'city'),
+                ('white', 'plains'), ('salt', 'lake', 'city'), ('queens',),
+                ('brooklyn',), ('bronx',), ('woodmere',),
             ]
             city_words = before_state[-1:]
             for city in multi_word_cities:
@@ -662,6 +1001,201 @@ def _extract_location_from_url(url):
         return remote_location
 
     return ''
+
+
+def _title_from_slug(value):
+    value = unquote(value or '')
+    value = re.sub(r'[_+]+', '-', value)
+    value = re.sub(r'--[0-9a-f-]{12,}$', '', value, flags=re.I)
+    value = re.sub(r'[-_]*~[A-Za-z0-9_-]+$', '', value)
+    tokens = [token for token in re.split(r'[-/\s]+', value.lower()) if token]
+    tokens = [
+        token for token in tokens
+        if token not in {'job', 'jobs', 'opening', 'openings', 'apply', 'freelance', 'clone'}
+        and not token.isdigit()
+        and not re.fullmatch(r'[0-9a-f]{8,}', token)
+    ]
+    if not tokens:
+        return ''
+    return _clean_title(' '.join(tokens).title())
+
+
+def _location_from_slug_tokens(tokens):
+    tokens = [token.lower() for token in tokens if token]
+    if not tokens:
+        return ''
+    if tokens[-1] in {abbr.lower() for abbr in US_STATE_ABBR_TO_NAME} and len(tokens) >= 2:
+        city_tokens = _city_words_before(tokens, len(tokens) - 1)
+        if city_tokens:
+            return f"{' '.join(word.title() for word in city_tokens)}, {tokens[-1].upper()}"
+    for size in (3, 2, 1):
+        if len(tokens) < size:
+            continue
+        state_name = ' '.join(tokens[-size:])
+        abbr = US_STATE_NAME_TO_ABBR.get(state_name)
+        if not abbr:
+            continue
+        city_tokens = []
+        for token in reversed(tokens[:-size]):
+            if token in {'job', 'jobs', 'career', 'careers', 'remote', 'apply'} or token.isdigit():
+                break
+            city_tokens.insert(0, token)
+            if len(city_tokens) >= 4:
+                break
+        if city_tokens:
+            return f"{' '.join(word.title() for word in city_tokens)}, {abbr}"
+        return US_STATE_ABBR_TO_NAME.get(abbr, abbr)
+    return ''
+
+
+def _split_slug_title_location(slug):
+    slug = unquote(slug or '').strip('/')
+    clean_slug = re.sub(r'--[0-9a-f-]{12,}$', '', slug, flags=re.I)
+    parts = re.split(r'(?i)-jobs-in-', clean_slug, maxsplit=1)
+    if len(parts) == 2:
+        return _title_from_slug(parts[0]), _clean_location(_location_from_slug_tokens(parts[1].split('-')))
+
+    tokens = [token for token in re.split(r'[-_\s]+', clean_slug.lower()) if token]
+    location = _location_from_slug_tokens(tokens)
+    if location:
+        location_words = re.split(r'[\s,]+', location.lower().replace(',', ''))
+        trim_count = 0
+        for token in reversed(tokens):
+            if trim_count < len(location_words) and token == location_words[-1 - trim_count]:
+                trim_count += 1
+            else:
+                break
+        title_tokens = tokens[:-trim_count] if trim_count else tokens
+        return _title_from_slug('-'.join(title_tokens)), location
+    return _title_from_slug(clean_slug), ''
+
+
+def _extract_url_hints(url, platform=''):
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().replace('www.', '')
+    parts = [unquote(part) for part in parsed.path.split('/') if part]
+    hints = {'job_title': '', 'company': '', 'location': ''}
+
+    if host == 'jobs.talhealthcare.com' and 'jb' in parts:
+        index = parts.index('jb')
+        if index + 1 < len(parts):
+            title, location = _split_slug_title_location(parts[index + 1])
+            hints.update({'job_title': title, 'company': 'Tal Healthcare', 'location': location})
+    elif 'monster.com' in host and 'job-openings' in parts:
+        index = parts.index('job-openings')
+        if index + 1 < len(parts):
+            title, location = _split_slug_title_location(parts[index + 1])
+            hints.update({'job_title': title, 'location': location})
+    elif 'upwork.com' in host and 'apply' in parts:
+        index = parts.index('apply')
+        if index + 1 < len(parts):
+            hints['job_title'] = _title_from_slug(parts[index + 1])
+    elif 'wellfound.com' in host and 'jobs' in parts:
+        index = parts.index('jobs')
+        if index + 1 < len(parts):
+            slug = re.sub(r'^\d+-', '', parts[index + 1])
+            hints['job_title'] = _title_from_slug(slug)
+    elif 'naukri.com' in host and parts:
+        slug = re.sub(r'^job-listings-', '', parts[0], flags=re.I)
+        slug = re.sub(r'-\d+-to-\d+-years.*$', '', slug, flags=re.I)
+        tokens = [token for token in slug.split('-') if token]
+        indian_locations = {
+            'gurugram': 'Gurugram, India',
+            'gurgaon': 'Gurugram, India',
+            'pune': 'Pune, India',
+            'mumbai': 'Mumbai, India',
+            'bengaluru': 'Bengaluru, India',
+            'bangalore': 'Bengaluru, India',
+            'delhi': 'Delhi, India',
+            'hyderabad': 'Hyderabad, India',
+            'chennai': 'Chennai, India',
+        }
+        location_index = next((i for i, token in enumerate(tokens) if token in indian_locations), None)
+        if location_index and location_index >= 2:
+            hints['location'] = indian_locations[tokens[location_index]]
+            hints['company'] = _slug_to_name(tokens[location_index - 1])
+            hints['job_title'] = _title_from_slug('-'.join(tokens[:location_index - 1]))
+    elif 'glassdoor.com' in host and 'job-listing' in parts:
+        index = parts.index('job-listing')
+        if index + 1 < len(parts):
+            slug = re.sub(r'-JV_.*$', '', parts[index + 1], flags=re.I)
+            title, _ = _split_slug_title_location(slug)
+            company_match = re.search(r'-([a-z0-9]+)$', slug, flags=re.I)
+            if company_match:
+                hints['company'] = _slug_to_name(company_match.group(1))
+                title = _title_from_slug(slug[:company_match.start()])
+            hints['job_title'] = title
+    elif 'useparallel.com' in host:
+        hints['company'] = ''
+    elif 'talents.vaia.com' in host and 'companies' in parts:
+        index = parts.index('companies')
+        if index + 1 < len(parts):
+            hints['company'] = _slug_to_name(parts[index + 1])
+        if index + 2 < len(parts):
+            hints['location'] = _extract_location_from_url(url)
+            hints['job_title'] = _title_from_slug(re.sub(r'-\d+$', '', parts[index + 2]))
+    return hints
+
+
+def _apply_url_hints(data, url):
+    hints = _extract_url_hints(url, _detect_platform(url))
+    for key in ('company', 'job_title', 'location'):
+        value = hints.get(key)
+        if not value:
+            continue
+        if key == 'company' and _looks_generic_company(data.get(key, '')):
+            data[key] = value
+        elif key == 'job_title' and _looks_generic_title(data.get(key, '')):
+            data[key] = value
+        elif key == 'location' and not _clean_location(data.get(key, '')):
+            data[key] = value
+    return data
+
+
+def _alternate_fetch_url(url):
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().replace('www.', '')
+    parts = [unquote(part) for part in parsed.path.split('/') if part]
+    if host == 'app.digitalhire.com' and len(parts) >= 2 and parts[0] == 'job-detail':
+        return f'https://jobs.digitalhire.com/job-listing/opening/{parts[1]}'
+    return ''
+
+
+def _company_from_page_title(title):
+    title = _clean_value(title)
+    patterns = [
+        r'\bat\s+([^|]+?)\s*\|\s*Parallel\b',
+        r'\bat\s+([^|]+?)\s*\|\s*[^|]+$',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, title, flags=re.I)
+        if match:
+            company = _clean_company(match.group(1))
+            if _reasonable('company', company):
+                return company
+    return ''
+
+
+def _location_from_title(title):
+    title = _clean_value(title)
+    match = re.search(r'\b(?:in|based in)\s+([A-Z][A-Za-z.\'-]+(?:\s+[A-Z][A-Za-z.\'-]+){0,3})(?:,\s*([A-Z]{2}))?$', title)
+    if not match:
+        return '', title
+    city = match.group(1)
+    state = match.group(2)
+    known = {
+        'Brooklyn': 'Brooklyn, NY',
+        'Queens': 'Queens, NY',
+        'Manhattan': 'New York, NY',
+        'Bronx': 'Bronx, NY',
+        'Woodmere': 'Woodmere, NY',
+        'New York': 'New York, NY',
+    }
+    location = f"{city}, {state}" if state else known.get(city, '')
+    if not location:
+        return '', title
+    clean_title = title[:match.start()].strip(' ,-')
+    return location, clean_title or title
 
 
 def _state_match_ending_at(tokens, end_index):
@@ -688,6 +1222,7 @@ def _city_words_before(tokens, end_index):
         ('new', 'york'), ('san', 'francisco'), ('san', 'jose'), ('los', 'angeles'),
         ('jersey', 'city'), ('long', 'island', 'city'), ('new', 'brunswick'),
         ('white', 'plains'), ('salt', 'lake', 'city'), ('garden', 'city'),
+        ('queens',), ('brooklyn',), ('bronx',), ('woodmere',), ('trenton',),
     ]
     for city in multi_word_cities:
         if tuple(before[-len(city):]) == city:
@@ -898,6 +1433,8 @@ def _clean_title(title, company=''):
     title = re.sub(r'\s*[-|]\s*(Careers|Jobs|LinkedIn|Indeed).*$','', title, flags=re.I)
     if company:
         title = re.sub(rf'\s*[-|]\s*{re.escape(company)}.*$', '', title, flags=re.I)
+    for acronym in ('AI', 'ML', 'HR', 'IT', 'QA', 'QC', 'SQL', 'API', 'CRM', 'UX', 'UI'):
+        title = re.sub(rf'\b{acronym.title()}\b', acronym, title)
     return title.strip()
 
 
@@ -913,6 +1450,7 @@ def _extract_from_soup(soup, url, original_url=None):
     original_url = original_url or url
     platform = _detect_platform(original_url, soup)
     data = _empty_result(original_url, platform)
+    url_hints = _extract_url_hints(original_url, platform)
 
     for candidate in _find_json_candidates(soup):
         _merge(data, candidate)
@@ -941,6 +1479,10 @@ def _extract_from_soup(soup, url, original_url=None):
     meta_description = _get_meta_content(soup, 'property', ['og:description', 'twitter:description'])
     if not data['job_title'] and meta_title:
         data['job_title'] = meta_title
+    title_tag_text = soup.title.get_text(' ', strip=True) if soup.title else ''
+    page_title_company = _company_from_page_title(title_tag_text or meta_title or '')
+    if page_title_company and _looks_generic_company(data.get('company', '')):
+        data['company'] = page_title_company
     if not data['company'] and platform == 'company_website' and meta_site and _reasonable('company', meta_site):
         data['company'] = meta_site
     if not data['description'] and meta_description:
@@ -948,22 +1490,45 @@ def _extract_from_soup(soup, url, original_url=None):
 
     full_text = _normalize_text(soup.get_text(separator=' ', strip=True))
     blocked_error = _blocked_page_error(' '.join([meta_title or '', full_text[:3000]]))
+    locked_site_work_type_na = False
     if blocked_error:
         data['error'] = blocked_error
+    if platform == 'ziprecruiter' and not blocked_error:
+        zip_fields = _extract_ziprecruiter_fields(soup, full_text, meta_title)
+        for key in ('company', 'job_title', 'location', 'work_type', 'salary'):
+            if zip_fields.get(key):
+                data[key] = zip_fields[key]
+    host = urlparse(original_url).netloc.lower().replace('www.', '')
+    if 'simplyhired.com' in host and not blocked_error:
+        simplyhired_fields = _extract_simplyhired_fields(soup, full_text, title_tag_text or meta_title or '')
+        locked_site_work_type_na = simplyhired_fields.get('work_type') == 'n/a'
+        for key in ('company', 'job_title', 'location', 'work_type', 'salary'):
+            if simplyhired_fields.get(key):
+                data[key] = simplyhired_fields[key]
+    if 'breezy.hr' in host and not blocked_error:
+        breezy_fields = _extract_breezy_fields(soup, full_text, title_tag_text or meta_title or '')
+        for key in ('company', 'job_title', 'location', 'work_type', 'salary'):
+            if breezy_fields.get(key):
+                data[key] = breezy_fields[key]
     if not data['salary']:
         data['salary'] = _extract_salary(full_text)
     url_location = _extract_location_from_url(original_url)
     taleo_location = _extract_taleo_location(full_text) if 'taleo.net' in urlparse(original_url).netloc.lower() else ''
+    amazon_location = _extract_amazon_locations(full_text) if 'amazon.jobs' in urlparse(original_url).netloc.lower() else ''
     if platform == 'workday':
         visible_location = _visible_workday_location(soup)
         if visible_location and (not data['location'] or _location_looks_internal(data['location'])):
             data['location'] = visible_location
     if taleo_location:
         data['location'] = taleo_location
+    elif amazon_location:
+        data['location'] = amazon_location
     elif not data['location']:
         data['location'] = url_location or _extract_location(full_text)
     elif url_location and str(data['location']).strip().lower() in {'remote', 'hybrid', 'onsite', 'on-site'}:
         data['location'] = url_location
+    if url_hints.get('location') and not data['location']:
+        data['location'] = url_hints['location']
     if platform == 'linkedin':
         data['salary'] = _extract_linkedin_salary(soup)
         page_work_type = _extract_linkedin_work_type(soup, data.get('location', ''))
@@ -971,16 +1536,24 @@ def _extract_from_soup(soup, url, original_url=None):
         data['salary'] = _extract_salary(data.get('salary', ''))
         work_type_source = ' '.join([data.get('location', ''), data.get('description', ''), full_text])
         page_work_type = _extract_work_type(work_type_source)
-    if page_work_type and not _normalize_work_type(data.get('work_type', '')):
+    locked_na_work_type = _clean_value(data.get('work_type', '')).lower() in {'n/a', 'na'}
+    if page_work_type and not locked_na_work_type and not _normalize_work_type(data.get('work_type', '')):
         data['work_type'] = page_work_type
+    if locked_site_work_type_na:
+        data['work_type'] = ''
     if not data['company']:
         data['company'] = _extract_company_from_text(full_text, platform)
     if not data['company']:
         data['company'] = _infer_company_from_url(url, platform)
+    if url_hints.get('company') and _looks_generic_company(data.get('company', '')):
+        data['company'] = url_hints['company']
     data['company'] = _clean_company(data['company'])
+    if page_title_company and _looks_generic_company(data.get('company', '')):
+        data['company'] = page_title_company
     if not data['company']:
         data['company'] = _clean_company(_infer_company_from_url(original_url, platform))
-    host = urlparse(original_url).netloc.lower().replace('www.', '')
+    if url_hints.get('company') and _looks_generic_company(data.get('company', '')):
+        data['company'] = _clean_company(url_hints['company'])
     for domain, company in COMPANY_HOST_OVERRIDES.items():
         if host == domain or host.endswith('.' + domain):
             data['company'] = company
@@ -990,14 +1563,23 @@ def _extract_from_soup(soup, url, original_url=None):
     data['source'] = _source_label(platform)
 
     data['job_title'] = _clean_title(data['job_title'], data['company'])
+    if url_hints.get('job_title') and _looks_generic_title(data.get('job_title', '')):
+        data['job_title'] = _clean_title(url_hints['job_title'], data['company'])
     if data['job_title'] and (not data['company'] or data['company'].lower() in {'ai', 'aijobs'}):
         title_company = re.search(r'^(.+?)\s+at\s+([^|,-]{2,80})$', data['job_title'], flags=re.I)
         if title_company:
             data['job_title'] = _clean_title(title_company.group(1))
             data['company'] = _clean_company(title_company.group(2))
+    if data['job_title'] and not data['location']:
+        title_location, clean_title = _location_from_title(data['job_title'])
+        if title_location:
+            data['location'] = title_location
+            data['job_title'] = _clean_title(clean_title, data['company'])
     if not data['job_title']:
         heading = _first_text(soup, ['main h1', 'article h1', 'h1', 'h2'], 'job_title')
         data['job_title'] = _clean_title(heading, data['company'])
+    if url_hints.get('job_title') and _looks_generic_title(data.get('job_title', '')):
+        data['job_title'] = _clean_title(url_hints['job_title'], data['company'])
 
     return data
 
@@ -1029,13 +1611,28 @@ async def _open_job_page(page, url, timeout):
     response = await page.goto(url, wait_until='domcontentloaded', timeout=timeout)
     status = response.status if response else None
     await page.wait_for_timeout(2500)
+    try:
+        await page.wait_for_load_state('networkidle', timeout=5000)
+    except Exception:
+        pass
+    if 'simplyhired.com' in urlparse(url).netloc.lower():
+        try:
+            await page.wait_for_selector('h1', timeout=7000)
+        except Exception:
+            pass
+        await page.wait_for_timeout(2500)
+        return status
 
-    iframe_src = await page.evaluate(
-        """() => {
-            const frame = document.querySelector('iframe#grnhse_iframe, iframe[src*="greenhouse"], iframe[src*="lever"], iframe[src*="ashby"]');
-            return frame ? frame.src : '';
-        }"""
-    )
+    try:
+        iframe_src = await page.evaluate(
+            """() => {
+                const frame = document.querySelector('iframe#grnhse_iframe, iframe[src*="greenhouse"], iframe[src*="lever"], iframe[src*="ashby"]');
+                return frame ? frame.src : '';
+            }"""
+        )
+    except Exception:
+        await page.wait_for_timeout(2000)
+        iframe_src = ''
     if iframe_src:
         response = await page.goto(iframe_src, wait_until='domcontentloaded', timeout=timeout)
         status = response.status if response else status
@@ -1049,10 +1646,16 @@ async def _open_job_page(page, url, timeout):
             continue
 
     await _expand_job_details(page)
-    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    try:
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    except Exception:
+        await page.wait_for_timeout(1500)
     await page.wait_for_timeout(1000)
     await _expand_job_details(page)
-    await page.evaluate("window.scrollTo(0, 0)")
+    try:
+        await page.evaluate("window.scrollTo(0, 0)")
+    except Exception:
+        await page.wait_for_timeout(1500)
     await page.wait_for_timeout(500)
     return status
 
@@ -1123,6 +1726,10 @@ async def scrape_job_with_browser(url, timeout=60000):
     smartrecruiters_result = _smartrecruiters_api_result(url)
     if smartrecruiters_result:
         return smartrecruiters_result
+    icims_result = _icims_iframe_result(url)
+    if icims_result:
+        return icims_result
+    fetch_url = _alternate_fetch_url(url) or url
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -1135,20 +1742,28 @@ async def scrape_job_with_browser(url, timeout=60000):
         )
         page = await context.new_page()
         try:
-            status = await _open_job_page(page, url, timeout)
+            status = await _open_job_page(page, fetch_url, timeout)
             if status in (404, 410):
                 data = _empty_result(url, _detect_platform(url))
+                _apply_url_hints(data, url)
                 data['error'] = f'Job page is unavailable (HTTP {status})'
                 return _public_result(data)
-            if _unavailable_redirect(url, page.url or url):
+            if status in (401, 403, 429):
                 data = _empty_result(url, _detect_platform(url))
+                _apply_url_hints(data, url)
+                data['error'] = f'Website blocked automated access to this posting (HTTP {status})'
+                return _public_result(data)
+            if _unavailable_redirect(fetch_url, page.url or fetch_url):
+                data = _empty_result(url, _detect_platform(url))
+                _apply_url_hints(data, url)
                 data['error'] = 'Job page redirected to a general careers page and is likely unavailable.'
                 return _public_result(data)
             html = await page.content()
             soup = BeautifulSoup(html, 'html.parser')
-            return _public_result(_extract_from_soup(soup, page.url or url, url))
+            return _public_result(_extract_from_soup(soup, page.url or fetch_url, url))
         except Exception as exc:
             data = _empty_result(url, _detect_platform(url))
+            _apply_url_hints(data, url)
             data['error'] = str(exc)
             return _public_result(data)
         finally:

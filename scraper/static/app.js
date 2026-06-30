@@ -19,6 +19,7 @@ const elements = {
   workbookName: document.querySelector('#workbookName'),
   appendWorkbook: document.querySelector('#appendWorkbookButton'),
   retryAll: document.querySelector('#retryAllButton'),
+  loadCaptures: document.querySelector('#loadCapturesButton'),
   progress: document.querySelector('#progress'),
   progressBar: document.querySelector('#progressBar'),
   progressText: document.querySelector('#progressText'),
@@ -224,6 +225,43 @@ async function retryAllErrors() {
   showToast(remaining ? `${remaining} ${remaining === 1 ? 'row' : 'rows'} still need review` : 'All review rows cleared');
 }
 
+async function loadCaptures() {
+  if (state.processing) return;
+  try {
+    const response = await fetch('/api/captures');
+    if (!response.ok) throw new Error('Captured pages could not be loaded.');
+    const payload = await response.json();
+    const captures = Array.isArray(payload.jobs) ? payload.jobs : [];
+    let added = 0;
+    let updated = 0;
+    const appliedDate = selectedAppliedDate();
+
+    captures.slice().reverse().forEach((job) => {
+      const incoming = { ...job, date_applied: appliedDate || job.date_applied };
+      delete incoming.selected;
+      const url = String(incoming.job_link || '').trim();
+      if (!url) return;
+      const existingIndex = state.jobs.findIndex((item) => String(item.job_link || '').trim() === url);
+      if (existingIndex >= 0) {
+        state.jobs[existingIndex] = incoming;
+        updated += 1;
+      } else {
+        state.jobs.push(incoming);
+        added += 1;
+      }
+    });
+
+    render();
+    if (added || updated) {
+      showToast(`${added} added${updated ? `, ${updated} updated` : ''}`);
+    } else {
+      showToast(captures.length ? 'Captured jobs are already loaded' : 'No captured pages yet');
+    }
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
 async function downloadExcel() {
   const jobs = exportableJobs();
   if (!jobs.length) return;
@@ -371,6 +409,7 @@ elements.download.addEventListener('click', downloadExcel);
 elements.appendWorkbook.addEventListener('click', appendToWorkbook);
 elements.chooseWorkbook.addEventListener('click', chooseWorkbook);
 elements.retryAll.addEventListener('click', retryAllErrors);
+elements.loadCaptures.addEventListener('click', loadCaptures);
 elements.clearResults.addEventListener('click', () => {
   state.jobs = state.jobs.filter((job) => !job.selected);
   render();

@@ -10,7 +10,7 @@ The extractor favors reliable signals in this order:
 import asyncio
 import re
 from datetime import datetime
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -1491,6 +1491,9 @@ def _extract_from_soup(soup, url, original_url=None):
         data['description'] = meta_description
 
     full_text = _normalize_text(soup.get_text(separator=' ', strip=True))
+    preferred_link = _extract_preferred_apply_link(soup, url, original_url)
+    if preferred_link:
+        data['preferred_job_link'] = preferred_link
     blocked_error = _blocked_page_error(' '.join([meta_title or '', full_text[:3000]]))
     locked_site_work_type_na = False
     if blocked_error:
@@ -1590,6 +1593,7 @@ def _public_result(data):
     public_keys = [
         'date_applied', 'company', 'job_title', 'job_link', 'status',
         'location', 'work_type', 'salary', 'follow_up', 'source', 'error',
+        'preferred_job_link',
     ]
     defaults = {
         'company': 'n/a',
@@ -1607,6 +1611,40 @@ def _public_result(data):
         if value:
             result[key] = value
     return result
+
+
+def _extract_preferred_apply_link(soup, page_url, original_url=''):
+    if not soup:
+        return ''
+    board_host = urlparse(original_url or page_url).netloc.lower().replace('www.', '')
+    if _detect_platform(original_url or page_url) == 'company_website':
+        return ''
+
+    labels = re.compile(
+        r'\b(apply\s+(?:on|at|with)\s+(?:company|employer|external)|'
+        r'company\s+(?:site|website)|employer\s+(?:site|website)|'
+        r'apply\s+externally|external\s+apply|view\s+on\s+company)\b',
+        flags=re.I,
+    )
+    blocked_hosts = {
+        'linkedin.com', 'indeed.com', 'glassdoor.com', 'ziprecruiter.com',
+        'monster.com', 'wellfound.com', 'upwork.com', 'simplyhired.com',
+        'dice.com', 'google.com',
+    }
+    for anchor in soup.select('a[href]'):
+        text = _clean_value(anchor.get_text(' ', strip=True) or anchor.get('aria-label') or anchor.get('title') or '')
+        href = anchor.get('href') or ''
+        if not href or not labels.search(text):
+            continue
+        absolute = urljoin(page_url, href)
+        parsed = urlparse(absolute)
+        host = parsed.netloc.lower().replace('www.', '')
+        if parsed.scheme not in {'http', 'https'} or not host or host == board_host:
+            continue
+        if any(host == blocked or host.endswith('.' + blocked) for blocked in blocked_hosts):
+            continue
+        return absolute
+    return ''
 
 
 async def _open_job_page(page, url, timeout):

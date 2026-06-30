@@ -7,7 +7,7 @@ import re
 import socket
 import time
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -44,7 +44,28 @@ RATE_LIMIT = 30
 RATE_WINDOW_SECONDS = 10 * 60
 request_history = defaultdict(deque)
 ISSUE_LOG = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'extraction_issues.jsonl')
+USER_REPORT_LOG = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'user_reported_issues.jsonl')
 CAPTURED_JOBS = deque(maxlen=50)
+
+RELIABILITY = {
+    'greenhouse': ('Good', 'Usually has clean structured job data.'),
+    'lever': ('Good', 'Usually has clean structured job data.'),
+    'ashby': ('Good', 'Usually has clean structured job data.'),
+    'workday': ('Good', 'Usually has structured job data, but some pages load slowly.'),
+    'icims': ('Good', 'Usually works well after reading the embedded job frame.'),
+    'breezy': ('Good', 'Usually has readable job details.'),
+    'smartrecruiters': ('Good', 'Usually has clean structured job data.'),
+    'company_website': ('Good', 'Company career pages are usually the best source.'),
+    'linkedin': ('Okay', 'Often has title/company/location, but salary can be missing.'),
+    'indeed': ('Okay', 'Often works, but page text can include extra location words.'),
+    'glassdoor': ('Okay', 'Often works, but some pages block automation.'),
+    'ziprecruiter': ('Okay', 'Can work, but reposts may include noisy page text.'),
+    'simplyhired': ('Okay', 'Can work, but some pages redirect or hide details.'),
+    'dice': ('Okay', 'Can work, but some pages block automation.'),
+    'monster': ('Limited', 'Monster is unreliable. Use the employer/company link Monster opens instead.'),
+    'wellfound': ('Limited', 'Often blocks direct scraping. Browser capture may need review.'),
+    'upwork': ('Limited', 'Often blocks direct scraping and uses project-style fields.'),
+}
 
 
 def _merge_scrape_results(primary, fallback):
@@ -149,6 +170,7 @@ def _scrape_url(url):
         result['review_notes'] = _review_notes(issues)
     if raw_error:
         result['error'] = _friendly_error(raw_error, url)
+    _annotate_result(result, url, issues)
     return result
 
 
@@ -159,7 +181,7 @@ def _is_monster_search_url(url):
 
 
 def _monster_guidance_result(url):
-    return {
+    result = {
         'date_applied': datetime.now().strftime('%m/%d/%Y'),
         'company': 'n/a',
         'job_title': 'n/a',
@@ -174,6 +196,8 @@ def _monster_guidance_result(url):
         'review_issues': ['monster_search_page'],
         'review_notes': 'Monster search pages show many jobs at once, so JobLink cannot turn them into one accurate tracker row. Use the employer/company job page link from Monster instead.',
     }
+    _annotate_result(result, url, result['review_issues'])
+    return result
 
 
 def _quality_issues(result):
@@ -206,6 +230,8 @@ def _quality_issues(result):
         issues.append('location_looks_like_page_text')
     if work_type.lower() == 'mix':
         issues.append('invalid_work_type')
+    if result.get('confidence') == 'Low':
+        issues.append('low_confidence')
     if result.get('error'):
         issues.append('scrape_error')
     return sorted(set(issues))
@@ -225,9 +251,110 @@ def _review_notes(issues):
         'scrape_error': 'The scraper hit an error.',
         'captured_page_review': 'Captured pages can include extra site text; review these fields.',
         'capture_low_confidence': 'Captured fields were not found in a clear job header or label.',
+        'monster_search_page': 'Monster search pages show many jobs at once. Use the employer/company link from Monster instead.',
+        'low_confidence': 'Extraction confidence is low.',
     }
     notes = [labels.get(issue, issue.replace('_', ' ')) for issue in issues]
     return ' '.join(notes)
+
+
+def _review_details(issues):
+    detail_map = {
+        'missing_company': ('Company missing', 'Company', 'Open the posting and fill in the employer name.'),
+        'missing_job_title': ('Job title missing', 'Job title', 'Open the posting and fill in the role title.'),
+        'missing_location': ('Location missing', 'Location', 'Fill in the location if the posting shows one.'),
+        'location_looks_like_work_type': ('Location looks wrong', 'Location', 'Move Remote/Hybrid/Onsite to Work Type and enter the actual place if listed.'),
+        'generic_company': ('Company too generic', 'Company', 'Replace the job-board name with the real employer.'),
+        'generic_job_title': ('Title too generic', 'Job title', 'Replace blocked-page text with the real role title.'),
+        'company_looks_like_page_text': ('Company has extra text', 'Company', 'Keep only the employer name.'),
+        'location_looks_like_page_text': ('Location has extra text', 'Location', 'Keep only the city/state/country.'),
+        'invalid_work_type': ('Work type invalid', 'Work Type', 'Use Remote, Hybrid, Onsite, or n/a.'),
+        'scrape_error': ('Scrape failed', 'Link', 'Retry, use browser capture, or use the company career link.'),
+        'captured_page_review': ('Captured page needs review', 'Captured row', 'Review fields because captured pages can include extra site text.'),
+        'capture_low_confidence': ('Capture confidence low', 'Captured row', 'Use the suggestions or edit the fields manually.'),
+        'monster_search_page': ('Monster unsupported', 'Link', 'Use the employer/company job page that Monster opens.'),
+        'low_confidence': ('Low confidence', 'Row', 'Review the row before saving.'),
+    }
+    return [
+        {'code': issue, 'label': detail_map.get(issue, (issue.replace('_', ' ').title(), 'Row', 'Review this row.'))[0],
+         'field': detail_map.get(issue, ('', 'Row', ''))[1],
+         'action': detail_map.get(issue, ('', 'Row', 'Review this row.'))[2]}
+        for issue in issues
+    ]
+
+
+def _reliability_for(url, source=''):
+    platform = _detect_platform(url or '')
+    if platform == 'company_website':
+        source_key = re.sub(r'[^a-z0-9]+', '', str(source or '').lower())
+        source_lookup = {
+            'linkedin': 'linkedin', 'indeed': 'indeed', 'glassdoor': 'glassdoor',
+            'ziprecruiter': 'ziprecruiter', 'monster': 'monster', 'wellfound': 'wellfound',
+            'upwork': 'upwork', 'simplyhired': 'simplyhired', 'dice': 'dice',
+            'greenhouse': 'greenhouse', 'lever': 'lever', 'workday': 'workday',
+            'ashby': 'ashby', 'icims': 'icims', 'breezy': 'breezy',
+            'smartrecruiters': 'smartrecruiters',
+        }
+        platform = source_lookup.get(source_key, platform)
+    label, note = RELIABILITY.get(platform, RELIABILITY['company_website'])
+    return {'level': label, 'note': note}
+
+
+def _confidence_for(result, issues):
+    score = 95
+    source_reliability = (result.get('source_reliability') or {}).get('level') or ''
+    if source_reliability == 'Limited':
+        score -= 18
+    elif source_reliability == 'Okay':
+        score -= 8
+    if result.get('capture_source'):
+        score -= 8
+    penalties = {
+        'missing_company': 18,
+        'missing_job_title': 22,
+        'missing_location': 16,
+        'generic_company': 16,
+        'generic_job_title': 18,
+        'company_looks_like_page_text': 18,
+        'location_looks_like_page_text': 14,
+        'location_looks_like_work_type': 14,
+        'invalid_work_type': 10,
+        'captured_page_review': 8,
+        'capture_low_confidence': 15,
+        'scrape_error': 28,
+        'monster_search_page': 35,
+    }
+    for issue in issues:
+        score -= penalties.get(issue, 8)
+    score = max(0, min(100, score))
+    if result.get('error'):
+        level = 'Low'
+    elif score >= 82:
+        level = 'High'
+    elif score >= 58:
+        level = 'Medium'
+    else:
+        level = 'Low'
+    return level, score
+
+
+def _annotate_result(result, url='', issues=None):
+    job_url = url or result.get('job_link') or ''
+    reliability = _reliability_for(job_url, result.get('source', ''))
+    result['source_reliability'] = reliability
+    result['source_reliability_label'] = reliability['level']
+    result['source_reliability_note'] = reliability['note']
+    issues = sorted(set(issues or result.get('review_issues') or []))
+    result['review_issues'] = issues
+    result['review_details'] = _review_details(issues)
+    confidence, score = _confidence_for(result, issues)
+    result['confidence'] = confidence
+    result['confidence_score'] = score
+    if not result.get('review_notes') and issues:
+        result['review_notes'] = _review_notes(issues)
+    if result.get('preferred_job_link'):
+        result['preferred_job_link_note'] = 'Employer/company job page found. This is usually better than the job-board link.'
+    return result
 
 
 def _record_issue(url, result, issues, raw_error=''):
@@ -251,6 +378,37 @@ def issues():
     with open(ISSUE_LOG, 'r', encoding='utf-8') as handle:
         records = [json.loads(line) for line in handle if line.strip()]
     return jsonify(records[-100:])
+
+
+@app.route('/api/report-issue', methods=['POST'])
+def report_issue():
+    payload = request.get_json(silent=True) or {}
+    job = payload.get('job') if isinstance(payload.get('job'), dict) else {}
+    url = str(job.get('job_link') or payload.get('url') or '').strip()
+    if not url:
+        return jsonify({'error': 'No job row was provided.'}), 400
+
+    os.makedirs(os.path.dirname(USER_REPORT_LOG), exist_ok=True)
+    record = {
+        'timestamp': datetime.now().isoformat(timespec='seconds'),
+        'url': url,
+        'domain': urlparse(url).hostname or '',
+        'status': payload.get('status') or '',
+        'note': str(payload.get('note') or '')[:1000],
+        'job': {
+            key: job.get(key, '')
+            for key in (
+                'company', 'job_title', 'location', 'work_type', 'salary', 'source',
+                'source_reliability_label', 'confidence', 'confidence_score',
+                'error', 'review_notes', 'preferred_job_link',
+            )
+        },
+        'review_issues': job.get('review_issues') or [],
+        'review_details': job.get('review_details') or [],
+    }
+    with open(USER_REPORT_LOG, 'a', encoding='utf-8') as handle:
+        handle.write(json.dumps(record, ensure_ascii=True) + '\n')
+    return jsonify({'status': 'saved'})
 
 
 def _friendly_error(error, url=''):
@@ -342,6 +500,10 @@ def _parse_captured_page(payload):
             if _merge_capture_value(result, evidence, key, value, 'page_label'):
                 break
 
+    preferred_link = _capture_preferred_link(soup, url)
+    if preferred_link:
+        result['preferred_job_link'] = preferred_link
+
     title_job, title_company = _split_capture_title(title or _capture_meta_title(meta, soup))
     if title_job:
         _merge_capture_value(result, evidence, 'job_title', title_job, 'page_title')
@@ -370,6 +532,11 @@ def _parse_captured_page(payload):
         _merge_capture_value(result, evidence, 'salary', _capture_salary(rich_text), 'text')
 
     public = _public_scrape_result(result)
+    public['field_options'] = {
+        key: values[:6]
+        for key, values in candidate_fields.items()
+        if values and key in {'company', 'job_title', 'location', 'work_type', 'salary'}
+    }
     issues = _quality_issues(public)
     issues.extend(_capture_review_issues(public, evidence))
     if issues:
@@ -377,6 +544,7 @@ def _parse_captured_page(payload):
         public['review_notes'] = _review_notes(public['review_issues'])
     public['capture_source'] = 'browser_button'
     public['capture_evidence'] = evidence
+    _annotate_result(public, url, public.get('review_issues', []))
     return public
 
 
@@ -442,6 +610,39 @@ def _capture_json_script_text(payload):
         else:
             values.append(text[:20000])
     return _normalize_text(' '.join(values))[:300000]
+
+
+def _capture_preferred_link(soup, page_url):
+    if not soup:
+        return ''
+    platform = _detect_platform(page_url)
+    if platform == 'company_website':
+        return ''
+    page_host = urlparse(page_url or '').netloc.lower().replace('www.', '')
+    labels = re.compile(
+        r'\b(apply\s+(?:on|at|with)\s+(?:company|employer|external)|'
+        r'company\s+(?:site|website)|employer\s+(?:site|website)|'
+        r'apply\s+externally|external\s+apply|view\s+on\s+company)\b',
+        flags=re.I,
+    )
+    blocked_hosts = {
+        'linkedin.com', 'indeed.com', 'glassdoor.com', 'ziprecruiter.com',
+        'monster.com', 'wellfound.com', 'upwork.com', 'simplyhired.com',
+        'dice.com', 'google.com',
+    }
+    for anchor in soup.select('a[href]'):
+        text = _clean_capture_line(anchor.get_text(' ', strip=True) or anchor.get('aria-label') or anchor.get('title') or '')
+        if not text or not labels.search(text):
+            continue
+        absolute = urljoin(page_url, anchor.get('href') or '')
+        parsed = urlparse(absolute)
+        host = parsed.netloc.lower().replace('www.', '')
+        if parsed.scheme not in {'http', 'https'} or not host or host == page_host:
+            continue
+        if any(host == blocked or host.endswith('.' + blocked) for blocked in blocked_hosts):
+            continue
+        return absolute
+    return ''
 
 
 def _capture_candidate_fields(payload, page_title, lines):
@@ -904,6 +1105,7 @@ def _public_scrape_result(result):
     public_keys = [
         'date_applied', 'company', 'job_title', 'job_link', 'status',
         'location', 'work_type', 'salary', 'follow_up', 'source', 'error',
+        'preferred_job_link',
     ]
     defaults = {
         'company': 'n/a',

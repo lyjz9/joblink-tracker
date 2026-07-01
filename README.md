@@ -1,10 +1,10 @@
 # JobLink Tracker
 
-JobLink Tracker is a Python + Excel project for job seekers who are tired of copying the same details into a spreadsheet over and over.
+JobLink Tracker is a local Python + Excel workflow I built for the part of job searching that quietly becomes exhausting: copying the same posting details into a spreadsheet over and over.
 
-Paste in job links from company career pages or job boards, and the tool tries to pull out the details you usually track by hand: company, job title, location, work type, salary, and source. From there, you can review the results and save them into an Excel tracker.
+Paste in job links from company career pages or job boards, and the tool pulls out the details people usually track by hand: company, job title, location, work type, salary, and source. From there, you can review anything uncertain and save the cleaned rows into an Excel tracker.
 
-It is especially meant for students, new grads, and anyone applying to a lot of roles at once.
+It is especially meant for students, new grads, and anyone applying to enough roles that the tracking work starts becoming its own little job.
 
 > Status: v0.1 local beta. This project is actively being improved and is not a hosted public app yet.
 
@@ -21,7 +21,7 @@ See [docs/known_limitations.md](docs/known_limitations.md) for more detail.
 
 When you are applying to a lot of jobs, the tracking part can quietly turn into its own chore. Every posting has a company name, title, location, salary note, link, and follow-up date to copy somewhere. It is easy to lose time, make small mistakes, or stop tracking things clearly.
 
-JobLink Tracker is my attempt to make that process less annoying. It does not try to replace your judgment. It just handles some of the repetitive copying, then lets you review and edit everything before saving.
+JobLink Tracker is my attempt to make that process less annoying. It does not try to replace your judgment. It handles some of the repetitive copying, then lets you review and edit everything before saving.
 
 ## Features
 
@@ -89,7 +89,9 @@ Invoke-RestMethod -Uri http://127.0.0.1:5000/scrape -Method Post -ContentType "a
 
 ## Excel Workflow
 
-If you want to use the Excel workflow, create a macro-enabled workbook with these sheets:
+You can start from the blank tracker template: [templates/joblink_tracker_template.xlsx](templates/joblink_tracker_template.xlsx).
+
+If you want to use the Excel workflow manually, create a macro-enabled workbook with these sheets:
 
 - `Applications`
 - `Input`
@@ -101,6 +103,8 @@ Job Link, Source, Notes, Process Status, Processed At, Error Message
 ```
 
 Import `VBA/JobTracker.bas` using `Developer > Visual Basic > File > Import File`. If you want a button in the workbook, assign it to the `ProcessInputLinks` macro.
+
+If you use the blank `.xlsx` template with VBA macros, save a personal copy as an Excel macro-enabled workbook (`.xlsm`) before importing the macro module.
 
 You can also test the same workflow without a button by passing the path to your own workbook:
 

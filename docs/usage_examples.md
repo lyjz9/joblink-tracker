@@ -52,7 +52,7 @@ Invoke-WebRequest -Uri http://127.0.0.1:5000/export -Method Post -ContentType "a
 
 ## Process A Copied Tracker Workbook
 
-Use a copied workbook for testing, not your real personal tracker.
+Use a copied workbook for testing, not your real personal tracker. You can start from `templates/joblink_tracker_template.xlsx`, then save your own working copy.
 
 ```powershell
 python process_excel_links.py "path\to\copied_tracker.xlsm"

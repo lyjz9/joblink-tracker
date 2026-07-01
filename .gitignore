@@ -15,3 +15,5 @@ tmp/
 /job/
 *.xlsx
 *.xlsm
+!templates/
+!templates/*.xlsx

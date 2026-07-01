@@ -104,10 +104,73 @@ function badge(status) {
   return `<span class="badge badge-${status}">${labels[status]}</span>`;
 }
 
+function confidenceBadge(job) {
+  const level = String(job.confidence || '').toLowerCase();
+  if (!level) return '';
+  const score = Number.isFinite(Number(job.confidence_score)) ? ` ${Number(job.confidence_score)}` : '';
+  return `<span class="confidence confidence-${level}">${escapeHtml(job.confidence)}${score}</span>`;
+}
+
+function reviewDetails(job) {
+  if (Array.isArray(job.review_details) && job.review_details.length) return job.review_details;
+  const fallback = {
+    missing_company: ['Company missing', 'Open the posting and fill in the employer name.'],
+    missing_job_title: ['Job title missing', 'Open the posting and fill in the role title.'],
+    missing_location: ['Location missing', 'Fill in the location if the posting shows one.'],
+    generic_company: ['Company too generic', 'Replace the job-board name with the real employer.'],
+    generic_job_title: ['Title too generic', 'Replace blocked-page text with the real role title.'],
+    scrape_error: ['Scrape failed', 'Retry, use capture, or use the company career link.'],
+  };
+  return (job.review_issues || []).map((issue) => ({
+    code: issue,
+    label: fallback[issue]?.[0] || issue.replaceAll('_', ' '),
+    action: fallback[issue]?.[1] || 'Review this row.',
+  }));
+}
+
+function reviewList(job) {
+  const details = reviewDetails(job).slice(0, 4);
+  if (!details.length) return '';
+  return `<ul class="issue-list">${details.map((item) => (
+    `<li><b>${escapeHtml(item.label)}</b><span>${escapeHtml(item.action || '')}</span></li>`
+  )).join('')}</ul>`;
+}
+
+function fieldOptions(job, key) {
+  const values = (job.field_options && Array.isArray(job.field_options[key])) ? job.field_options[key] : [];
+  const current = String(job[key] || '').trim().toLowerCase();
+  const options = values
+    .filter((value) => value && String(value).trim().toLowerCase() !== current)
+    .slice(0, 3);
+  if (!options.length) return '';
+  return `<div class="option-chips">${options.map((value) => (
+    `<button class="option-chip" type="button" data-key="${key}" data-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`
+  )).join('')}</div>`;
+}
+
 function editableCell(job, key) {
   const value = job[key] || 'n/a';
   const muted = String(value).toLowerCase() === 'n/a' ? ' muted-value' : '';
-  return `<div class="editable${muted}" contenteditable="true" data-key="${key}" spellcheck="false">${escapeHtml(value)}</div>`;
+  return `<div class="editable${muted}" contenteditable="true" data-key="${key}" spellcheck="false">${escapeHtml(value)}</div>${fieldOptions(job, key)}`;
+}
+
+function reliabilityBadge(job) {
+  const level = String(job.source_reliability_label || job.source_reliability?.level || '').toLowerCase();
+  if (!level) return '';
+  const label = job.source_reliability_label || job.source_reliability.level;
+  return `<span class="reliability reliability-${level}">${escapeHtml(label)}</span>`;
+}
+
+function sourceCell(job) {
+  const note = job.source_reliability_note || job.source_reliability?.note || '';
+  const preferred = job.preferred_job_link || '';
+  return `
+    <div class="source-cell">
+      <span>${escapeHtml(job.source || 'n/a')}</span>
+      ${reliabilityBadge(job)}
+      ${note ? `<small>${escapeHtml(note)}</small>` : ''}
+      ${preferred ? `<a href="${escapeHtml(preferred)}" target="_blank" rel="noopener noreferrer">Employer link</a>` : ''}
+    </div>`;
 }
 
 function escapeHtml(value) {
@@ -126,16 +189,23 @@ function render() {
         <td class="select-cell">
           <input class="select-row" type="checkbox" aria-label="Select result row" ${job.selected ? 'checked' : ''}>
         </td>
-        <td>${badge(status)}${detail ? `<span class="${status === 'error' ? 'error-detail' : 'review-detail'}">${escapeHtml(detail)}</span>` : ''}</td>
+        <td>
+          <div class="status-stack">
+            <div class="status-row">${badge(status)}${confidenceBadge(job)}</div>
+            ${detail ? `<span class="${status === 'error' ? 'error-detail' : 'review-detail'}">${escapeHtml(detail)}</span>` : ''}
+            ${reviewList(job)}
+          </div>
+        </td>
         <td>${editableCell(job, 'company')}</td>
         <td>${editableCell(job, 'job_title')}</td>
         <td>${editableCell(job, 'location')}</td>
         <td>${editableCell(job, 'work_type')}</td>
         <td>${editableCell(job, 'salary')}</td>
-        <td>${escapeHtml(job.source || 'n/a')}</td>
+        <td>${sourceCell(job)}</td>
         <td>
           <div class="row-actions">
             ${canRetry ? `<button class="icon-button retry-row" type="button" title="Retry extraction" aria-label="Retry extraction">${icon('rotate-cw')}</button>` : ''}
+            <button class="icon-button report-row" type="button" title="Save problem row" aria-label="Save problem row">${icon('flag')}</button>
             <a class="icon-button" href="${escapeHtml(job.job_link || '#')}" target="_blank" rel="noopener noreferrer" title="Open job posting" aria-label="Open job posting">${icon('external-link')}</a>
             <button class="icon-button remove-row" type="button" title="Remove row" aria-label="Remove row">${icon('x')}</button>
           </div>
@@ -223,6 +293,23 @@ async function retryAllErrors() {
   render();
   const remaining = state.jobs.filter((job) => jobStatus(job) !== 'ready').length;
   showToast(remaining ? `${remaining} ${remaining === 1 ? 'row' : 'rows'} still need review` : 'All review rows cleared');
+}
+
+async function reportJob(index) {
+  const job = state.jobs[index];
+  if (!job) return;
+  try {
+    const response = await fetch('/api/report-issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job, status: jobStatus(job) }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'Could not save this row.');
+    showToast('Problem row saved');
+  } catch (error) {
+    showToast(error.message);
+  }
 }
 
 async function loadCaptures() {
@@ -430,9 +517,25 @@ elements.appliedDate.addEventListener('change', () => {
   if (appliedDate) state.jobs.forEach((job) => { job.date_applied = appliedDate; });
 });
 elements.body.addEventListener('click', (event) => {
+  const option = event.target.closest('.option-chip');
+  if (option) {
+    const row = option.closest('tr');
+    const job = state.jobs[Number(row.dataset.index)];
+    job[option.dataset.key] = option.dataset.value;
+    delete job.review_issues;
+    delete job.review_notes;
+    delete job.review_details;
+    render();
+    return;
+  }
   const retry = event.target.closest('.retry-row');
   if (retry) {
     retryJob(Number(retry.closest('tr').dataset.index));
+    return;
+  }
+  const report = event.target.closest('.report-row');
+  if (report) {
+    reportJob(Number(report.closest('tr').dataset.index));
     return;
   }
   const button = event.target.closest('.remove-row');

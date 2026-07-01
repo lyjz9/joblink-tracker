@@ -8,10 +8,23 @@ function setStatus(message, type = '') {
 
 async function currentTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !tab.id || !/^https?:\/\//i.test(tab.url || '')) {
-    throw new Error('Open a job page first.');
+  if (tab && tab.id && /^https?:\/\//i.test(tab.url || '')) {
+    return tab;
   }
-  return tab;
+
+  const openTabs = await chrome.tabs.query({ currentWindow: true });
+  const jobTab = openTabs.find((item) => (
+    item.id &&
+    /^https?:\/\//i.test(item.url || '') &&
+    /\b(linkedin|indeed|glassdoor|monster|wellfound|upwork|ziprecruiter|greenhouse|lever|ashby|workdayjobs|icims|breezy|smartrecruiters|careers?|jobs?)\b/i.test(item.url || '')
+  ));
+  if (jobTab) {
+    await chrome.tabs.update(jobTab.id, { active: true });
+    return jobTab;
+  }
+
+  const current = tab && tab.url ? ` Current tab is ${tab.url}.` : '';
+  throw new Error(`Open the actual job posting tab, then click JobLink Capture again.${current}`);
 }
 
 async function readFullJobPage() {
@@ -139,7 +152,7 @@ async function readFullJobPage() {
     );
 
     const keywordLines = [];
-    const keywordPattern = /\b(remote|remote job|hybrid|on-site|onsite|in-office|salary|compensation|base pay|budget|hourly|fixed-price|fixed price|rate|\$[\d,]+|location|client|new york|new jersey|california|texas|united states|worldwide)\b/i;
+    const keywordPattern = /\b(remote|remote job|hybrid|on-site|onsite|in-office|salary|compensation|base pay|budget|hourly|fixed-price|fixed price|rate|equity|stock options|\$[\d,]+|location|client|new york|new jersey|california|texas|united states|worldwide)\b/i;
     for (const line of pageText().split('\n')) {
       if (keywordPattern.test(line) && line.length <= 220) keywordLines.push(line);
       if (keywordLines.length >= 80) break;

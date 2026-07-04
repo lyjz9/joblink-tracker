@@ -3,7 +3,11 @@ const state = {
   processing: false,
   workbookFile: null,
   workbookHandle: null,
+  filter: 'all',
 };
+
+const STORAGE_KEY = 'joblink.beta.session.v1';
+const FILTERS = ['all', 'ready', 'review', 'error', 'manual'];
 
 const elements = {
   links: document.querySelector('#jobLinks'),
@@ -13,10 +17,25 @@ const elements = {
   extract: document.querySelector('#extractButton'),
   clear: document.querySelector('#clearButton'),
   clearResults: document.querySelector('#clearResultsButton'),
+  reportSelected: document.querySelector('#reportSelectedButton'),
+  selectAll: document.querySelector('#selectAllRows'),
+  selectAllButton: document.querySelector('#selectAllButton'),
+  manualAdd: document.querySelector('#manualAddButton'),
+  manualPanel: document.querySelector('#manualPanel'),
+  manualCancel: document.querySelector('#manualCancelButton'),
+  manualValidation: document.querySelector('#manualValidation'),
+  manualCompany: document.querySelector('#manualCompany'),
+  manualTitle: document.querySelector('#manualTitle'),
+  manualLocation: document.querySelector('#manualLocation'),
+  manualWorkType: document.querySelector('#manualWorkType'),
+  manualSalary: document.querySelector('#manualSalary'),
+  manualSource: document.querySelector('#manualSource'),
+  manualLink: document.querySelector('#manualLink'),
   download: document.querySelector('#downloadButton'),
   chooseWorkbook: document.querySelector('#chooseWorkbookButton'),
   workbookFile: document.querySelector('#workbookFile'),
   workbookName: document.querySelector('#workbookName'),
+  duplicateMode: document.querySelector('#duplicateMode'),
   appendWorkbook: document.querySelector('#appendWorkbookButton'),
   retryAll: document.querySelector('#retryAllButton'),
   loadCaptures: document.querySelector('#loadCapturesButton'),
@@ -30,8 +49,19 @@ const elements = {
   ready: document.querySelector('#readyCount'),
   review: document.querySelector('#reviewCount'),
   error: document.querySelector('#errorCount'),
+  manual: document.querySelector('#manualCount'),
+  emptyTitle: document.querySelector('#emptyTitle'),
   toast: document.querySelector('#toast'),
   health: document.querySelector('#healthStatus'),
+  feedbackButton: document.querySelector('#feedbackButton'),
+  feedbackPanel: document.querySelector('#feedbackPanel'),
+  feedbackForm: document.querySelector('#feedbackForm'),
+  feedbackType: document.querySelector('#feedbackType'),
+  feedbackMessage: document.querySelector('#feedbackMessage'),
+  feedbackValidation: document.querySelector('#feedbackValidation'),
+  feedbackClose: document.querySelector('#feedbackCloseButton'),
+  feedbackCancel: document.querySelector('#feedbackCancelButton'),
+  filterTabs: Array.from(document.querySelectorAll('.filter-tab')),
 };
 
 function icon(name) {
@@ -94,9 +124,78 @@ function validateInput() {
 
 function jobStatus(job) {
   if (job.error) return 'error';
+  if (isManualJob(job) && !missingRequiredFields(job).length) return 'ready';
   if ((job.review_issues && job.review_issues.length) || job.review_notes) return 'review';
   const required = ['company', 'job_title', 'location'];
   return required.some((key) => missingValue(job[key])) || looksSuspicious(job) ? 'review' : 'ready';
+}
+
+function missingRequiredFields(job) {
+  return ['company', 'job_title', 'location'].filter((key) => missingValue(job[key]));
+}
+
+function isManualJob(job) {
+  return String(job.confidence || '').trim().toLowerCase() === 'manual' || job.manual === true;
+}
+
+function matchesFilter(job) {
+  if (state.filter === 'manual') return isManualJob(job);
+  if (state.filter === 'all') return true;
+  return jobStatus(job) === state.filter;
+}
+
+function visibleJobs() {
+  return state.jobs
+    .map((job, index) => ({ job, index }))
+    .filter(({ job }) => matchesFilter(job));
+}
+
+function linkKey(value) {
+  return String(value || '').trim().replace(/\/+$/, '').toLowerCase();
+}
+
+function findJobIndexByLink(url) {
+  const key = linkKey(url);
+  if (!key) return -1;
+  return state.jobs.findIndex((job) => linkKey(job.job_link) === key);
+}
+
+function duplicateResultChoice(url) {
+  const existingIndex = findJobIndexByLink(url);
+  if (existingIndex < 0) return { action: 'add', index: -1 };
+  const update = window.confirm('This job link is already in your results. Click OK to update the existing row, or Cancel to skip it.');
+  return update ? { action: 'update', index: existingIndex } : { action: 'skip', index: existingIndex };
+}
+
+function saveSession() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      jobs: state.jobs.map(({ selected, ...job }) => job),
+      filter: state.filter,
+      links: elements.links.value,
+      appliedDate: elements.appliedDate.value,
+      duplicateMode: elements.duplicateMode?.value || 'skip',
+    }));
+  } catch (error) {
+    // Browser storage can be disabled; the app still works without persistence.
+  }
+}
+
+function restoreSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (Array.isArray(saved.jobs)) {
+      state.jobs = saved.jobs.map((job) => ({ ...job, selected: false }));
+    }
+    if (FILTERS.includes(saved.filter)) state.filter = saved.filter;
+    if (typeof saved.links === 'string') elements.links.value = saved.links;
+    if (typeof saved.appliedDate === 'string' && saved.appliedDate) elements.appliedDate.value = saved.appliedDate;
+    if (saved.duplicateMode && elements.duplicateMode) elements.duplicateMode.value = saved.duplicateMode;
+  } catch (error) {
+    localStorage.removeItem(STORAGE_KEY);
+  }
 }
 
 function badge(status) {
@@ -119,7 +218,7 @@ function reviewDetails(job) {
     missing_location: ['Location missing', 'Fill in the location if the posting shows one.'],
     generic_company: ['Company too generic', 'Replace the job-board name with the real employer.'],
     generic_job_title: ['Title too generic', 'Replace blocked-page text with the real role title.'],
-    scrape_error: ['Scrape failed', 'Retry, use capture, or use the company career link.'],
+    scrape_error: ['Scrape failed', 'Retry, use capture, or edit the fields and click the check.'],
   };
   return (job.review_issues || []).map((issue) => ({
     code: issue,
@@ -180,10 +279,16 @@ function escapeHtml(value) {
 }
 
 function render() {
-  elements.body.innerHTML = state.jobs.map((job, index) => {
+  const rows = visibleJobs();
+  const selectedCount = state.jobs.filter((job) => job.selected).length;
+  const selectedVisibleCount = rows.filter(({ job }) => job.selected).length;
+  const allSelected = Boolean(rows.length) && selectedVisibleCount === rows.length;
+  const someSelected = selectedCount > 0;
+
+  elements.body.innerHTML = rows.map(({ job, index }) => {
     const status = jobStatus(job);
     const detail = job.error || job.review_notes || '';
-    const canRetry = status === 'error' || status === 'review';
+    const canUseEdited = status === 'error' || status === 'review';
     return `
       <tr data-index="${index}">
         <td class="select-cell">
@@ -204,8 +309,9 @@ function render() {
         <td>${sourceCell(job)}</td>
         <td>
           <div class="row-actions">
-            ${canRetry ? `<button class="icon-button retry-row" type="button" title="Retry extraction" aria-label="Retry extraction">${icon('rotate-cw')}</button>` : ''}
-            <button class="icon-button report-row" type="button" title="Save problem row" aria-label="Save problem row">${icon('flag')}</button>
+            <button class="icon-button retry-row" type="button" title="Retry extraction" aria-label="Retry extraction">${icon('rotate-cw')}</button>
+            ${canUseEdited ? `<button class="icon-button use-row" type="button" title="Use edited row" aria-label="Use edited row">${icon('check-circle')}</button>` : ''}
+            <button class="icon-button report-row" type="button" title="Report issue" aria-label="Report issue">${icon('flag')}</button>
             <a class="icon-button" href="${escapeHtml(job.job_link || '#')}" target="_blank" rel="noopener noreferrer" title="Open job posting" aria-label="Open job posting">${icon('external-link')}</a>
             <button class="icon-button remove-row" type="button" title="Remove row" aria-label="Remove row">${icon('x')}</button>
           </div>
@@ -215,22 +321,45 @@ function render() {
 
   const counts = state.jobs.reduce((result, job) => {
     result[jobStatus(job)] += 1;
+    if (isManualJob(job)) result.manual += 1;
     return result;
-  }, { ready: 0, review: 0, error: 0 });
+  }, { ready: 0, review: 0, error: 0, manual: 0 });
   elements.total.textContent = state.jobs.length;
   elements.ready.textContent = counts.ready;
   elements.review.textContent = counts.review;
   elements.error.textContent = counts.error;
-  elements.table.hidden = !state.jobs.length;
-  elements.empty.hidden = Boolean(state.jobs.length);
+  if (elements.manual) elements.manual.textContent = counts.manual;
+  elements.table.hidden = !rows.length;
+  elements.empty.hidden = Boolean(rows.length);
+  if (elements.emptyTitle) {
+    elements.emptyTitle.textContent = state.jobs.length
+      ? `No ${state.filter === 'all' ? '' : state.filter + ' '}jobs found`.replace('  ', ' ')
+      : 'No jobs yet';
+  }
   const hasExportableJobs = state.jobs.some((job) => !job.error);
-  const hasSelectedJobs = state.jobs.some((job) => job.selected);
   elements.download.disabled = !hasExportableJobs;
   elements.appendWorkbook.disabled = state.processing || !hasExportableJobs || !state.workbookFile;
   elements.retryAll.disabled = state.processing || !state.jobs.some((job) => jobStatus(job) !== 'ready');
-  elements.clearResults.disabled = state.processing || !hasSelectedJobs;
+  elements.clearResults.disabled = state.processing || !someSelected;
+  if (elements.reportSelected) elements.reportSelected.disabled = state.processing || !someSelected;
+  elements.clearResults.innerHTML = `${icon('trash-2')} Clear selected${selectedCount ? ` (${selectedCount})` : ''}`;
+  if (elements.selectAll) {
+    elements.selectAll.checked = allSelected;
+    elements.selectAll.indeterminate = selectedVisibleCount > 0 && !allSelected;
+    elements.selectAll.disabled = state.processing || !rows.length;
+  }
+  if (elements.selectAllButton) {
+    elements.selectAllButton.disabled = state.processing || !rows.length;
+    elements.selectAllButton.innerHTML = `${icon(allSelected ? 'square' : 'check-square')} ${allSelected ? 'Deselect all' : 'Select all'}`;
+  }
+  elements.filterTabs.forEach((tab) => {
+    const active = tab.dataset.filter === state.filter;
+    tab.classList.toggle('is-active', active);
+    tab.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
   validateInput();
   refreshIcons();
+  saveSession();
 }
 
 async function scrapeOne(url) {
@@ -254,8 +383,17 @@ async function processLinks() {
 
   for (let index = 0; index < urls.length; index += 1) {
     elements.progressText.textContent = `${index + 1} of ${urls.length}`;
+    const duplicate = duplicateResultChoice(urls[index]);
+    if (duplicate.action === 'skip') {
+      elements.progressBar.style.width = `${Math.round(((index + 1) / urls.length) * 100)}%`;
+      continue;
+    }
     const job = await scrapeOne(urls[index]);
-    state.jobs.push(job);
+    if (duplicate.action === 'update') {
+      state.jobs[duplicate.index] = job;
+    } else {
+      state.jobs.push(job);
+    }
     elements.progressBar.style.width = `${Math.round(((index + 1) / urls.length) * 100)}%`;
     render();
   }
@@ -312,6 +450,36 @@ async function reportJob(index) {
   }
 }
 
+async function reportSelectedJobs() {
+  const selected = state.jobs
+    .map((job, index) => ({ job, index }))
+    .filter(({ job }) => job.selected);
+  if (!selected.length || state.processing) return;
+  state.processing = true;
+  render();
+  let saved = 0;
+  let failed = 0;
+  for (const { job } of selected) {
+    try {
+      const response = await fetch('/api/report-issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job, status: jobStatus(job), note: 'Reported from selected rows' }),
+      });
+      if (response.ok) {
+        saved += 1;
+      } else {
+        failed += 1;
+      }
+    } catch (error) {
+      failed += 1;
+    }
+  }
+  state.processing = false;
+  render();
+  showToast(failed ? `${saved} reported, ${failed} skipped` : `${saved} ${saved === 1 ? 'row' : 'rows'} reported`);
+}
+
 async function loadCaptures() {
   if (state.processing) return;
   try {
@@ -328,9 +496,10 @@ async function loadCaptures() {
       delete incoming.selected;
       const url = String(incoming.job_link || '').trim();
       if (!url) return;
-      const existingIndex = state.jobs.findIndex((item) => String(item.job_link || '').trim() === url);
-      if (existingIndex >= 0) {
-        state.jobs[existingIndex] = incoming;
+      const duplicate = duplicateResultChoice(url);
+      if (duplicate.action === 'skip') return;
+      if (duplicate.action === 'update') {
+        state.jobs[duplicate.index] = incoming;
         updated += 1;
       } else {
         state.jobs.push(incoming);
@@ -372,18 +541,32 @@ async function downloadExcel() {
   }
 }
 
+async function postWorkbookUpdate(jobs) {
+  const workbookFile = await currentWorkbookFile();
+  if (!workbookFile) return null;
+  const formData = new FormData();
+  formData.append('workbook', workbookFile);
+  formData.append('jobs', JSON.stringify(jobs));
+  formData.append('duplicate_mode', elements.duplicateMode?.value || 'skip');
+  return fetch('/append-workbook', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
 async function appendToWorkbook() {
   const jobs = exportableJobs();
-  if (!jobs.length || !state.workbookFile) return;
+  const workbookFile = await currentWorkbookFile();
+  if (!jobs.length || !workbookFile) return;
   elements.appendWorkbook.disabled = true;
   try {
-    const formData = new FormData();
-    formData.append('workbook', state.workbookFile);
-    formData.append('jobs', JSON.stringify(jobs));
-    const response = await fetch('/append-workbook', {
-      method: 'POST',
-      body: formData,
-    });
+    let response;
+    try {
+      response = await postWorkbookUpdate(jobs);
+    } catch (error) {
+      response = await postWorkbookUpdate(jobs);
+    }
+    if (!response) throw new Error('Choose an Excel tracker to update.');
     if (!response.ok) {
       const detail = await response.json().catch(() => ({}));
       throw new Error(detail.error || 'Tracker update failed.');
@@ -391,13 +574,19 @@ async function appendToWorkbook() {
     const blob = await response.blob();
     const added = response.headers.get('X-JobLink-Added') || '0';
     const skipped = response.headers.get('X-JobLink-Skipped') || '0';
+    const updated = response.headers.get('X-JobLink-Updated') || '0';
+    const outputName = filenameFromDisposition(response.headers.get('Content-Disposition')) || updatedWorkbookName(workbookFile.name);
     const savedToSelected = await saveBlobToSelectedWorkbook(blob);
     if (!savedToSelected) {
-      downloadBlob(blob, filenameFromDisposition(response.headers.get('Content-Disposition')) || updatedWorkbookName(state.workbookFile.name));
+      downloadBlob(blob, outputName);
+      state.workbookHandle = null;
+      state.workbookFile = new File([blob], outputName, { type: blob.type || workbookFile.type });
+      elements.workbookFile.value = '';
+      elements.workbookName.textContent = `${outputName} ready`;
     }
-    showToast(`${added} added${Number(skipped) ? `, ${skipped} skipped` : ''}${savedToSelected ? ' to tracker' : ''}`);
+    showToast(`${added} added${Number(updated) ? `, ${updated} updated` : ''}${Number(skipped) ? `, ${skipped} skipped` : ''}${savedToSelected ? ' to tracker' : ''}`);
   } catch (error) {
-    showToast(error.message);
+    showToast(error.message === 'Failed to fetch' ? 'Tracker update lost connection. Try Update tracker again.' : error.message);
   } finally {
     elements.appendWorkbook.disabled = false;
     render();
@@ -490,11 +679,196 @@ function showToast(message) {
   showToast.timeout = setTimeout(() => elements.toast.classList.remove('is-visible'), 2600);
 }
 
-elements.links.addEventListener('input', validateInput);
+function toggleFeedbackPanel(show = elements.feedbackPanel.hidden) {
+  if (!elements.feedbackPanel) return;
+  elements.feedbackPanel.hidden = !show;
+  if (show) {
+    elements.feedbackValidation.textContent = '';
+    elements.feedbackMessage.focus();
+  } else {
+    elements.feedbackValidation.textContent = '';
+  }
+}
+
+async function submitFeedback(event) {
+  event.preventDefault();
+  const message = elements.feedbackMessage.value.trim();
+  if (!message) {
+    elements.feedbackValidation.textContent = 'Write a quick note first.';
+    elements.feedbackMessage.focus();
+    return;
+  }
+  const submit = elements.feedbackForm.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  try {
+    const response = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: elements.feedbackType.value,
+        message,
+        page: window.location.href,
+        job_count: state.jobs.length,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'Could not save feedback.');
+    elements.feedbackMessage.value = '';
+    elements.feedbackType.value = 'general';
+    toggleFeedbackPanel(false);
+    showToast('Feedback saved');
+  } catch (error) {
+    elements.feedbackValidation.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+function fieldLabel(key) {
+  return {
+    company: 'company',
+    job_title: 'job title',
+    location: 'location',
+  }[key] || key;
+}
+
+function setAllRowsSelected(selected) {
+  visibleJobs().forEach(({ job }) => {
+    job.selected = selected;
+  });
+  render();
+}
+
+function useEditedRow(index) {
+  const job = state.jobs[index];
+  if (!job) return;
+  const missing = missingRequiredFields(job);
+  if (missing.length) {
+    showToast(`Fill ${missing.map(fieldLabel).join(', ')} first`);
+    return;
+  }
+  if (missingValue(job.work_type)) job.work_type = 'n/a';
+  if (missingValue(job.salary)) job.salary = 'n/a';
+  if (missingValue(job.source)) job.source = 'Company Website';
+  delete job.error;
+  delete job.review_issues;
+  delete job.review_notes;
+  delete job.review_details;
+  job.manual = true;
+  job.confidence = 'Manual';
+  job.confidence_score = 100;
+  render();
+  showToast('Edited row will be included in the tracker');
+}
+
+async function currentWorkbookFile() {
+  if (state.workbookHandle && state.workbookHandle.getFile) {
+    state.workbookFile = await state.workbookHandle.getFile();
+  } else if (!state.workbookFile && elements.workbookFile.files[0]) {
+    state.workbookFile = elements.workbookFile.files[0];
+  }
+  return state.workbookFile;
+}
+
+function toggleManualPanel(show = elements.manualPanel.hidden) {
+  elements.manualPanel.hidden = !show;
+  if (show) {
+    elements.manualValidation.textContent = '';
+    if (!elements.manualWorkType.value) elements.manualWorkType.value = 'n/a';
+    elements.manualCompany.focus();
+  }
+}
+
+function resetManualForm() {
+  elements.manualPanel.reset();
+  elements.manualWorkType.value = 'n/a';
+  elements.manualValidation.textContent = '';
+}
+
+function manualJobFromForm() {
+  return {
+    date_applied: selectedAppliedDate(),
+    company: elements.manualCompany.value.trim(),
+    job_title: elements.manualTitle.value.trim(),
+    job_link: elements.manualLink.value.trim(),
+    status: 'Applied',
+    location: elements.manualLocation.value.trim(),
+    work_type: elements.manualWorkType.value || 'n/a',
+    salary: elements.manualSalary.value.trim() || 'n/a',
+    follow_up: '',
+    source: elements.manualSource.value.trim() || 'Company Website',
+    confidence: 'Manual',
+    confidence_score: 100,
+    manual: true,
+  };
+}
+
+function addManualJob(event) {
+  event.preventDefault();
+  const job = manualJobFromForm();
+  const missing = missingRequiredFields(job);
+  if (missing.length) {
+    elements.manualValidation.textContent = `Fill ${missing.map(fieldLabel).join(', ')} first.`;
+    return;
+  }
+  if (job.job_link && !/^https?:\/\//i.test(job.job_link)) {
+    elements.manualValidation.textContent = 'Use a full link that starts with http:// or https://.';
+    return;
+  }
+  if (job.job_link) {
+    const duplicate = duplicateResultChoice(job.job_link);
+    if (duplicate.action === 'skip') return;
+    if (duplicate.action === 'update') {
+      state.jobs[duplicate.index] = job;
+    } else {
+      state.jobs.push(job);
+    }
+  } else {
+    state.jobs.push(job);
+  }
+  state.filter = 'manual';
+  resetManualForm();
+  toggleManualPanel(false);
+  render();
+  showToast('Manual job added');
+}
+
+elements.links.addEventListener('input', () => {
+  validateInput();
+  saveSession();
+});
 elements.extract.addEventListener('click', processLinks);
 elements.download.addEventListener('click', downloadExcel);
 elements.appendWorkbook.addEventListener('click', appendToWorkbook);
 elements.chooseWorkbook.addEventListener('click', chooseWorkbook);
+if (elements.reportSelected) elements.reportSelected.addEventListener('click', reportSelectedJobs);
+if (elements.duplicateMode) elements.duplicateMode.addEventListener('change', saveSession);
+if (elements.feedbackButton) elements.feedbackButton.addEventListener('click', () => toggleFeedbackPanel());
+if (elements.feedbackClose) elements.feedbackClose.addEventListener('click', () => toggleFeedbackPanel(false));
+if (elements.feedbackCancel) elements.feedbackCancel.addEventListener('click', () => toggleFeedbackPanel(false));
+if (elements.feedbackForm) elements.feedbackForm.addEventListener('submit', submitFeedback);
+if (elements.selectAll) elements.selectAll.addEventListener('change', () => setAllRowsSelected(elements.selectAll.checked));
+if (elements.selectAllButton) {
+  elements.selectAllButton.addEventListener('click', () => {
+    const rows = visibleJobs();
+    const allSelected = Boolean(rows.length) && rows.every(({ job }) => job.selected);
+    setAllRowsSelected(!allSelected);
+  });
+}
+if (elements.manualAdd) elements.manualAdd.addEventListener('click', () => toggleManualPanel());
+if (elements.manualCancel) elements.manualCancel.addEventListener('click', () => {
+  resetManualForm();
+  toggleManualPanel(false);
+});
+if (elements.manualPanel) elements.manualPanel.addEventListener('submit', addManualJob);
+elements.filterTabs.forEach((tab) => {
+  tab.addEventListener('click', () => {
+    const nextFilter = tab.dataset.filter;
+    if (!FILTERS.includes(nextFilter)) return;
+    state.filter = nextFilter;
+    render();
+  });
+});
 elements.retryAll.addEventListener('click', retryAllErrors);
 elements.loadCaptures.addEventListener('click', loadCaptures);
 elements.clearResults.addEventListener('click', () => {
@@ -515,6 +889,7 @@ elements.clear.addEventListener('click', () => {
 elements.appliedDate.addEventListener('change', () => {
   const appliedDate = selectedAppliedDate();
   if (appliedDate) state.jobs.forEach((job) => { job.date_applied = appliedDate; });
+  render();
 });
 elements.body.addEventListener('click', (event) => {
   const option = event.target.closest('.option-chip');
@@ -531,6 +906,11 @@ elements.body.addEventListener('click', (event) => {
   const retry = event.target.closest('.retry-row');
   if (retry) {
     retryJob(Number(retry.closest('tr').dataset.index));
+    return;
+  }
+  const useRow = event.target.closest('.use-row');
+  if (useRow) {
+    useEditedRow(Number(useRow.closest('tr').dataset.index));
     return;
   }
   const report = event.target.closest('.report-row');
@@ -559,6 +939,8 @@ elements.body.addEventListener('input', (event) => {
   job[editable.dataset.key] = editable.textContent.trim();
   delete job.review_issues;
   delete job.review_notes;
+  delete job.review_details;
+  saveSession();
 });
 
 fetch('/health')
@@ -566,4 +948,5 @@ fetch('/health')
   .catch(() => {});
 
 elements.appliedDate.value = todayIso();
+restoreSession();
 render();

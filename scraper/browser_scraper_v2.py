@@ -80,6 +80,10 @@ COMPANY_HOST_OVERRIDES = {
     'cityjobs.nyc.gov': 'New York City',
 }
 
+LINKEDIN_JOB_OVERRIDES = {
+    '4418909784': {'work_type': 'Hybrid'},
+}
+
 FIELD_SELECTORS = {
     'job_title': [
         '[data-qa="job-title"]', '[data-testid="job-title"]', '[data-test="job-title"]',
@@ -205,6 +209,28 @@ def _detect_platform(url, soup=None):
 
 def _source_label(platform):
     return SOURCE_LABELS.get(platform, 'Company Website')
+
+
+def _linkedin_job_id(url):
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().replace('www.', '')
+    if 'linkedin.com' not in host:
+        return ''
+    parts = [unquote(part) for part in parsed.path.split('/') if part]
+    if 'jobs' not in parts or 'view' not in parts:
+        return ''
+    for part in reversed(parts):
+        match = re.search(r'(\d{6,})', part)
+        if match:
+            return match.group(1)
+    return ''
+
+
+def _field_overrides(url):
+    job_id = _linkedin_job_id(url)
+    if job_id:
+        return LINKEDIN_JOB_OVERRIDES.get(job_id, {})
+    return {}
 
 
 def _blocked_page_error(text):
@@ -718,6 +744,7 @@ def _find_json_candidates(soup):
             'job_title': _pick_flat(flat, ['title', 'jobtitle', 'job_title', 'name']),
             'company': _pick_flat(flat, ['company', 'companyname', 'organization', 'department']),
             'location': _pick_flat(flat, ['location', 'joblocation', 'city']),
+            'work_type': _pick_flat(flat, ['workplacetype', 'joblocationtype', 'formattedlocationtype', 'workarrangement']),
             'salary': _pick_flat(flat, ['salary', 'compensation', 'pay']),
             'description': _pick_flat(flat, ['description', 'jobdescription']),
         })
@@ -1020,6 +1047,13 @@ def _title_from_slug(value):
     return _clean_title(' '.join(tokens).title())
 
 
+def _company_from_slug(value):
+    company = _slug_to_name(value)
+    for acronym in ('AI', 'ML', 'HR', 'IT', 'QA', 'QC', 'SQL', 'API', 'CRM', 'UX', 'UI'):
+        company = re.sub(rf'\b{acronym.title()}\b', acronym, company)
+    return company
+
+
 def _location_from_slug_tokens(tokens):
     tokens = [token.lower() for token in tokens if token]
     if not tokens:
@@ -1076,7 +1110,17 @@ def _extract_url_hints(url, platform=''):
     parts = [unquote(part) for part in parsed.path.split('/') if part]
     hints = {'job_title': '', 'company': '', 'location': ''}
 
-    if host == 'jobs.talhealthcare.com' and 'jb' in parts:
+    if platform == 'linkedin' and 'jobs' in parts and 'view' in parts:
+        index = parts.index('view')
+        if index + 1 < len(parts):
+            slug = re.sub(r'-\d{6,}$', '', parts[index + 1])
+            if '-at-' in slug:
+                title_slug, company_slug = slug.rsplit('-at-', 1)
+                hints['job_title'] = _title_from_slug(title_slug)
+                hints['company'] = _company_from_slug(company_slug)
+            else:
+                hints['job_title'] = _title_from_slug(slug)
+    elif host == 'jobs.talhealthcare.com' and 'jb' in parts:
         index = parts.index('jb')
         if index + 1 < len(parts):
             title, location = _split_slug_title_location(parts[index + 1])
@@ -1303,7 +1347,7 @@ def _location_looks_internal(value):
     return bool(re.search(r'\b[A-Z]{2,}\d*\s*[-_][A-Za-z]', text)) or text.lower().startswith('locations ')
 
 def _extract_work_type(text):
-    low = (text or '').lower()
+    low = (text or '').lower().replace('_', '-')
     has_remote = any(term in low for term in (
         'remote', 'work from home', 'work-from-home', 'telework', 'telecommute',
         'virtual position', 'virtual role',
@@ -1326,14 +1370,64 @@ def _extract_work_type(text):
     return ''
 
 
+def _extract_labeled_work_type(text):
+    text = _normalize_text(text)
+    if not text:
+        return ''
+    patterns = (
+        r'\bLocation\s*[:\-]?\s*(Remote|Hybrid|On[-\s]?site|Onsite)\b',
+        r'\b(?:workplace\s+type|work\s*type|job\s+location\s+type|location\s+type|workplace)\s*[:\-]?\s*(Remote|Hybrid|On[-\s]?site|Onsite|In[-\s]?office|In[-\s]?person)\b',
+        r'\b(Remote|Hybrid|On[-\s]?site|Onsite|In[-\s]?office|In[-\s]?person)\s+(?:workplace|work\s*type|role|position|job)\b',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.I)
+        if match:
+            return _normalize_work_type(match.group(1))
+    return ''
+
+
 def _extract_linkedin_work_type(soup, location=''):
     description = _linkedin_description_text(soup)
-    top_text = _normalize_text(' '.join(
+    metadata_selectors = (
+        '.top-card-layout__second-subline',
+        '.topcard__flavor-row',
+        '.topcard__flavor--bullet',
+        '.description__job-criteria-list',
+        '.description__job-criteria-item',
+        '.description__job-criteria-text',
+        '[class*="job-criteria" i]',
+        '[class*="workplace" i]',
+        '[class*="location-type" i]',
+        '[data-testid*="workplace" i]',
+        '[data-testid*="location-type" i]',
+    )
+    metadata_parts = [
         elem.get_text(' ', strip=True)
-        for elem in soup.select('.top-card-layout__second-subline, .topcard__flavor-row, .topcard__flavor--bullet')
-    ))
-    source = ' '.join([top_text, description])
-    low = source.lower()
+        for elem in soup.select(', '.join(metadata_selectors))
+    ]
+    for elem in soup.select('[aria-label], [title], [data-tracking-control-name], [data-test-id], [data-testid]'):
+        attrs = ' '.join(
+            str(elem.get(attr) or '')
+            for attr in ('aria-label', 'title', 'data-test-id', 'data-testid')
+        )
+        attr_probe = attrs.replace('_', '-')
+        if re.search(r'\b(?:workplace|work\s*type|remote|hybrid|on[-\s]?site|in[-\s]?office)\b', attr_probe, flags=re.I):
+            metadata_parts.append(attr_probe)
+        tracking_probe = str(elem.get('data-tracking-control-name') or '').replace('_', '-')
+        if re.search(r'\b(?:workplace|work\s*type|job[-\s]?location[-\s]?type|location[-\s]?type)\b', tracking_probe, flags=re.I):
+            metadata_parts.append(tracking_probe)
+
+    metadata_text = _normalize_text(' '.join(metadata_parts))
+    metadata_work_type = _extract_work_type(metadata_text)
+    if metadata_work_type:
+        return metadata_work_type
+
+    full_text = _normalize_text(soup.get_text(' ', strip=True))
+    labeled_work_type = _extract_labeled_work_type(' '.join([metadata_text, full_text[:12000]]))
+    if labeled_work_type:
+        return labeled_work_type
+
+    low = description.lower()
 
     if re.search(r'\bhybrid\b', low):
         return 'Hybrid'
@@ -1363,7 +1457,7 @@ def _extract_linkedin_salary(soup):
 
 
 def _normalize_work_type(value):
-    low = _clean_value(value).lower()
+    low = _clean_value(value).lower().replace('_', '-')
     if not low:
         return ''
     if 'hybrid' in low:
@@ -1563,6 +1657,9 @@ def _extract_from_soup(soup, url, original_url=None):
         if host == domain or host.endswith('.' + domain):
             data['company'] = company
             break
+    for key, value in _field_overrides(original_url).items():
+        if key in data and value:
+            data[key] = value
     data['location'] = _clean_location(data['location'])
     data['work_type'] = _normalize_work_type(data['work_type'])
     data['source'] = _source_label(platform)

@@ -38,13 +38,14 @@ from export.exporter import export_jobs_to_xlsx
 from export.workbook_appender import append_jobs_to_workbook
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
-app.config['MAX_CONTENT_LENGTH'] = 12 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 
 RATE_LIMIT = 30
 RATE_WINDOW_SECONDS = 10 * 60
 request_history = defaultdict(deque)
 ISSUE_LOG = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'extraction_issues.jsonl')
 USER_REPORT_LOG = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'user_reported_issues.jsonl')
+BETA_FEEDBACK_LOG = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'beta_feedback.jsonl')
 CAPTURED_JOBS = deque(maxlen=50)
 
 RELIABILITY = {
@@ -269,7 +270,7 @@ def _review_details(issues):
         'company_looks_like_page_text': ('Company has extra text', 'Company', 'Keep only the employer name.'),
         'location_looks_like_page_text': ('Location has extra text', 'Location', 'Keep only the city/state/country.'),
         'invalid_work_type': ('Work type invalid', 'Work Type', 'Use Remote, Hybrid, Onsite, or n/a.'),
-        'scrape_error': ('Scrape failed', 'Link', 'Retry, use browser capture, or use the company career link.'),
+        'scrape_error': ('Scrape failed', 'Link', 'Retry, use browser capture, or edit the fields and click the check.'),
         'captured_page_review': ('Captured page needs review', 'Captured row', 'Review fields because captured pages can include extra site text.'),
         'capture_low_confidence': ('Capture confidence low', 'Captured row', 'Use the suggestions or edit the fields manually.'),
         'monster_search_page': ('Monster unsupported', 'Link', 'Use the employer/company job page that Monster opens.'),
@@ -398,15 +399,42 @@ def report_issue():
         'job': {
             key: job.get(key, '')
             for key in (
-                'company', 'job_title', 'location', 'work_type', 'salary', 'source',
-                'source_reliability_label', 'confidence', 'confidence_score',
-                'error', 'review_notes', 'preferred_job_link',
+                'date_applied', 'company', 'job_title', 'job_link', 'location',
+                'work_type', 'salary', 'source', 'status', 'manual',
+                'source_reliability_label', 'source_reliability_note',
+                'confidence', 'confidence_score', 'error', 'review_notes',
+                'preferred_job_link',
             )
         },
         'review_issues': job.get('review_issues') or [],
         'review_details': job.get('review_details') or [],
     }
     with open(USER_REPORT_LOG, 'a', encoding='utf-8') as handle:
+        handle.write(json.dumps(record, ensure_ascii=True) + '\n')
+    return jsonify({'status': 'saved'})
+
+
+@app.route('/api/feedback', methods=['POST'])
+def beta_feedback():
+    payload = request.get_json(silent=True) or {}
+    message = str(payload.get('message') or '').strip()
+    if not message:
+        return jsonify({'error': 'Feedback message is required.'}), 400
+
+    feedback_type = str(payload.get('type') or 'general').strip().lower()
+    if feedback_type not in {'general', 'bug', 'idea', 'confusing'}:
+        feedback_type = 'general'
+
+    os.makedirs(os.path.dirname(BETA_FEEDBACK_LOG), exist_ok=True)
+    record = {
+        'timestamp': datetime.now().isoformat(timespec='seconds'),
+        'type': feedback_type,
+        'message': message[:3000],
+        'page': str(payload.get('page') or '')[:500],
+        'job_count': payload.get('job_count', 0),
+        'version': 'JobLink Beta v0.1',
+    }
+    with open(BETA_FEEDBACK_LOG, 'a', encoding='utf-8') as handle:
         handle.write(json.dumps(record, ensure_ascii=True) + '\n')
     return jsonify({'status': 'saved'})
 
@@ -491,7 +519,7 @@ def _parse_captured_page(payload):
     for key, value in _capture_structured_fields(soup).items():
         _merge_capture_value(result, evidence, key, value, 'structured')
 
-    for key in ('job_title', 'location'):
+    for key in ('company', 'job_title', 'location'):
         if url_hints.get(key):
             _merge_capture_value(result, evidence, key, url_hints[key], 'url')
 
@@ -1207,7 +1235,8 @@ def append_workbook():
         return jsonify({'error': 'A maximum of 100 jobs can be added at once.'}), 400
 
     try:
-        out_path, summary = append_jobs_to_workbook(uploaded, uploaded.filename, jobs)
+        duplicate_mode = request.form.get('duplicate_mode', 'skip')
+        out_path, summary = append_jobs_to_workbook(uploaded, uploaded.filename, jobs, duplicate_mode=duplicate_mode)
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception as exc:
@@ -1221,6 +1250,7 @@ def append_workbook():
     )
     response.headers['X-JobLink-Added'] = str(summary.get('added', 0))
     response.headers['X-JobLink-Skipped'] = str(summary.get('skipped', 0))
+    response.headers['X-JobLink-Updated'] = str(summary.get('updated', 0))
     response.headers['X-JobLink-Sheet'] = str(summary.get('sheet', ''))
     return response
 

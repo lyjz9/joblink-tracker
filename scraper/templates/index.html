@@ -4,19 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>JobLink Beta</title>
-  <link rel="icon" href="{{ url_for('static', filename='brand-mark.svg') }}" type="image/svg+xml">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <link rel="icon" href="../static/brand-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../static/styles.css">
 </head>
 <body>
   <header class="app-header">
     <div class="brand">
-      <img src="{{ url_for('static', filename='brand-mark.svg') }}" alt="" width="34" height="34">
+      <img src="../static/brand-mark.svg" alt="" width="34" height="34">
       <div>
         <strong>JobLink</strong>
         <span>Private beta</span>
       </div>
     </div>
-    <div class="health" id="healthStatus"><span></span> Local scraper</div>
+    <div class="header-actions">
+      <button class="feedback-button" type="button" id="feedbackButton">
+        <i data-lucide="message-circle" aria-hidden="true"></i>
+        Feedback
+      </button>
+      <div class="health" id="healthStatus"><span></span> Local scraper</div>
+    </div>
   </header>
 
   <main>
@@ -48,7 +54,7 @@
       </div>
       <div class="beta-note">
         <i data-lucide="info" aria-hidden="true"></i>
-        Direct company or ATS links work best. Monster search/job links are unreliable for scraping; when Monster opens an employer job page, use that employer link instead. Problem rows are saved locally for debugging.
+        Direct company and ATS links work best. Monster, Upwork, Wellfound, and some Cloudflare-protected sites may block scraping; use the employer career link or manual entry when that happens.
       </div>
       <div class="capture-panel" aria-labelledby="captureTitle">
         <div>
@@ -77,9 +83,25 @@
             <span class="summary-ready"><b id="readyCount">0</b> ready</span>
             <span class="summary-review"><b id="reviewCount">0</b> review</span>
             <span class="summary-error"><b id="errorCount">0</b> errors</span>
+            <span><b id="manualCount">0</b> manual</span>
+          </div>
+          <div class="filter-tabs" aria-label="Filter results">
+            <button class="filter-tab is-active" type="button" data-filter="all">All</button>
+            <button class="filter-tab" type="button" data-filter="ready">Ready</button>
+            <button class="filter-tab" type="button" data-filter="review">Review</button>
+            <button class="filter-tab" type="button" data-filter="error">Error</button>
+            <button class="filter-tab" type="button" data-filter="manual">Manual</button>
           </div>
         </div>
         <div class="toolbar-actions">
+          <button class="button button-secondary" type="button" id="manualAddButton">
+            <i data-lucide="plus-circle" aria-hidden="true"></i>
+            Add manual job
+          </button>
+          <button class="button button-quiet" type="button" id="selectAllButton" disabled>
+            <i data-lucide="check-square" aria-hidden="true"></i>
+            Select all
+          </button>
           <button class="button button-quiet" type="button" id="retryAllButton" disabled>
             <i data-lucide="rotate-cw" aria-hidden="true"></i>
             Retry review
@@ -88,12 +110,23 @@
             <i data-lucide="trash-2" aria-hidden="true"></i>
             Clear selected
           </button>
+          <button class="button button-quiet" type="button" id="reportSelectedButton" disabled>
+            <i data-lucide="flag" aria-hidden="true"></i>
+            Report issue
+          </button>
           <button class="button button-secondary" type="button" id="chooseWorkbookButton">
             <i data-lucide="upload" aria-hidden="true"></i>
             Choose tracker
           </button>
           <input id="workbookFile" class="sr-only" type="file" accept=".xlsx,.xlsm">
           <span class="file-name" id="workbookName">No tracker selected</span>
+          <label class="duplicate-field" for="duplicateMode">
+            <span>Tracker duplicates</span>
+            <select id="duplicateMode">
+              <option value="skip">Skip existing</option>
+              <option value="update">Update existing</option>
+            </select>
+          </label>
           <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
             <i data-lucide="file-plus-2" aria-hidden="true"></i>
             Update tracker
@@ -105,16 +138,65 @@
         </div>
       </div>
 
+      <form class="manual-panel" id="manualPanel" hidden>
+        <div class="manual-grid">
+          <label>
+            <span>Company</span>
+            <input id="manualCompany" name="company" type="text" autocomplete="organization">
+          </label>
+          <label>
+            <span>Job title</span>
+            <input id="manualTitle" name="job_title" type="text" autocomplete="off">
+          </label>
+          <label>
+            <span>Location</span>
+            <input id="manualLocation" name="location" type="text" autocomplete="address-level2">
+          </label>
+          <label>
+            <span>Work type</span>
+            <select id="manualWorkType" name="work_type">
+              <option value="n/a">N/A</option>
+              <option value="Remote">Remote</option>
+              <option value="Hybrid">Hybrid</option>
+              <option value="Onsite">Onsite</option>
+            </select>
+          </label>
+          <label>
+            <span>Salary</span>
+            <input id="manualSalary" name="salary" type="text" placeholder="n/a">
+          </label>
+          <label>
+            <span>Source</span>
+            <input id="manualSource" name="source" type="text" placeholder="Company Website">
+          </label>
+          <label class="manual-link">
+            <span>Job link</span>
+            <input id="manualLink" name="job_link" type="url" placeholder="https://...">
+          </label>
+        </div>
+        <div class="manual-actions">
+          <div class="validation-message" id="manualValidation" role="status"></div>
+          <button class="button button-quiet" type="button" id="manualCancelButton">Cancel</button>
+          <button class="button button-primary" type="submit">
+            <i data-lucide="check" aria-hidden="true"></i>
+            Add to results
+          </button>
+        </div>
+      </form>
+
       <div class="empty-state" id="emptyState">
-        <img src="{{ url_for('static', filename='empty-jobs.svg') }}" alt="" width="180" height="120">
-        <strong>No jobs yet</strong>
+        <img src="../static/empty-jobs.svg" alt="" width="180" height="120">
+        <strong id="emptyTitle">No jobs yet</strong>
+        <span>Paste job links, load captured jobs, or add one manually.</span>
       </div>
 
       <div class="table-wrap" id="tableWrap" hidden>
         <table>
           <thead>
             <tr>
-              <th scope="col" class="select-column"><span class="sr-only">Select</span></th>
+              <th scope="col" class="select-column">
+                <input id="selectAllRows" type="checkbox" aria-label="Select all results">
+              </th>
               <th scope="col">Status</th>
               <th scope="col">Company</th>
               <th scope="col">Job title</th>
@@ -131,8 +213,48 @@
     </section>
   </main>
 
+  <footer class="app-footer">
+    <span>JobLink Beta v0.1</span>
+    <span>Private beta: links, rows, and tracker files are processed locally in this app session.</span>
+  </footer>
+
+  <section class="feedback-panel" id="feedbackPanel" aria-labelledby="feedbackTitle" hidden>
+    <form id="feedbackForm">
+      <div class="feedback-heading">
+        <div>
+          <h2 id="feedbackTitle">Beta feedback</h2>
+          <span>Saved locally for review.</span>
+        </div>
+        <button class="icon-button" type="button" id="feedbackCloseButton" aria-label="Close feedback">
+          <i data-lucide="x" aria-hidden="true"></i>
+        </button>
+      </div>
+      <label>
+        <span>Type</span>
+        <select id="feedbackType">
+          <option value="general">General</option>
+          <option value="bug">Bug</option>
+          <option value="idea">Idea</option>
+          <option value="confusing">Confusing</option>
+        </select>
+      </label>
+      <label>
+        <span>Message</span>
+        <textarea id="feedbackMessage" rows="4" maxlength="3000" placeholder="What should we improve?"></textarea>
+      </label>
+      <div class="manual-actions">
+        <div class="validation-message" id="feedbackValidation" role="status"></div>
+        <button class="button button-quiet" type="button" id="feedbackCancelButton">Cancel</button>
+        <button class="button button-primary" type="submit">
+          <i data-lucide="send" aria-hidden="true"></i>
+          Send feedback
+        </button>
+      </div>
+    </form>
+  </section>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="../static/app.js"></script>
 </body>
 </html>

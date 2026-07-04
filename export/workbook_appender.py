@@ -51,7 +51,13 @@ JOB_KEYS = {
 }
 
 
-def append_jobs_to_workbook(file_obj, filename: str, jobs: list[dict], outdir: str = "exports") -> tuple[str, dict]:
+def append_jobs_to_workbook(
+    file_obj,
+    filename: str,
+    jobs: list[dict],
+    outdir: str = "exports",
+    duplicate_mode: str = "skip",
+) -> tuple[str, dict]:
     suffix = Path(filename or "").suffix.lower()
     if suffix not in {".xlsx", ".xlsm"}:
         raise ValueError("Upload an .xlsx or .xlsm Excel workbook.")
@@ -60,22 +66,31 @@ def append_jobs_to_workbook(file_obj, filename: str, jobs: list[dict], outdir: s
     workbook = load_workbook(file_obj, keep_vba=keep_vba)
     worksheet, header_row = _choose_worksheet(workbook)
     columns = _ensure_headers(worksheet, header_row)
+    duplicate_mode = duplicate_mode if duplicate_mode in {"skip", "update"} else "skip"
     existing_links = _existing_links(worksheet, columns["Job link"], header_row)
 
     added = 0
     skipped = 0
+    updated = 0
     last_row = header_row
     for job in jobs:
         link = _clean_text(job.get("job_link"))
-        if link and link in existing_links:
-            skipped += 1
+        link_key = _link_key(link)
+        if link_key and link_key in existing_links:
+            if duplicate_mode == "update":
+                row_number = existing_links[link_key]
+                _write_job_row(worksheet, row_number, columns, job)
+                updated += 1
+                last_row = max(last_row, row_number)
+            else:
+                skipped += 1
             continue
-        row_number = _first_empty_row(worksheet, columns["Job link"], header_row)
+        row_number = _first_empty_row(worksheet, columns, header_row)
         if row_number > header_row + 1:
             _copy_row_style(worksheet, row_number - 1, row_number)
         _write_job_row(worksheet, row_number, columns, job)
-        if link:
-            existing_links.add(link)
+        if link_key:
+            existing_links[link_key] = row_number
         added += 1
         last_row = max(last_row, row_number)
 
@@ -87,7 +102,7 @@ def append_jobs_to_workbook(file_obj, filename: str, jobs: list[dict], outdir: s
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_path = os.path.join(outdir, f"{stem}_with_jobs_{timestamp}{suffix}")
     workbook.save(out_path)
-    return out_path, {"added": added, "skipped": skipped, "sheet": worksheet.title}
+    return out_path, {"added": added, "skipped": skipped, "updated": updated, "sheet": worksheet.title}
 
 
 def _normalize(value: object) -> str:
@@ -96,6 +111,10 @@ def _normalize(value: object) -> str:
 
 def _clean_text(value: object) -> str:
     return str(value or "").strip()
+
+
+def _link_key(value: object) -> str:
+    return _clean_text(value).rstrip("/").casefold()
 
 
 def _canonical_header(value: object) -> str | None:
@@ -164,23 +183,29 @@ def _ensure_headers(worksheet, header_row: int) -> dict[str, int]:
     return columns
 
 
-def _existing_links(worksheet, link_column: int, header_row: int) -> set[str]:
-    links = set()
+def _existing_links(worksheet, link_column: int, header_row: int) -> dict[str, int]:
+    links = {}
     for row_number in range(header_row + 1, worksheet.max_row + 1):
         cell = worksheet.cell(row=row_number, column=link_column)
         link = _clean_text(cell.hyperlink.target if cell.hyperlink else cell.value)
         if link and link.casefold() != "open job":
-            links.add(link)
+            links[_link_key(link)] = row_number
         elif cell.hyperlink and cell.hyperlink.target:
-            links.add(_clean_text(cell.hyperlink.target))
+            links[_link_key(cell.hyperlink.target)] = row_number
     return links
 
 
-def _first_empty_row(worksheet, link_column: int, header_row: int) -> int:
+def _first_empty_row(worksheet, columns: dict[str, int], header_row: int) -> int:
+    watched_columns = sorted(set(columns.values()))
     for row_number in range(header_row + 1, worksheet.max_row + 2):
-        cell = worksheet.cell(row=row_number, column=link_column)
-        link = _clean_text(cell.hyperlink.target if cell.hyperlink else cell.value)
-        if not link:
+        has_value = False
+        for column in watched_columns:
+            cell = worksheet.cell(row=row_number, column=column)
+            value = _clean_text(cell.hyperlink.target if cell.hyperlink else cell.value)
+            if value:
+                has_value = True
+                break
+        if not has_value:
             return row_number
     return worksheet.max_row + 1
 

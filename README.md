@@ -1,26 +1,35 @@
 # JobLink Tracker
 
-JobLink Tracker is a Python + Excel project for job seekers who are tired of copying the same details into a spreadsheet over and over.
+JobLink Tracker is a local Python + Excel workflow I built for the part of job searching that quietly becomes exhausting: copying the same posting details into a spreadsheet over and over.
 
-Paste in job links from company career pages or job boards, and the tool tries to pull out the details you usually track by hand: company, job title, location, work type, salary, and source. From there, you can review the results and save them into an Excel tracker.
+Paste in job links from company career pages or job boards, and the tool pulls out the details people usually track by hand: company, job title, location, work type, salary, and source. From there, you can review anything uncertain and save the cleaned rows into an Excel tracker.
 
-It is especially meant for students, new grads, and anyone applying to a lot of roles at once.
+It is especially meant for students, new grads, and anyone applying to enough roles that the tracking work starts becoming its own little job.
 
-> Status: Early public beta. This project is actively being improved.
+> Status: v0.1 local beta. This project is actively being improved and is not a hosted public app yet.
+
+## Known Limitations
+
+JobLink Tracker is a helper, not a perfect scraper. Company career pages and applicant-tracking-system links usually work best. Some job boards, login-only pages, Cloudflare checks, human verification pages, private APIs, and JavaScript-heavy pages may block scraping or return incomplete fields.
+
+Rows marked for review should be checked manually before they are added to a real application tracker. Salary, work type, and location are especially important to verify because different websites format these fields differently.
+
+See [docs/known_limitations.md](docs/known_limitations.md) for more detail.
 
 
 ## Why I Built This
 
 When you are applying to a lot of jobs, the tracking part can quietly turn into its own chore. Every posting has a company name, title, location, salary note, link, and follow-up date to copy somewhere. It is easy to lose time, make small mistakes, or stop tracking things clearly.
 
-JobLink Tracker is my attempt to make that process less annoying. It does not try to replace your judgment. It just handles some of the repetitive copying, then lets you review and edit everything before saving.
+JobLink Tracker is my attempt to make that process less annoying. It does not try to replace your judgment. It handles some of the repetitive copying, then lets you review and edit everything before saving.
 
 ## Features
 
 - Pull company, job title, location, salary, and work type from job posting links.
 - Save results in an Excel-friendly application tracker format.
 - Process one link at a time or a batch of links from an Excel workbook.
-- Flag rows that may need a manual review.
+- Flag rows that may need a manual review with confidence and source reliability labels.
+- Save problem rows locally for later scraper debugging.
 - Help reduce repetitive copy-and-paste work during a job search.
 
 ## How It Works
@@ -51,6 +60,9 @@ If Python 3.12 is not installed, Python 3.11 also works. On macOS or Linux, use 
 
 ## Usage
 
+More examples are available in [docs/usage_examples.md](docs/usage_examples.md).
+For common setup and scraping issues, see [docs/troubleshooting.md](docs/troubleshooting.md).
+
 To test one job link directly:
 
 ```powershell
@@ -77,7 +89,9 @@ Invoke-RestMethod -Uri http://127.0.0.1:5000/scrape -Method Post -ContentType "a
 
 ## Excel Workflow
 
-If you want to use the Excel workflow, create a macro-enabled workbook with these sheets:
+You can start from the blank tracker template: [templates/joblink_tracker_template.xlsx](templates/joblink_tracker_template.xlsx).
+
+If you want to use the Excel workflow manually, create a macro-enabled workbook with these sheets:
 
 - `Applications`
 - `Input`
@@ -89,6 +103,8 @@ Job Link, Source, Notes, Process Status, Processed At, Error Message
 ```
 
 Import `VBA/JobTracker.bas` using `Developer > Visual Basic > File > Import File`. If you want a button in the workbook, assign it to the `ProcessInputLinks` macro.
+
+If you use the blank `.xlsx` template with VBA macros, save a personal copy as an Excel macro-enabled workbook (`.xlsm`) before importing the macro module.
 
 You can also test the same workflow without a button by passing the path to your own workbook:
 
@@ -143,7 +159,11 @@ Browser capture is still a helper, not a guarantee. Review captured results befo
 - Work Type should be Remote, Hybrid, Onsite, or n/a. If the posting does not explicitly say the work type, use n/a.
 - Salary should show n/a when no trustworthy salary is found.
 
-## Focus
+## Privacy
+
+The beta runs locally. Do not commit personal tracker files, generated Excel exports, logs, screenshots, or notes that contain private applications, email addresses, job history, or personal comments.
+
+## Roadmap
 
 - Make salary extraction more reliable, especially hourly pay, yearly ranges, and LinkedIn base-pay text.
 - Clean up location results when pages include extra words like posting status, job category, or repeated page text.
@@ -152,6 +172,7 @@ Browser capture is still a helper, not a guarantee. Review captured results befo
 - Improve source labels for school career sites, reposts, and company career pages.
 - Add a small set of real test links that cover the tricky cases found during testing.
 - Add screenshots or a short demo once the main workflow feels stable.
+- Add a hosted demo later, with authentication if exposed beyond localhost.
 
 ## Contributing
 
@@ -164,12 +185,6 @@ If you report a scraping issue, include:
 - The job posting URL.
 - What field was wrong or missing.
 - The output you expected.
-
-## Known Limitations
-
-JobLink Tracker is a helper, not a perfect scraper. Extraction quality varies across job boards and company career pages. Some sites block automation, require login, or render job details behind private APIs.
-
-The goal is to reduce repetitive tracking work, but you should still review results before saving them.
 
 ## License
 

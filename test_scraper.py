@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """Quick test script for the job scraper."""
 import sys
+from pathlib import Path
 
-sys.path.insert(0, r'C:\Users\jzeng\Documents\job')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from scraper.browser_scraper_v2 import parse_job_with_browser
 

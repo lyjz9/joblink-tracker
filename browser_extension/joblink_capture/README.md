@@ -1,4 +1,8 @@
-JobLink Capture Chrome Extension
+# JobLink Capture Chrome Extension
+
+![Component: browser capture](https://img.shields.io/badge/component-browser%20capture-2563eb)
+![Chrome extension](https://img.shields.io/badge/browser-Chrome-4285f4)
+![Local helper](https://img.shields.io/badge/helper-local%20workflow-2f855a)
 
 What it does
 - Adds a `JobLink Capture` button to Chrome.
@@ -11,7 +15,7 @@ Install
 3. Turn on `Developer mode`.
 4. Select `Load unpacked`.
 5. Choose this folder:
-   `C:\Users\jzeng\Documents\job\browser_extension\joblink_capture`
+   `browser_extension\joblink_capture`
 
 Use
 1. Open the job page.

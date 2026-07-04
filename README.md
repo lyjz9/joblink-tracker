@@ -1,5 +1,11 @@
 # JobLink Tracker
 
+![Status: local beta](https://img.shields.io/badge/status-local%20beta-f59e0b)
+![Python: 3.11 or 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB)
+![Excel tracker](https://img.shields.io/badge/excel-tracker-217346)
+![Local first](https://img.shields.io/badge/local-first-2563eb)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 JobLink Tracker is a local Python + Excel workflow I built for the part of job searching that quietly becomes exhausting: copying the same posting details into a spreadsheet over and over.
 
 Paste in job links from company career pages or job boards, and the tool pulls out the details people usually track by hand: company, job title, location, work type, salary, and source. From there, you can review anything uncertain and save the cleaned rows into an Excel tracker.

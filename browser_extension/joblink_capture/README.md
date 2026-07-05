@@ -1,11 +1,11 @@
 # JobLink Capture Chrome Extension
 
-![Component: browser capture](https://img.shields.io/badge/component-browser%20capture-2563eb)
-![Chrome extension](https://img.shields.io/badge/browser-Chrome-4285f4)
-![Local helper](https://img.shields.io/badge/helper-local%20workflow-2f855a)
-![Manifest V3](https://img.shields.io/badge/manifest-v3-6b7280)
-![Local endpoint](https://img.shields.io/badge/endpoint-localhost%3A5050-2563eb)
-![Blocked sites](https://img.shields.io/badge/use%20case-blocked%20sites-b91c1c)
+[![Component: browser capture](https://img.shields.io/badge/component-browser%20capture-2563eb)](popup.js)
+[![Chrome extension](https://img.shields.io/badge/browser-Chrome-4285f4)](manifest.json)
+[![Local helper](https://img.shields.io/badge/helper-local%20workflow-2f855a)](../../README.md#browser-capture-for-blocked-sites)
+[![Manifest V3](https://img.shields.io/badge/manifest-v3-6b7280)](manifest.json)
+[![Local endpoint](https://img.shields.io/badge/endpoint-localhost%3A5050-2563eb)](popup.js)
+[![Blocked sites](https://img.shields.io/badge/use%20case-blocked%20sites-b91c1c)](../../README.md#browser-capture-for-blocked-sites)
 
 What it does
 - Adds a `JobLink Capture` button to Chrome.

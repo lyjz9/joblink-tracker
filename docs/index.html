@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JobLink Tracker</title>
+  <meta name="description" content="JobLink Tracker turns job posting links into structured Excel application tracker rows.">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="JobLink Tracker home">
+      <span class="brand-mark" aria-hidden="true">JL</span>
+      <span>JobLink Tracker</span>
+    </a>
+    <nav aria-label="Site navigation">
+      <a href="#how-it-works">How it works</a>
+      <a href="#workflow">Workflow</a>
+      <a href="#limitations">Limitations</a>
+      <a href="https://github.com/lyjz9/joblink-tracker">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="intro-band">
+      <div class="intro-copy">
+        <p class="eyebrow">Local beta for job seekers</p>
+        <h1>Turn job posting links into Excel tracker rows.</h1>
+        <p class="lede">
+          JobLink Tracker is a Python + Excel project that helps reduce the repetitive copying that comes with tracking a lot of job applications.
+        </p>
+        <div class="actions" aria-label="Primary links">
+          <a class="button primary" href="https://github.com/lyjz9/joblink-tracker">View on GitHub</a>
+          <a class="button secondary" href="https://github.com/lyjz9/joblink-tracker#setup">Read setup</a>
+        </div>
+      </div>
+      <figure class="preview">
+        <img src="assets/joblink-preview.png" alt="Preview of JobLink Tracker turning pasted links into reviewable Excel tracker rows.">
+      </figure>
+    </section>
+
+    <section class="status-strip" aria-label="Project status">
+      <div>
+        <strong>v0.1 local beta</strong>
+        <span>Runs on your computer, not as a hosted scraper app.</span>
+      </div>
+      <div>
+        <strong>Review-first</strong>
+        <span>Rows marked for review should be checked before saving.</span>
+      </div>
+      <div>
+        <strong>Built for Excel</strong>
+        <span>Exports and updates tracker workbooks.</span>
+      </div>
+    </section>
+
+    <section class="content-band" id="how-it-works">
+      <div class="section-heading">
+        <p class="eyebrow">What it does</p>
+        <h2>Less copying, more reviewing.</h2>
+      </div>
+      <div class="feature-grid">
+        <article>
+          <h3>Extract useful fields</h3>
+          <p>Pulls company, title, location, work type, salary, source, and job link details from job posting pages.</p>
+        </article>
+        <article>
+          <h3>Save to a tracker</h3>
+          <p>Formats results into Excel-friendly rows so applications stay easier to compare and follow up on.</p>
+        </article>
+        <article>
+          <h3>Keep manual control</h3>
+          <p>Flags uncertain results instead of pretending every scrape is perfect.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="workflow-band" id="workflow">
+      <div class="section-heading">
+        <p class="eyebrow">Workflow</p>
+        <h2>Paste, extract, review, save.</h2>
+      </div>
+      <ol class="steps">
+        <li>
+          <span>1</span>
+          <div>
+            <h3>Paste job links</h3>
+            <p>Use the local web beta, command line, or Excel input sheet.</p>
+          </div>
+        </li>
+        <li>
+          <span>2</span>
+          <div>
+            <h3>Extract details</h3>
+            <p>The scraper looks for structured job data and common career-page patterns.</p>
+          </div>
+        </li>
+        <li>
+          <span>3</span>
+          <div>
+            <h3>Review uncertain rows</h3>
+            <p>Blocked sites, login-only pages, salary text, and work type fields may need a human check.</p>
+          </div>
+        </li>
+        <li>
+          <span>4</span>
+          <div>
+            <h3>Save to Excel</h3>
+            <p>Download results or update an existing tracker workbook.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="content-band muted" id="limitations">
+      <div class="section-heading">
+        <p class="eyebrow">Honest status</p>
+        <h2>This is a helper, not a perfect scraper.</h2>
+      </div>
+      <div class="split-list">
+        <div>
+          <h3>Works best with</h3>
+          <ul>
+            <li>Company career pages</li>
+            <li>Common ATS pages like Greenhouse, Lever, Ashby, and Workday</li>
+            <li>Links that do not require login or human verification</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Still being improved</h3>
+          <ul>
+            <li>Salary ranges and hourly pay</li>
+            <li>Work type detection</li>
+            <li>Messy locations copied from page text</li>
+            <li>Blocked or expired postings</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-band">
+      <div>
+        <p class="eyebrow">Open source beta</p>
+        <h2>Try it locally, read the docs, or follow the repo while it improves.</h2>
+      </div>
+      <div class="actions">
+        <a class="button primary" href="https://github.com/lyjz9/joblink-tracker">Open repository</a>
+        <a class="button secondary" href="https://github.com/lyjz9/joblink-tracker/blob/main/docs/known_limitations.md">Known limitations</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

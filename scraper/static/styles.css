@@ -205,10 +205,11 @@ textarea::placeholder { color: #aa8f85; }
 }
 .duplicate-field select:focus { border-color: var(--focus); box-shadow: 0 0 0 3px rgba(223, 111, 79, .16); }
 
-.progress { display: grid; grid-template-columns: minmax(120px, 1fr) auto; align-items: center; gap: 12px; margin-top: 8px; }
+.progress { display: grid; grid-template-columns: minmax(120px, 1fr) auto auto; align-items: center; gap: 12px; margin-top: 8px; }
 .progress-track { height: 6px; border-radius: 3px; overflow: hidden; background: #eadbd5; }
 .progress-track span { display: block; width: 0; height: 100%; background: var(--peach); transition: width .25s ease; }
 .progress > span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.progress-cancel { min-height: 30px; padding: 0 8px; }
 
 .results-toolbar { margin-bottom: 18px; }
 .results-toolbar > div { display: grid; gap: 6px; }
@@ -431,6 +432,8 @@ th:nth-child(9) { width: 118px; }
   .input-controls { align-items: flex-start; flex-direction: column; gap: 6px; }
   .validation-message { max-width: 100%; }
   .beta-note { display: flex; }
+  .progress { grid-template-columns: minmax(0, 1fr) auto; }
+  .progress-track { grid-column: 1 / -1; }
   .app-footer { align-items: flex-start; flex-direction: column; }
   .health { font-size: 0; }
   .health::after { content: "Local"; font-size: 12px; }

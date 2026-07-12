@@ -16,6 +16,12 @@ import requests
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
+from .security import (
+    install_playwright_network_guard,
+    safe_requests_get,
+    validate_public_url,
+)
+
 from .scraper import (
     _clean_linkedin_title,
     _extract_jsonld_job_fields,
@@ -269,7 +275,7 @@ def _greenhouse_api_result(url):
 
     endpoint = f'https://boards-api.greenhouse.io/v1/boards/{board}/jobs/{job_id}?content=true'
     try:
-        response = requests.get(endpoint, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
+        response = safe_requests_get(endpoint, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
         if response.status_code != 200:
             return None
         payload = response.json()
@@ -317,7 +323,7 @@ def _smartrecruiters_api_result(url):
 
     endpoint = f'https://api.smartrecruiters.com/v1/companies/{company_slug}/postings/{posting_id}'
     try:
-        response = requests.get(endpoint, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
+        response = safe_requests_get(endpoint, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
         if response.status_code != 200:
             return None
         payload = response.json()
@@ -419,7 +425,7 @@ def _icims_iframe_result(url):
     if not iframe_url:
         return None
     try:
-        response = requests.get(
+        response = safe_requests_get(
             iframe_url,
             timeout=20,
             headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
@@ -1877,6 +1883,7 @@ async def scrape_job_with_browser(url, timeout=60000):
             ),
             viewport={'width': 1366, 'height': 900},
         )
+        await install_playwright_network_guard(context)
         page = await context.new_page()
         try:
             status = await _open_job_page(page, fetch_url, timeout)
@@ -1894,6 +1901,12 @@ async def scrape_job_with_browser(url, timeout=60000):
                 data = _empty_result(url, _detect_platform(url))
                 _apply_url_hints(data, url)
                 data['error'] = 'Job page redirected to a general careers page and is likely unavailable.'
+                return _public_result(data)
+            _final_url, final_url_error = validate_public_url(page.url or fetch_url)
+            if final_url_error:
+                data = _empty_result(url, _detect_platform(url))
+                _apply_url_hints(data, url)
+                data['error'] = 'Job page redirected to a blocked network address.'
                 return _public_result(data)
             html = await page.content()
             soup = BeautifulSoup(html, 'html.parser')

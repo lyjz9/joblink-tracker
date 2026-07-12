@@ -2,6 +2,8 @@ import json
 import re
 import requests
 from bs4 import BeautifulSoup
+
+from .security import safe_requests_get
 from urllib.parse import urljoin, urlparse
 
 JOB_FIELDS = [
@@ -256,7 +258,7 @@ def _discover_job_url(url, soup):
 def parse_job_from_html(url):
     """Fetch URL and attempt to extract job fields using metadata and heuristics."""
     try:
-        r = requests.get(url, timeout=10, headers={"User-Agent": "JobTrackerBot/1.0"})
+        r = safe_requests_get(url, timeout=10, headers={"User-Agent": "JobTrackerBot/1.0"})
     except Exception as e:
         return {'error': str(e)}
     if r.status_code != 200:
@@ -266,7 +268,7 @@ def parse_job_from_html(url):
     fallback_url = _discover_job_url(url, soup)
     if fallback_url and fallback_url != url:
         try:
-            r = requests.get(fallback_url, timeout=10, headers={"User-Agent": "JobTrackerBot/1.0"})
+            r = safe_requests_get(fallback_url, timeout=10, headers={"User-Agent": "JobTrackerBot/1.0"})
             if r.status_code == 200:
                 url = fallback_url
                 soup = BeautifulSoup(r.text, 'html.parser')

@@ -73,6 +73,8 @@ python -m playwright install chromium
 
 If Python 3.12 is not installed, Python 3.11 also works. On macOS or Linux, use `python3` instead of `py -3.12` if needed.
 
+Copy `.env.example` to `.env` only when you need to change local defaults. Public deployment must set `JOBLINK_ENV=production` and provide a long, random `JOBLINK_SECRET_KEY` through the hosting provider's environment settings.
+
 ## Usage
 
 More examples are available in [docs/usage_examples.md](docs/usage_examples.md).
@@ -189,10 +191,9 @@ Browser capture is still a helper, not a guarantee. Review captured results befo
 
 ## Privacy
 
-[![No cloud account](https://img.shields.io/badge/cloud%20account-not%20required-2f855a)](#privacy)
-[![Do not commit logs](https://img.shields.io/badge/private%20files-do%20not%20commit-b91c1c)](.gitignore)
+The local beta keeps diagnostic data on this computer. Hosted mode disables browser capture by default, hides internal logs, redacts full URLs from automatic diagnostics, and removes temporary workbook files after returning the download.
 
-The beta runs locally. Do not commit personal tracker files, generated Excel exports, logs, screenshots, or notes that contain private applications, email addresses, job history, or personal comments.
+See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling details. Do not commit personal trackers, generated exports, logs, screenshots, or notes containing private application information.
 
 ## Roadmap
 

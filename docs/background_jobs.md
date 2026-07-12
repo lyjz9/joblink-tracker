@@ -29,4 +29,6 @@ Use one web application process for this beta. Multiple Gunicorn workers or mult
 
 The queue uses bounded worker threads inside that one process, so one process does not mean unlimited or serial-only scraping. Before horizontally scaling the app, replace the in-memory job manager with a shared durable backend such as Redis while preserving the current API response shape.
 
+The included `gunicorn.conf.py` enforces one application process and uses HTTP threads so health checks, polling, and downloads can still be served while browser work runs in the bounded scraper pool. During shutdown, the queue stops accepting new jobs and cancels items that have not started.
+
 After an application restart, in-progress and retained jobs are lost. The frontend reports the missing job clearly and users can submit the links again.

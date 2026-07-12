@@ -1,12 +1,12 @@
-from collections import defaultdict, deque
-from flask import Flask, request, jsonify, render_template, send_file
+import atexit
+from functools import partial
+from flask import Blueprint, Flask, current_app, request, jsonify, render_template, send_file
 import hashlib
 import hmac
 import io
 import json
 import os
 import tempfile
-import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +14,15 @@ from urllib.parse import urlparse
 
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from scraper.config import JobLinkConfig
+from scraper.config import config_for_environment
+from scraper.errors import register_error_handlers
+from scraper.logging_config import configure_logging, register_request_logging
+from scraper.runtime import (
+    begin_runtime_shutdown,
+    build_runtime,
+    get_runtime,
+    shutdown_runtime,
+)
 from scraper.security import validate_public_url, validate_workbook_upload
 
 from scraper.scraper import parse_job_from_html
@@ -33,34 +41,80 @@ from scraper.result_quality import (
     _review_notes,
 )
 from scraper.capture_parser import _capture_payload_has_content, _parse_captured_page
-from scraper.job_queue import BackgroundJobManager, ScrapeCapacityFull
+from scraper.job_queue import ScrapeCapacityFull
 from scraper.job_routes import create_job_blueprint
 
-app = Flask(__name__, template_folder='templates', static_folder='static')
-app.config.from_object(JobLinkConfig)
-production_secret = str(app.config.get('SECRET_KEY') or '')
-if app.config['IS_PRODUCTION'] and (
-    len(production_secret) < 32
-    or production_secret.casefold() in {'joblink-local-development-key', 'replace-me', 'change-me'}
-):
-    raise RuntimeError('JOBLINK_SECRET_KEY must be a random value of at least 32 characters in production.')
-if app.config['TRUST_PROXY_HOPS']:
-    trusted_hops = app.config['TRUST_PROXY_HOPS']
-    app.wsgi_app = ProxyFix(
-        app.wsgi_app,
-        x_for=trusted_hops,
-        x_proto=trusted_hops,
-        x_host=trusted_hops,
+
+web = Blueprint('web', __name__)
+
+
+def create_app(environment=None, config_overrides=None):
+    flask_app = Flask(__name__, template_folder='templates', static_folder='static')
+    flask_app.config.from_object(config_for_environment(environment))
+    if config_overrides:
+        flask_app.config.update(config_overrides)
+    _validate_production_config(flask_app)
+    configure_logging(flask_app)
+
+    if flask_app.config['TRUST_PROXY_HOPS']:
+        trusted_hops = flask_app.config['TRUST_PROXY_HOPS']
+        flask_app.wsgi_app = ProxyFix(
+            flask_app.wsgi_app,
+            x_for=trusted_hops,
+            x_proto=trusted_hops,
+            x_host=trusted_hops,
+        )
+
+    log_dir = Path(flask_app.config['LOG_DIR'])
+    chromium_args = (
+        ['--disable-dev-shm-usage']
+        if flask_app.config['CHROMIUM_DISABLE_DEV_SHM_USAGE']
+        else []
     )
+    scrape = partial(
+        _scrape_url,
+        page_timeout_ms=flask_app.config['SCRAPE_PAGE_TIMEOUT_MS'],
+        chromium_args=chromium_args,
+        issue_log=log_dir / 'extraction_issues.jsonl',
+        store_full_urls=flask_app.config['STORE_FULL_URLS'],
+    )
+    runtime = build_runtime(flask_app, scrape, chromium_args=chromium_args)
+    flask_app.extensions['joblink_runtime'] = runtime
 
-request_history = defaultdict(deque)
-request_history_lock = threading.Lock()
-ISSUE_LOG = str(app.config['LOG_DIR'] / 'extraction_issues.jsonl')
-USER_REPORT_LOG = str(app.config['LOG_DIR'] / 'user_reported_issues.jsonl')
-BETA_FEEDBACK_LOG = str(app.config['LOG_DIR'] / 'beta_feedback.jsonl')
-CAPTURED_JOBS = deque(maxlen=50)
+    flask_app.register_blueprint(web)
+    flask_app.register_blueprint(create_job_blueprint(
+        runtime.job_manager,
+        max_links=flask_app.config['MAX_JOBS_PER_REQUEST'],
+        rate_limited=_rate_limited,
+        create_rate_limit=flask_app.config['RATE_LIMIT_JOB_CREATE'],
+    ))
+    register_request_logging(flask_app)
+    register_error_handlers(flask_app)
+    if flask_app.config['REGISTER_ATEXIT']:
+        atexit.register(shutdown_runtime, flask_app, False)
+
+    flask_app.logger.info(
+        'application_started',
+        extra={
+            'event': 'application_started',
+            'environment': flask_app.config['APP_ENV'],
+            'browser_status': runtime.browser_status,
+        },
+    )
+    return flask_app
 
 
+def _validate_production_config(flask_app):
+    production_secret = str(flask_app.config.get('SECRET_KEY') or '')
+    if flask_app.config['IS_PRODUCTION'] and (
+        len(production_secret) < 32
+        or production_secret.casefold() in {
+            'joblink-local-development-key', 'replace-me', 'change-me'
+        }
+    ):
+        raise RuntimeError(
+            'JOBLINK_SECRET_KEY must be a random value of at least 32 characters in production.'
+        )
 
 def _merge_scrape_results(primary, fallback):
     merged = dict(primary or {})
@@ -77,41 +131,53 @@ def _merge_scrape_results(primary, fallback):
         merged['source'] = _source_label(_detect_platform(merged.get('job_link') or merged.get('source')))
     return _public_scrape_result(merged)
 
-
-
-
 def _validate_public_url(url):
     return validate_public_url(url)
 
 
 def _rate_limited(scope, limit):
+    runtime = get_runtime()
     client = request.remote_addr or 'unknown'
     now = time.time()
-    cutoff = now - app.config['RATE_WINDOW_SECONDS']
+    cutoff = now - current_app.config['RATE_WINDOW_SECONDS']
     key = (scope, client)
-    with request_history_lock:
-        history = request_history[key]
+    with runtime.request_history_lock:
+        history = runtime.request_history[key]
         while history and history[0] < cutoff:
             history.popleft()
         if len(history) >= limit:
             return True
         history.append(now)
 
-        if len(request_history) > 5000:
-            stale_keys = [item for item, values in request_history.items() if not values or values[-1] < cutoff]
+        if len(runtime.request_history) > 5000:
+            stale_keys = [
+                item for item, values in runtime.request_history.items()
+                if not values or values[-1] < cutoff
+            ]
             for stale_key in stale_keys:
-                request_history.pop(stale_key, None)
+                runtime.request_history.pop(stale_key, None)
     return False
 
 
-def _scrape_url(url):
+def _scrape_url(
+    url,
+    *,
+    page_timeout_ms=60000,
+    chromium_args=None,
+    issue_log=None,
+    store_full_urls=False,
+):
     if _is_monster_search_url(url):
         return _monster_guidance_result(url)
 
     result = {}
     terminal_error = False
     for attempt in range(2):
-        result = parse_job_with_browser(url)
+        result = parse_job_with_browser(
+            url,
+            timeout=page_timeout_ms,
+            launch_args=chromium_args,
+        )
         error = str(result.get('error', '')).lower()
         terminal_error = any(marker in error for marker in (
             'http 404', 'http 410', 'unavailable', 'redirected to a general careers page',
@@ -139,28 +205,20 @@ def _scrape_url(url):
     raw_error = result.get('error', '')
     issues = _quality_issues(result)
     if issues:
-        _record_issue(url, result, issues, raw_error)
+        _record_issue(
+            url,
+            result,
+            issues,
+            raw_error,
+            issue_log=issue_log,
+            store_full_urls=store_full_urls,
+        )
         result['review_issues'] = issues
         result['review_notes'] = _review_notes(issues)
     if raw_error:
         result['error'] = _friendly_error(raw_error, url)
     _annotate_result(result, url, issues)
     return result
-
-
-job_manager = BackgroundJobManager(
-    _scrape_url,
-    max_workers=app.config['SCRAPE_WORKERS'],
-    max_pending_jobs=app.config['MAX_PENDING_JOBS'],
-    ttl_seconds=app.config['JOB_TTL_SECONDS'],
-    sync_wait_seconds=app.config['SCRAPE_CAPACITY_WAIT_SECONDS'],
-)
-app.register_blueprint(create_job_blueprint(
-    job_manager,
-    max_links=app.config['MAX_JOBS_PER_REQUEST'],
-    rate_limited=_rate_limited,
-    create_rate_limit=app.config['RATE_LIMIT_JOB_CREATE'],
-))
 
 
 def _is_monster_search_url(url):
@@ -191,11 +249,20 @@ def _monster_guidance_result(url):
 
 
 
-def _record_issue(url, result, issues, raw_error=''):
-    os.makedirs(os.path.dirname(ISSUE_LOG), exist_ok=True)
+def _record_issue(
+    url,
+    result,
+    issues,
+    raw_error='',
+    *,
+    issue_log=None,
+    store_full_urls=None,
+):
+    path = Path(issue_log) if issue_log else get_runtime().issue_log
+    path.parent.mkdir(parents=True, exist_ok=True)
     record = {
         'timestamp': datetime.now().isoformat(timespec='seconds'),
-        **_private_url_record(url),
+        **_private_url_record(url, store_full_urls=store_full_urls),
         'issues': issues,
         'result': {
             key: _bounded_log_value(result.get(key, ''))
@@ -203,7 +270,7 @@ def _record_issue(url, result, issues, raw_error=''):
         },
         'technical_error': str(raw_error)[:2000],
     }
-    with open(ISSUE_LOG, 'a', encoding='utf-8') as handle:
+    with path.open('a', encoding='utf-8') as handle:
         handle.write(json.dumps(record, ensure_ascii=True) + '\n')
 
 
@@ -211,41 +278,45 @@ def _bounded_log_value(value, limit=500):
     return str(value or '')[:limit]
 
 
-def _private_url_record(url):
+def _private_url_record(url, store_full_urls=None):
     normalized = str(url or '').strip()
     record = {
         'domain': urlparse(normalized).hostname or '',
         'url_hash': hashlib.sha256(normalized.encode('utf-8')).hexdigest() if normalized else '',
     }
-    if app.config['STORE_FULL_URLS']:
+    if store_full_urls is None:
+        store_full_urls = current_app.config['STORE_FULL_URLS']
+    if store_full_urls:
         record['url'] = normalized
     return record
 
 
 def _issues_access_allowed():
-    if not app.config['EXPOSE_ISSUES']:
+    if not current_app.config['EXPOSE_ISSUES']:
         return False
-    expected = app.config.get('ADMIN_TOKEN', '')
+    expected = current_app.config.get('ADMIN_TOKEN', '')
     supplied = request.headers.get('X-JobLink-Admin', '')
     if expected:
         return hmac.compare_digest(expected, supplied)
-    return not app.config['IS_PRODUCTION'] and request.remote_addr in {'127.0.0.1', '::1'}
+    return not current_app.config['IS_PRODUCTION'] and request.remote_addr in {'127.0.0.1', '::1'}
 
 
-@app.route('/api/issues')
+@web.route('/api/issues')
 def issues():
+    path = get_runtime().issue_log
     if not _issues_access_allowed():
         return jsonify({'error': 'Not found.'}), 404
-    if not os.path.exists(ISSUE_LOG):
+    if not path.exists():
         return jsonify([])
-    with open(ISSUE_LOG, 'r', encoding='utf-8') as handle:
+    with path.open('r', encoding='utf-8') as handle:
         records = [json.loads(line) for line in handle if line.strip()]
     return jsonify(records[-100:])
 
 
-@app.route('/api/report-issue', methods=['POST'])
+@web.route('/api/report-issue', methods=['POST'])
 def report_issue():
-    if _rate_limited('report-issue', app.config['RATE_LIMIT_FEEDBACK']):
+    runtime = get_runtime()
+    if _rate_limited('report-issue', current_app.config['RATE_LIMIT_FEEDBACK']):
         return jsonify({'error': 'Too many reports. Wait a few minutes and try again.'}), 429
     payload = request.get_json(silent=True) or {}
     job = payload.get('job') if isinstance(payload.get('job'), dict) else {}
@@ -253,7 +324,7 @@ def report_issue():
     if not url:
         return jsonify({'error': 'No job row was provided.'}), 400
 
-    os.makedirs(os.path.dirname(USER_REPORT_LOG), exist_ok=True)
+    runtime.user_report_log.parent.mkdir(parents=True, exist_ok=True)
     job_record = {
         key: _bounded_log_value(job.get(key, ''), 1000)
         for key in (
@@ -264,7 +335,7 @@ def report_issue():
             'preferred_job_link',
         )
     }
-    if not app.config['STORE_FULL_URLS']:
+    if not current_app.config['STORE_FULL_URLS']:
         job_record['job_link'] = ''
         job_record['preferred_job_link'] = ''
 
@@ -279,14 +350,15 @@ def report_issue():
             for item in (job.get('review_issues') or [])[:20]
         ],
     }
-    with open(USER_REPORT_LOG, 'a', encoding='utf-8') as handle:
+    with runtime.user_report_log.open('a', encoding='utf-8') as handle:
         handle.write(json.dumps(record, ensure_ascii=True) + '\n')
     return jsonify({'status': 'saved'})
 
 
-@app.route('/api/feedback', methods=['POST'])
+@web.route('/api/feedback', methods=['POST'])
 def beta_feedback():
-    if _rate_limited('feedback', app.config['RATE_LIMIT_FEEDBACK']):
+    runtime = get_runtime()
+    if _rate_limited('feedback', current_app.config['RATE_LIMIT_FEEDBACK']):
         return jsonify({'error': 'Too much feedback was sent. Wait a few minutes and try again.'}), 429
     payload = request.get_json(silent=True) or {}
     message = str(payload.get('message') or '').strip()
@@ -297,7 +369,7 @@ def beta_feedback():
     if feedback_type not in {'general', 'bug', 'idea', 'confusing'}:
         feedback_type = 'general'
 
-    os.makedirs(os.path.dirname(BETA_FEEDBACK_LOG), exist_ok=True)
+    runtime.beta_feedback_log.parent.mkdir(parents=True, exist_ok=True)
     record = {
         'timestamp': datetime.now().isoformat(timespec='seconds'),
         'type': feedback_type,
@@ -306,7 +378,7 @@ def beta_feedback():
         'job_count': payload.get('job_count', 0),
         'version': 'JobLink Beta v0.1',
     }
-    with open(BETA_FEEDBACK_LOG, 'a', encoding='utf-8') as handle:
+    with runtime.beta_feedback_log.open('a', encoding='utf-8') as handle:
         handle.write(json.dumps(record, ensure_ascii=True) + '\n')
     return jsonify({'status': 'saved'})
 
@@ -348,21 +420,12 @@ def _capture_response(payload, status=200):
     return response
 
 
-
-
-
-
-
-
-
-
-
-@app.route('/')
+@web.route('/')
 def index():
     return render_template('index.html')
 
 
-@app.after_request
+@web.after_app_request
 def add_security_headers(response):
     response.headers.setdefault('X-Content-Type-Options', 'nosniff')
     response.headers.setdefault('X-Frame-Options', 'DENY')
@@ -377,30 +440,41 @@ def add_security_headers(response):
     )
     if request.path.startswith('/api/') or request.path in {'/scrape', '/export', '/append-workbook'}:
         response.headers.setdefault('Cache-Control', 'no-store')
-    if app.config['IS_PRODUCTION']:
+    if current_app.config['IS_PRODUCTION']:
         response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
     return response
 
 
-@app.errorhandler(413)
-def request_too_large(_error):
-    return jsonify({'error': 'The upload is larger than the allowed limit.'}), 413
-
-
-@app.route('/health')
+@web.route('/health')
 def health():
-    return jsonify({'status': 'ok', 'scraper': job_manager.stats()})
+    return jsonify({'status': 'ok', 'scraper': get_runtime().job_manager.stats()})
 
 
-@app.route('/api/capture-page', methods=['POST', 'OPTIONS'])
+@web.route('/ready')
+def ready():
+    runtime = get_runtime()
+    accepting = runtime.job_manager.is_accepting
+    is_ready = accepting and runtime.browser_ready
+    payload = {
+        'status': 'ready' if is_ready else 'unavailable',
+        'checks': {
+            'queue': 'accepting' if accepting else 'shutting_down',
+            'browser': runtime.browser_status,
+        },
+    }
+    return jsonify(payload), 200 if is_ready else 503
+
+
+@web.route('/api/capture-page', methods=['POST', 'OPTIONS'])
 def capture_page():
-    if not app.config['CAPTURE_ENABLED']:
+    runtime = get_runtime()
+    if not current_app.config['CAPTURE_ENABLED']:
         return _capture_response({
             'error': 'Browser capture is available only in the local JobLink app.'
         }, 404)
     if request.method == 'OPTIONS':
         return _capture_response({'status': 'ok'})
-    if _rate_limited('capture', app.config['RATE_LIMIT_CAPTURE']):
+    if _rate_limited('capture', current_app.config['RATE_LIMIT_CAPTURE']):
         return _capture_response({'error': 'Too many captures. Wait a few minutes and try again.'}, 429)
 
     payload = request.get_json(silent=True) or request.form.to_dict()
@@ -413,20 +487,20 @@ def capture_page():
         }, 400)
 
     job = _parse_captured_page(payload)
-    CAPTURED_JOBS.appendleft(job)
-    return _capture_response({'job': job, 'count': len(CAPTURED_JOBS)})
+    runtime.captures.appendleft(job)
+    return _capture_response({'job': job, 'count': len(runtime.captures)})
 
 
-@app.route('/api/captures')
+@web.route('/api/captures')
 def captures():
-    if not app.config['CAPTURE_ENABLED']:
+    if not current_app.config['CAPTURE_ENABLED']:
         return jsonify({'error': 'Not found.'}), 404
-    return jsonify({'jobs': list(CAPTURED_JOBS)})
+    return jsonify({'jobs': list(get_runtime().captures)})
 
 
-@app.route('/scrape', methods=['POST'])
+@web.route('/scrape', methods=['POST'])
 def scrape():
-    if _rate_limited('scrape', app.config['RATE_LIMIT_SCRAPE']):
+    if _rate_limited('scrape', current_app.config['RATE_LIMIT_SCRAPE']):
         return jsonify({'error': 'Too many requests. Wait a few minutes and try again.'}), 429
 
     data = request.get_json() or {}
@@ -435,21 +509,22 @@ def scrape():
         return jsonify({'error': validation_error}), 400
 
     try:
-        return jsonify(job_manager.run_sync(url))
+        return jsonify(get_runtime().job_manager.run_sync(url))
     except ScrapeCapacityFull:
         return jsonify({'error': 'The scraper is busy. Wait for a running job to finish.'}), 503
     except Exception:
-        app.logger.exception('Job scraping failed')
+        current_app.logger.exception('Job scraping failed')
         return jsonify({'error': 'The scraper could not process this job page.'}), 500
 
-@app.route('/export', methods=['POST'])
+
+@web.route('/export', methods=['POST'])
 def export():
-    if _rate_limited('export', app.config['RATE_LIMIT_EXPORT']):
+    if _rate_limited('export', current_app.config['RATE_LIMIT_EXPORT']):
         return jsonify({'error': 'Too many exports. Wait a few minutes and try again.'}), 429
     jobs = request.get_json() or []
     if not isinstance(jobs, list) or not jobs:
         return jsonify({'error': 'Add at least one job before exporting.'}), 400
-    max_jobs = app.config['MAX_EXPORT_JOBS']
+    max_jobs = current_app.config['MAX_EXPORT_JOBS']
     if len(jobs) > max_jobs:
         return jsonify({'error': f'A maximum of {max_jobs} jobs can be exported at once.'}), 400
     with tempfile.TemporaryDirectory(prefix='joblink-export-') as temp_dir:
@@ -464,9 +539,9 @@ def export():
     )
 
 
-@app.route('/append-workbook', methods=['POST'])
+@web.route('/append-workbook', methods=['POST'])
 def append_workbook():
-    if _rate_limited('append-workbook', app.config['RATE_LIMIT_UPLOAD']):
+    if _rate_limited('append-workbook', current_app.config['RATE_LIMIT_UPLOAD']):
         return jsonify({'error': 'Too many tracker updates. Wait a few minutes and try again.'}), 429
     uploaded = request.files.get('workbook')
     if not uploaded or not uploaded.filename:
@@ -476,8 +551,8 @@ def append_workbook():
         validate_workbook_upload(
             uploaded,
             uploaded.filename,
-            max_uncompressed_bytes=app.config['MAX_WORKBOOK_UNCOMPRESSED_BYTES'],
-            max_members=app.config['MAX_WORKBOOK_ARCHIVE_MEMBERS'],
+            max_uncompressed_bytes=current_app.config['MAX_WORKBOOK_UNCOMPRESSED_BYTES'],
+            max_members=current_app.config['MAX_WORKBOOK_ARCHIVE_MEMBERS'],
         )
         jobs = json.loads(request.form.get('jobs', '[]'))
     except json.JSONDecodeError:
@@ -487,7 +562,7 @@ def append_workbook():
 
     if not isinstance(jobs, list) or not jobs:
         return jsonify({'error': 'Extract at least one job before updating a tracker.'}), 400
-    max_jobs = app.config['MAX_EXPORT_JOBS']
+    max_jobs = current_app.config['MAX_EXPORT_JOBS']
     if len(jobs) > max_jobs:
         return jsonify({'error': f'A maximum of {max_jobs} jobs can be added at once.'}), 400
 
@@ -506,7 +581,7 @@ def append_workbook():
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
-        app.logger.exception('Workbook append failed')
+        current_app.logger.exception('Workbook append failed')
         return jsonify({'error': 'The server could not update this workbook.'}), 500
 
     suffix = Path(uploaded.filename).suffix.casefold()
@@ -526,6 +601,18 @@ def append_workbook():
     response.headers['X-JobLink-Updated'] = str(summary.get('updated', 0))
     response.headers['X-JobLink-Sheet'] = str(summary.get('sheet', ''))
     return response
+
+
+def begin_shutdown(flask_app):
+    begin_runtime_shutdown(flask_app)
+
+
+def shutdown_app(flask_app, wait=False):
+    shutdown_runtime(flask_app, wait=wait)
+
+
+app = create_app()
+
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5000, debug=False, threaded=True)

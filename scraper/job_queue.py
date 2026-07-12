@@ -52,12 +52,16 @@ class BackgroundJobManager:
         )
         self._jobs: dict[str, dict] = {}
         self._futures: dict[str, list[Future]] = {}
+        self._accepting = True
+        self._shutdown_complete = False
 
     def submit(self, urls: list[str], date_applied: str = "") -> dict:
         if not urls:
             raise ValueError("At least one job link is required.")
 
         with self._lock:
+            if not self._accepting:
+                raise JobQueueFull("The scraper is shutting down.")
             self._remove_expired_locked()
             active = sum(
                 job["status"] not in TERMINAL_STATES
@@ -104,21 +108,39 @@ class BackgroundJobManager:
                 return self._snapshot_locked(job_id)
 
             job["cancel_requested"] = True
-            for index, future in enumerate(self._futures.get(job_id, [])):
-                if future.cancel() and job["items"][index]["status"] == "queued":
-                    job["items"][index]["status"] = "cancelled"
-            job["updated_at"] = self._clock()
-            self._finalize_if_settled_locked(job)
+            self._cancel_pending_locked(job_id, job)
             return self._snapshot_locked(job_id)
 
     def run_sync(self, url: str) -> dict:
+        with self._lock:
+            if not self._accepting:
+                raise ScrapeCapacityFull("The scraper is shutting down.")
         acquired = self._capacity.acquire(timeout=self._sync_wait_seconds)
         if not acquired:
             raise ScrapeCapacityFull("All scraper workers are busy.")
         try:
+            with self._lock:
+                if not self._accepting:
+                    raise ScrapeCapacityFull("The scraper is shutting down.")
             return self._scrape(url)
         finally:
             self._capacity.release()
+
+    @property
+    def is_accepting(self) -> bool:
+        with self._lock:
+            return self._accepting
+
+    def begin_shutdown(self) -> None:
+        with self._lock:
+            if not self._accepting:
+                return
+            self._accepting = False
+            for job_id, job in self._jobs.items():
+                if job["status"] in TERMINAL_STATES:
+                    continue
+                job["cancel_requested"] = True
+                self._cancel_pending_locked(job_id, job)
 
     def stats(self) -> dict:
         with self._lock:
@@ -129,9 +151,15 @@ class BackgroundJobManager:
                 "active_jobs": active,
                 "retained_jobs": len(self._jobs),
                 "queue_limit": self._max_pending_jobs,
+                "accepting": self._accepting,
             }
 
     def shutdown(self, wait: bool = True) -> None:
+        self.begin_shutdown()
+        with self._lock:
+            if self._shutdown_complete:
+                return
+            self._shutdown_complete = True
         self._executor.shutdown(wait=wait, cancel_futures=True)
 
     def _run_item(self, job_id: str, index: int) -> None:
@@ -183,6 +211,13 @@ class BackgroundJobManager:
         job["status"] = "cancelled" if job["cancel_requested"] else "completed"
         job["finished_at"] = self._clock()
         job["updated_at"] = job["finished_at"]
+
+    def _cancel_pending_locked(self, job_id: str, job: dict) -> None:
+        for index, future in enumerate(self._futures.get(job_id, [])):
+            if future.cancel() and job["items"][index]["status"] == "queued":
+                job["items"][index]["status"] = "cancelled"
+        job["updated_at"] = self._clock()
+        self._finalize_if_settled_locked(job)
 
     def _snapshot_locked(self, job_id: str) -> dict:
         job = self._jobs[job_id]

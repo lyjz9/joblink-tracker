@@ -1,0 +1,24 @@
+services:
+  - type: web
+    runtime: docker
+    name: joblink-tracker
+    plan: standard
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /ready
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: JOBLINK_ENV
+        value: production
+      - key: JOBLINK_SECRET_KEY
+        generateValue: true
+      - key: JOBLINK_TRUST_PROXY_HOPS
+        value: 1
+      - key: JOBLINK_SCRAPE_WORKERS
+        value: 2
+      - key: JOBLINK_MAX_PENDING_JOBS
+        value: 25
+      - key: JOBLINK_VERIFY_BROWSER_ON_STARTUP
+        value: true
+      - key: JOBLINK_JSON_LOGS
+        value: true

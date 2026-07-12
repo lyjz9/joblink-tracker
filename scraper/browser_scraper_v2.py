@@ -1862,7 +1862,7 @@ def _unavailable_redirect(original_url, final_url):
     return 'error=true' in final.query.lower()
 
 
-async def scrape_job_with_browser(url, timeout=60000):
+async def scrape_job_with_browser(url, timeout=60000, launch_args=None):
     greenhouse_result = _greenhouse_api_result(url)
     if greenhouse_result:
         return greenhouse_result
@@ -1875,7 +1875,7 @@ async def scrape_job_with_browser(url, timeout=60000):
     fetch_url = _alternate_fetch_url(url) or url
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, args=launch_args or [])
         context = await browser.new_context(
             user_agent=(
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
@@ -1921,10 +1921,12 @@ async def scrape_job_with_browser(url, timeout=60000):
             await browser.close()
 
 
-def parse_job_with_browser(url):
+def parse_job_with_browser(url, timeout=60000, launch_args=None):
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-    return loop.run_until_complete(scrape_job_with_browser(url))
+    return loop.run_until_complete(
+        scrape_job_with_browser(url, timeout=timeout, launch_args=launch_args)
+    )

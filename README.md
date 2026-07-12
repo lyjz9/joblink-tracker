@@ -77,6 +77,8 @@ Copy `.env.example` to `.env` only when you need to change local defaults. Publi
 
 The background-job queue is intentionally in memory for the local/private beta. Run one Flask application process so job creation and polling reach the same queue. See [docs/background_jobs.md](docs/background_jobs.md) before changing server workers or deploying publicly.
 
+For the production container, Gunicorn settings, Render blueprint, environment variables, health checks, costs, rollback steps, and custom-domain instructions, see [docs/deployment.md](docs/deployment.md).
+
 ## Usage
 
 More examples are available in [docs/usage_examples.md](docs/usage_examples.md).
@@ -205,6 +207,7 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 - `scraper/capture_parser.py` parses pages sent by the local Chrome capture extension.
 - `scraper/result_quality.py` assigns review issues, confidence, and reliability labels.
 - `export/` contains new-workbook export and existing-workbook update logic.
+- `Dockerfile`, `gunicorn.conf.py`, and `render.yaml` define the first production runtime.
 
 ## Roadmap
 

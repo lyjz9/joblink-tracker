@@ -142,3 +142,16 @@ def test_sync_scrape_shares_the_background_capacity_limit():
         release.set()
         worker.join(timeout=2)
         manager.shutdown()
+
+
+def test_shutdown_rejects_new_background_and_sync_work():
+    manager = BackgroundJobManager(lambda url: {"job_link": url})
+    manager.begin_shutdown()
+    try:
+        assert manager.stats()["accepting"] is False
+        with pytest.raises(JobQueueFull):
+            manager.submit(["https://example.com/jobs/one"])
+        with pytest.raises(ScrapeCapacityFull):
+            manager.run_sync("https://example.com/jobs/one")
+    finally:
+        manager.shutdown()

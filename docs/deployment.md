@@ -1,76 +1,121 @@
-# Production Deployment
+# Free Beta Deployment
 
-This phase packages the existing Flask and Playwright application for a small public beta. It does not change the product into a distributed service, and it deliberately keeps one application process while jobs remain in memory.
+JobLink Tracker is prepared to run as a free Hugging Face Docker Space. This is the recommended first hosted beta because the free CPU Basic hardware has enough memory for Chromium, and testers only need a web link.
 
-## Why Each Part Exists
+The deployment remains deliberately small: one Flask process, one browser scraping worker, an in-memory job queue, and temporary files. It is suitable for a limited beta, not unrestricted high-traffic use.
 
-### Application factory
-
-`create_app()` gives every test or server process its own queue, capture buffer, rate-limit history, and log paths. Import-time global state is difficult to test and can leak state between app instances.
-
-### Gunicorn
-
-Flask's development server is useful locally but is not a production process manager. Gunicorn handles signals, worker lifetime, HTTP threads, timeouts, and graceful termination. The configuration uses one process because the current job store is in memory; four HTTP threads keep polling and health requests responsive while the separate scraper pool does browser work.
+## Why These Pieces Exist
 
 ### Docker and Chromium
 
-Playwright needs a browser binary plus Linux system libraries. The Docker build installs the exact dependencies from `requirements-prod.txt`, installs Chromium with Playwright, and runs the app as an unprivileged `joblink` user. This makes local, staging, and hosted builds use the same runtime instead of depending on whatever happens to be installed on a server.
+Playwright needs a compatible Chromium binary and Linux system libraries. The Docker build installs both, then runs JobLink as the unprivileged `joblink` user with the user ID Hugging Face expects.
 
-### Bounded timeouts and shutdown
+### Gunicorn
 
-Browser navigation has a configurable timeout so slow or stalled sites do not occupy capacity forever. When Gunicorn receives a termination signal, JobLink stops accepting jobs, cancels queued links, and allows work already running to finish within the host's shutdown window.
+Flask's development server is for local work. Gunicorn handles production HTTP threads, timeouts, termination signals, and graceful shutdown. It still uses one process because the current queue and results are stored in memory.
 
-### Health and readiness
+### Bounded background work
 
-- `GET /health` is a liveness check. A `200` means the Flask process can answer HTTP.
-- `GET /ready` is a traffic check. It returns `503` when Chromium is unavailable or the queue is shutting down.
+The free container defaults to one browser worker and at most ten pending batches. This keeps a few users from starting enough Chromium sessions to exhaust the shared beta instance.
 
-Keeping these checks separate prevents a deployment platform from routing users to a process that is alive but unable to scrape.
+### Health checks
 
-### Structured logging and request IDs
+- `GET /health` confirms that Flask can answer HTTP.
+- `GET /ready` confirms that Chromium is installed and the queue is accepting work.
 
-Production logs are one JSON object per line. They include time, severity, request ID, HTTP method, path, status, and duration. They intentionally exclude query strings, submitted URLs, workbook contents, request bodies, and extracted job fields. A returned `X-Request-ID` lets a user report a failure without exposing their tracker.
+The container health check uses the host-provided `PORT` value and calls `/ready`, so a live but unusable scraper is not treated as healthy.
 
-## Recommended First Host
+### GitHub sync
 
-Use a Docker web service on Render for the first public beta. Render can build the repository's Dockerfile, bind the service through its `PORT` environment variable, check `/ready`, issue TLS certificates, attach a custom domain, and roll back a deploy.
+`.github/workflows/deploy-huggingface.yml` uses Hugging Face's official sync action. After the one-time account setup, a change merged to `main` is copied to the Space automatically. A manual **Run workflow** button is also available in GitHub Actions.
 
-The included `render.yaml` selects the Standard instance: 2 GB RAM and 1 CPU at **$25 USD per month as of July 2026**. Chromium is memory-heavy, so the Free and Starter tiers' 512 MB RAM are useful only for a brief smoke test with `JOBLINK_SCRAPE_WORKERS=1`; they are not the recommended public configuration. Confirm current prices on [Render's pricing page](https://render.com/pricing) before creating the service.
+## Free Plan Limits
 
-## Production Start Command
+Hugging Face currently lists CPU Basic as free with 2 vCPU, 16 GB RAM, and 50 GB of non-persistent disk. Free Spaces sleep after extended inactivity, currently about 48 hours, and a new visitor wakes them again. Check the official [Spaces overview](https://huggingface.co/docs/hub/main/spaces-overview) and [sleep behavior](https://huggingface.co/docs/hub/spaces-gpus) before publishing in case these terms change.
 
-The Docker image starts:
+There is no hosting charge while the Space stays on **CPU Basic**. Do not select upgraded hardware if the goal is a zero-cost beta.
 
-```text
-gunicorn --config gunicorn.conf.py scraper.app:app
-```
+Important beta limitations:
 
-Gunicorn binds to `0.0.0.0:$PORT`. Do not add a second Gunicorn worker while the queue is stored in memory.
+- The first visitor after sleep may wait for the Space to wake.
+- Running jobs and queued results disappear during a restart or sleep cycle.
+- Logs and reported issues are stored on non-persistent disk and may disappear.
+- A public Space exposes both the app and its source code. The GitHub repository is already public.
+- Browser capture remains local-only; hosted mode disables it.
 
-## Required Environment
+## One-Time Setup Without A Terminal
 
-| Variable | Required value or default | Reason |
+### 1. Create the Space
+
+1. Sign in at [Hugging Face](https://huggingface.co/).
+2. Open **Spaces**, then choose **Create new Space**.
+3. Use a name such as `joblink-tracker`.
+4. Choose **Docker** as the SDK and **Blank** as the Docker template.
+5. Choose **Public** visibility and keep **CPU Basic - Free** selected.
+6. Create the Space.
+
+Hugging Face Docker Spaces use port `7860` by default. The repository's Dockerfile and Gunicorn configuration already use that port.
+
+### 2. Add Space Settings
+
+Open the Space's **Settings** page.
+
+Add this **Secret**:
+
+| Name | Value |
+| --- | --- |
+| `JOBLINK_SECRET_KEY` | A random value at least 32 characters long. A password manager can generate one. |
+
+Add this **Variable**:
+
+| Name | Value | Reason |
 | --- | --- | --- |
-| `JOBLINK_ENV` | `production` | Enables secure production defaults. |
-| `JOBLINK_SECRET_KEY` | Generated 32+ character secret | Protects Flask signing; startup fails for placeholders. |
-| `JOBLINK_TRUST_PROXY_HOPS` | `1` on Render | Trusts exactly one hosting proxy for scheme and client address. |
-| `JOBLINK_SCRAPE_WORKERS` | `2` | Caps simultaneous Chromium work. |
-| `JOBLINK_MAX_PENDING_JOBS` | `25` | Bounds queued batches and memory use. |
-| `JOBLINK_SCRAPE_PAGE_TIMEOUT_SECONDS` | `60` | Caps each browser navigation attempt. |
-| `JOBLINK_CHROMIUM_DISABLE_DEV_SHM_USAGE` | `true` in the container | Avoids crashes caused by small container shared memory. |
-| `JOBLINK_VERIFY_BROWSER_ON_STARTUP` | `true` | Keeps readiness false if Chromium was not installed. |
-| `JOBLINK_JSON_LOGS` | `true` | Produces searchable structured logs. |
-| `JOBLINK_LOG_LEVEL` | `INFO` | Controls application log detail. |
+| `JOBLINK_TRUST_PROXY_HOPS` | `1` | Lets Flask read the original HTTPS request and client address through the hosting proxy. |
 
-The Render blueprint generates `JOBLINK_SECRET_KEY`; never commit its resulting value.
+The Docker image already sets production mode, one scraper worker, ten pending jobs, JSON logs, Chromium shared-memory protection, and port `7860`. Do not put `JOBLINK_SECRET_KEY` in GitHub files or a normal variable.
+
+### 3. Connect GitHub To The Space
+
+1. In Hugging Face, open **Settings > Access Tokens**.
+2. Create a fine-grained token with write access to this Space.
+3. In the GitHub repository, open **Settings > Secrets and variables > Actions**.
+4. Under **Variables**, add `HF_SPACE_ID` with `your-hugging-face-name/joblink-tracker`.
+5. Under **Secrets**, add `HF_TOKEN` with the Hugging Face token.
+
+The workflow reads those values without printing or committing the token. Hugging Face documents the same GitHub sync approach in [Managing Spaces with GitHub Actions](https://huggingface.co/docs/hub/spaces-github-actions).
+
+### 4. Deploy
+
+1. Merge the tested `local` branch into `main`.
+2. Open the GitHub repository's **Actions** tab.
+3. Select **Deploy free beta**.
+4. Wait for the sync job to finish.
+5. Open the Space and wait for its Docker build to finish.
+
+Every later push to `main` repeats the sync. The workflow is skipped until `HF_SPACE_ID` is configured, so adding it to the repository does not publish anything unexpectedly.
+
+## First Release Check
+
+Verify these before sharing the Space URL:
+
+1. Open `/health` and confirm the response status is `200`.
+2. Open `/ready` and confirm the response status is `200` and the browser check is ready.
+3. Scrape one current company career-page link.
+4. Confirm company, title, location, work type, salary, source, and original link.
+5. Download a new tracker and open it in Excel.
+6. Upload the blank template, add one reviewed result, and open the updated workbook.
+7. Submit a test feedback report without personal information.
+8. Check Space logs and confirm that full job URLs and workbook values are absent.
+
+If `/ready` returns `503`, open the Space logs first. The readiness response identifies whether Chromium is missing or the queue is shutting down.
 
 ## Local Container Check
 
-Docker is required for this check:
+Docker is optional for local development but useful before a public release:
 
 ```powershell
 docker build -t joblink-tracker .
-docker run --rm --init -p 10000:10000 `
+docker run --rm --init -p 7860:7860 `
   -e JOBLINK_SECRET_KEY="replace-with-a-random-32-character-value" `
   joblink-tracker
 ```
@@ -78,45 +123,27 @@ docker run --rm --init -p 10000:10000 `
 Then verify:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:10000/health
-Invoke-RestMethod http://127.0.0.1:10000/ready
+Invoke-RestMethod http://127.0.0.1:7860/health
+Invoke-RestMethod http://127.0.0.1:7860/ready
 ```
 
-## Render Deployment
+## Privacy
 
-1. Merge the tested branch into `main`.
-2. In Render, create a new Blueprint and select this repository.
-3. Confirm the Docker web service and Standard plan from `render.yaml`.
-4. Let Render generate `JOBLINK_SECRET_KEY`.
-5. Wait for the Docker build and `/ready` health check to pass.
-6. Open the generated `onrender.com` URL and test one job, one Excel download, and one uploaded tracker copy.
-7. Review logs and confirm that full job URLs and workbook values are absent.
+Hosted mode does not permanently save uploaded workbooks. Exports use temporary files, automatic diagnostics redact full job URLs, and browser capture is disabled. Users should still avoid uploading trackers containing unrelated sensitive information. See [privacy.md](privacy.md) for the full policy.
 
-Render expects public services to bind to `0.0.0.0:$PORT` and can build directly from a Dockerfile. See the official [web service](https://render.com/docs/web-services), [Docker](https://render.com/docs/docker), and [health check](https://render.com/docs/health-checks) documentation.
+The hosting platform may retain infrastructure logs according to its own policy. The app should not be presented as storage for private documents or account credentials.
 
 ## Rollback
 
-If a deploy fails its build or readiness check, Render leaves the previous deployment serving traffic. If a successful deploy later behaves incorrectly:
+If a new release breaks the beta:
 
-1. Open the service's Deploys page.
-2. Select the last known-good deploy.
-3. Choose **Rollback**.
-4. Verify `/health`, `/ready`, scraping, and Excel output.
-5. Revert the faulty Git commit and deploy the corrected `main` branch.
+1. Revert the faulty commit on GitHub.
+2. Merge the revert into `main`.
+3. Wait for **Deploy free beta** and the Space rebuild to finish.
+4. Recheck `/health`, `/ready`, scraping, and Excel output.
 
-Do not rely on rollback to recover in-memory jobs. Users must resubmit jobs that were running during a restart. See [Render's rollback documentation](https://render.com/docs/rollbacks).
-
-## Custom Domain
-
-After the generated Render URL is stable:
-
-1. Add the domain in the service's **Settings > Custom Domains** section.
-2. Add the DNS records Render provides at the domain registrar.
-3. Wait for Render's managed TLS certificate to become active.
-4. Test HTTPS, uploads, downloads, and request headers on the custom domain.
-
-Keep the default Render subdomain enabled until the custom domain passes these checks.
+In-memory jobs cannot be recovered after a rollback or restart. Testers must resubmit anything that was running.
 
 ## Scaling Later
 
-The next scaling boundary is a shared queue and result store such as Redis. Only after that change should Gunicorn use multiple processes or Render use multiple instances. Authentication, abuse controls, and durable feedback storage should also be reviewed before promoting the private beta to unrestricted public access.
+Do not add more Gunicorn processes while jobs live in memory. A shared queue and result store, stronger abuse controls, durable issue storage, and authentication should come before a larger public launch. A paid host is an optional later decision, not a requirement for this beta.

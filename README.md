@@ -5,6 +5,7 @@
 [![Flask app](https://img.shields.io/badge/web-Flask-000000)](scraper/app.py)
 [![Playwright scraper](https://img.shields.io/badge/scraper-Playwright-2f855a)](scraper/browser_scraper_v2.py)
 [![Excel tracker](https://img.shields.io/badge/excel-tracker-217346)](#excel-workflow)
+[![Free beta host](https://img.shields.io/badge/deploy-Hugging%20Face%20Spaces-FFD21E)](docs/deployment.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 JobLink Tracker is a local Python + Excel workflow I built for the part of job searching that quietly becomes exhausting: copying the same posting details into a spreadsheet over and over.
@@ -13,7 +14,7 @@ Paste in job links from company career pages or job boards, and the tool pulls o
 
 It is especially meant for students, new grads, and anyone applying to enough roles that the tracking work starts becoming its own little job.
 
-> Status: v0.1 local beta. This project is actively being improved and is not a hosted public app yet.
+> Status: v0.1 private beta. The repository is prepared for a free hosted beta, but no public deployment is linked yet.
 
 ## Known Limitations
 
@@ -77,7 +78,7 @@ Copy `.env.example` to `.env` only when you need to change local defaults. Publi
 
 The background-job queue is intentionally in memory for the local/private beta. Run one Flask application process so job creation and polling reach the same queue. See [docs/background_jobs.md](docs/background_jobs.md) before changing server workers or deploying publicly.
 
-For the production container, Gunicorn settings, Render blueprint, environment variables, health checks, costs, rollback steps, and custom-domain instructions, see [docs/deployment.md](docs/deployment.md).
+For the production container, free Hugging Face Docker Space setup, GitHub sync, environment variables, health checks, and rollback steps, see [docs/deployment.md](docs/deployment.md). The hosted setup can be completed through the Hugging Face and GitHub websites without a terminal.
 
 ## Usage
 
@@ -207,13 +208,14 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 - `scraper/capture_parser.py` parses pages sent by the local Chrome capture extension.
 - `scraper/result_quality.py` assigns review issues, confidence, and reliability labels.
 - `export/` contains new-workbook export and existing-workbook update logic.
-- `Dockerfile`, `gunicorn.conf.py`, and `render.yaml` define the first production runtime.
+- `Dockerfile` and `gunicorn.conf.py` define the single-process hosted runtime.
+- `.github/workflows/deploy-huggingface.yml` syncs `main` to the free Docker Space after account setup.
 
 ## Roadmap
 
 [![Parser improvements](https://img.shields.io/badge/focus-parser%20improvements-2563eb)](scraper/browser_scraper_v2.py)
 [![Testing links](https://img.shields.io/badge/testing-real%20job%20links-f97316)](#testing-notes)
-[![Future hosted demo](https://img.shields.io/badge/future-hosted%20demo-6b7280)](#roadmap)
+[![Free hosted beta](https://img.shields.io/badge/next-free%20hosted%20beta-6b7280)](docs/deployment.md)
 
 - Make salary extraction more reliable, especially hourly pay, yearly ranges, and LinkedIn base-pay text.
 - Clean up location results when pages include extra words like posting status, job category, or repeated page text.
@@ -222,7 +224,7 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 - Improve source labels for school career sites, reposts, and company career pages.
 - Add a small set of real test links that cover the tricky cases found during testing.
 - Add screenshots or a short demo once the main workflow feels stable.
-- Add a hosted demo later, with authentication if exposed beyond localhost.
+- Run a limited free hosted beta, collect reliability feedback, and add authentication before exposing it to a larger audience.
 
 ## Contributing
 

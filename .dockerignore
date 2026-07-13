@@ -1,5 +1,8 @@
 .git
 .github
+deploy
+docs
+tests
 .venv
 env
 __pycache__

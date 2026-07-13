@@ -20,26 +20,44 @@ def test_gunicorn_uses_one_process_with_bounded_http_threads(monkeypatch):
     assert config["preload_app"] is False
 
 
+def test_gunicorn_defaults_to_hugging_face_port(monkeypatch):
+    monkeypatch.delenv("PORT", raising=False)
+
+    config = runpy.run_path(str(ROOT / "gunicorn.conf.py"))
+
+    assert config["bind"] == "0.0.0.0:7860"
+
+
 def test_dockerfile_installs_chromium_and_runs_unprivileged():
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 
     assert dockerfile.startswith("FROM python:3.12-bookworm")
     assert "playwright install --with-deps chromium" in dockerfile
     assert 'ENTRYPOINT ["/usr/bin/tini", "--"]' in dockerfile
+    assert "useradd --create-home --uid 1000 joblink" in dockerfile
     assert "USER joblink" in dockerfile
+    assert "PORT=7860" in dockerfile
+    assert "EXPOSE 7860" in dockerfile
+    assert "os.environ.get('PORT', '7860')" in dockerfile
+    assert "JOBLINK_SCRAPE_WORKERS=1" in dockerfile
+    assert "JOBLINK_MAX_PENDING_JOBS=10" in dockerfile
     assert '"scraper.app:app"' in dockerfile
     assert "JOBLINK_SECRET_KEY=" not in dockerfile
 
 
-def test_render_blueprint_uses_readiness_and_generated_secret():
-    blueprint = (ROOT / "render.yaml").read_text(encoding="utf-8")
+def test_hugging_face_workflow_syncs_the_docker_space():
+    workflow = (
+        ROOT / ".github" / "workflows" / "deploy-huggingface.yml"
+    ).read_text(encoding="utf-8")
 
-    assert "runtime: docker" in blueprint
-    assert "plan: standard" in blueprint
-    assert "healthCheckPath: /ready" in blueprint
-    assert "maxShutdownDelaySeconds: 60" in blueprint
-    assert "generateValue: true" in blueprint
-    assert "value: replace-me" not in blueprint
+    assert "branches:" in workflow
+    assert "- main" in workflow
+    assert "workflow_dispatch:" in workflow
+    assert "actions/checkout@v6" in workflow
+    assert "huggingface/hub-sync@v0.1.0" in workflow
+    assert "huggingface_repo_id: ${{ vars.HF_SPACE_ID }}" in workflow
+    assert "hf_token: ${{ secrets.HF_TOKEN }}" in workflow
+    assert "space_sdk: docker" in workflow
 
 
 def test_production_requirements_include_gunicorn():

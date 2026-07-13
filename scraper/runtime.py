@@ -89,9 +89,6 @@ def _browser_runtime_status(
         from playwright.sync_api import sync_playwright
 
         with sync_playwright() as playwright:
-            executable = Path(playwright.chromium.executable_path)
-            if not executable.is_file():
-                return False, "missing"
             browser = playwright.chromium.launch(
                 headless=True,
                 args=chromium_args or [],

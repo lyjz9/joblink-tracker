@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
 import scraper.app as app_module
+import scraper.runtime as runtime_module
 from scraper.runtime import get_runtime
 
 
@@ -142,4 +144,48 @@ def test_scrape_timeout_and_chromium_args_are_forwarded(monkeypatch, tmp_path):
         "url": "https://example.com/jobs/one",
         "timeout": 17000,
         "launch_args": ["--disable-dev-shm-usage"],
+    }
+
+
+def test_browser_readiness_launches_the_headless_browser(monkeypatch):
+    observed = {}
+
+    class Browser:
+        def close(self):
+            observed["closed"] = True
+
+    class Chromium:
+        def launch(self, *, headless, args):
+            observed.update(headless=headless, args=args)
+            return Browser()
+
+        @property
+        def executable_path(self):
+            raise AssertionError("Readiness should support headless-shell-only installs")
+
+    class PlaywrightContext:
+        def __enter__(self):
+            return SimpleNamespace(chromium=Chromium())
+
+        def __exit__(self, *_args):
+            return False
+
+    import playwright.sync_api
+
+    monkeypatch.setattr(
+        playwright.sync_api,
+        "sync_playwright",
+        lambda: PlaywrightContext(),
+    )
+
+    ready, status = runtime_module._browser_runtime_status(
+        True,
+        chromium_args=["--test-flag"],
+    )
+
+    assert (ready, status) == (True, "available")
+    assert observed == {
+        "headless": True,
+        "args": ["--test-flag"],
+        "closed": True,
     }

@@ -8,10 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     JOBLINK_ENV=production \
     JOBLINK_LOG_DIR=/app/logs \
     JOBLINK_CHROMIUM_DISABLE_DEV_SHM_USAGE=true \
-    JOBLINK_SCRAPE_WORKERS=1 \
-    JOBLINK_MAX_PENDING_JOBS=10 \
     HOME=/home/joblink \
-    PORT=7860
+    PORT=10000
 
 WORKDIR /app
 
@@ -24,7 +22,7 @@ RUN pip install -r requirements-prod.txt && \
     python -m playwright install --with-deps chromium && \
     chmod -R a+rX /ms-playwright
 
-RUN useradd --create-home --uid 1000 joblink && \
+RUN useradd --create-home --uid 10001 joblink && \
     mkdir -p /app/logs && \
     chown -R joblink:joblink /app
 
@@ -32,10 +30,10 @@ COPY --chown=joblink:joblink . .
 
 USER joblink
 
-EXPOSE 7860
+EXPOSE 10000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '7860') + '/ready', timeout=3)"
+    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '10000') + '/ready', timeout=3)"
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 

@@ -5,7 +5,7 @@
 [![Flask app](https://img.shields.io/badge/web-Flask-000000)](scraper/app.py)
 [![Playwright scraper](https://img.shields.io/badge/scraper-Playwright-2f855a)](scraper/browser_scraper_v2.py)
 [![Excel tracker](https://img.shields.io/badge/excel-tracker-217346)](#excel-workflow)
-[![Free beta host](https://img.shields.io/badge/deploy-Hugging%20Face%20Spaces-FFD21E)](docs/deployment.md)
+[![Windows desktop beta](https://img.shields.io/badge/windows-desktop%20beta-0078d4)](docs/desktop_beta.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 JobLink Tracker is a local Python + Excel workflow I built for the part of job searching that quietly becomes exhausting: copying the same posting details into a spreadsheet over and over.
@@ -14,7 +14,7 @@ Paste in job links from company career pages or job boards, and the tool pulls o
 
 It is especially meant for students, new grads, and anyone applying to enough roles that the tracking work starts becoming its own little job.
 
-> Status: v0.1 private beta. The repository is prepared for a free hosted beta, but no public deployment is linked yet.
+> Status: v0.1 private beta. A portable Windows build is available through the GitHub Actions build workflow, so testers can run JobLink without Python, PowerShell, Docker, or a hosting subscription.
 
 ## Known Limitations
 
@@ -78,7 +78,7 @@ Copy `.env.example` to `.env` only when you need to change local defaults. Publi
 
 The background-job queue is intentionally in memory for the local/private beta. Run one Flask application process so job creation and polling reach the same queue. See [docs/background_jobs.md](docs/background_jobs.md) before changing server workers or deploying publicly.
 
-For the production container, free Hugging Face Docker Space setup, GitHub sync, environment variables, health checks, and rollback steps, see [docs/deployment.md](docs/deployment.md). The hosted setup can be completed through the Hugging Face and GitHub websites without a terminal.
+For the no-subscription Windows package, build workflow, tester instructions, local data path, and release checks, see [docs/desktop_beta.md](docs/desktop_beta.md). Current paid and free hosting tradeoffs are recorded in [docs/deployment.md](docs/deployment.md).
 
 ## Usage
 
@@ -145,13 +145,15 @@ For a workbook in the current folder:
 python process_excel_links.py ".\Job_Application_Tracker.xlsm"
 ```
 
-## Private Web Beta
+## Private Desktop Beta
 
 [![Runs on localhost](https://img.shields.io/badge/runs%20on-localhost%3A5050-2563eb)](scraper/app.py)
-[![Windows launcher](https://img.shields.io/badge/windows-launcher-0078d4)](Open_JobLink_Beta.vbs)
+[![Windows launcher](https://img.shields.io/badge/windows-launcher-0078d4)](desktop_launcher.py)
 [![Manual review](https://img.shields.io/badge/results-reviewable-f97316)](docs/known_limitations.md)
 
-On Windows, double-click `Open_JobLink_Beta.vbs` to start the local beta without opening PowerShell manually.
+The portable Windows build lets testers double-click `JobLink Tracker.exe` without installing Python. It starts the same local interface and includes the compatible Chromium browser used by the scraper. See [docs/desktop_beta.md](docs/desktop_beta.md) for build and download instructions.
+
+Developers who already have the project environment can still double-click `Open_JobLink_Beta.vbs` during local development.
 
 - The browser opens at `http://127.0.0.1:5050`.
 - Choose the date applied, paste up to 20 job links, select `Extract jobs`, edit any result cells, and download the results to Excel.
@@ -162,7 +164,7 @@ On Windows, double-click `Open_JobLink_Beta.vbs` to start the local beta without
 - If a job board exposes an employer/company application link, JobLink shows it as `Employer link`; that link is usually better than the repost.
 - If a site blocks automated access, open the job page yourself and use the Chrome capture extension in `browser_extension/joblink_capture`.
 
-This beta runs locally on your computer. It is not a hosted public app yet.
+This beta runs locally on the tester's computer. Closing the desktop control window stops the local server.
 
 ## Browser Capture For Blocked Sites
 
@@ -208,14 +210,16 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 - `scraper/capture_parser.py` parses pages sent by the local Chrome capture extension.
 - `scraper/result_quality.py` assigns review issues, confidence, and reliability labels.
 - `export/` contains new-workbook export and existing-workbook update logic.
+- `desktop_launcher.py` starts and stops the one-click Windows beta.
+- `packaging/joblink_tracker.spec` bundles Python, project assets, and Chromium with PyInstaller.
+- `.github/workflows/build-windows-desktop.yml` creates the downloadable Windows ZIP.
 - `Dockerfile` and `gunicorn.conf.py` define the single-process hosted runtime.
-- `.github/workflows/deploy-huggingface.yml` syncs `main` to the free Docker Space after account setup.
 
 ## Roadmap
 
 [![Parser improvements](https://img.shields.io/badge/focus-parser%20improvements-2563eb)](scraper/browser_scraper_v2.py)
 [![Testing links](https://img.shields.io/badge/testing-real%20job%20links-f97316)](#testing-notes)
-[![Free hosted beta](https://img.shields.io/badge/next-free%20hosted%20beta-6b7280)](docs/deployment.md)
+[![Desktop beta](https://img.shields.io/badge/next-windows%20desktop%20beta-6b7280)](docs/desktop_beta.md)
 
 - Make salary extraction more reliable, especially hourly pay, yearly ranges, and LinkedIn base-pay text.
 - Clean up location results when pages include extra words like posting status, job category, or repeated page text.
@@ -224,7 +228,7 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 - Improve source labels for school career sites, reposts, and company career pages.
 - Add a small set of real test links that cover the tricky cases found during testing.
 - Add screenshots or a short demo once the main workflow feels stable.
-- Run a limited free hosted beta, collect reliability feedback, and add authentication before exposing it to a larger audience.
+- Build and test the portable Windows beta before adding a full installer or code signing.
 
 ## Contributing
 

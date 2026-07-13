@@ -30,6 +30,15 @@ def _missing(value):
     return str(value or '').strip().lower() in {'', 'n/a', 'none', 'null'}
 
 
+def _looks_like_job_search_title(value):
+    title = re.sub(r'\s+', ' ', str(value or '')).strip()
+    return bool(re.match(
+        r'^\d[\d,]*\+?\s+.{2,120}\s+jobs?\s+in\s+.{2,120}$',
+        title,
+        flags=re.I,
+    ))
+
+
 def _quality_issues(result):
     issues = []
     for field in ('company', 'job_title', 'location'):
@@ -50,9 +59,15 @@ def _quality_issues(result):
     title = str(result.get('job_title', '')).strip()
     if title.lower() in {'access denied', 'humans only', 'www.ziprecruiter.com', 'jooble.org', 'digitalhire'}:
         issues.append('generic_job_title')
+    if _looks_like_job_search_title(title):
+        issues.append('job_search_page')
     comparable_company = re.sub(r'\W+', '', company.lower())
     comparable_title = re.sub(r'\W+', '', title.lower())
-    if comparable_company and comparable_company == comparable_title:
+    if (
+        not _missing(company)
+        and not _missing(title)
+        and comparable_company == comparable_title
+    ):
         issues.append('generic_job_title')
     if len(company) > 55 or re.search(r'\b(?:this position|company reserves|benefit programs|base salary|apply now|select how often)\b', company, flags=re.I):
         issues.append('company_looks_like_page_text')
@@ -75,6 +90,7 @@ def _review_notes(issues):
         'location_looks_like_work_type': 'Location may be a work type instead of a place.',
         'generic_company': 'Company name looks too generic.',
         'generic_job_title': 'Job title looks like a blocked or generic page.',
+        'job_search_page': 'The posting redirected to a job search page, so its fields cannot be trusted.',
         'company_looks_like_page_text': 'Company may be copied from page text.',
         'location_looks_like_page_text': 'Location may include extra page text.',
         'invalid_work_type': 'Work type should be Remote, Hybrid, Onsite, or n/a.',
@@ -96,6 +112,7 @@ def _review_details(issues):
         'location_looks_like_work_type': ('Location looks wrong', 'Location', 'Move Remote/Hybrid/Onsite to Work Type and enter the actual place if listed.'),
         'generic_company': ('Company too generic', 'Company', 'Replace the job-board name with the real employer.'),
         'generic_job_title': ('Title too generic', 'Job title', 'Replace blocked-page text with the real role title.'),
+        'job_search_page': ('Posting unavailable', 'Link', 'Open the link and enter the original job details manually if the posting is still visible.'),
         'company_looks_like_page_text': ('Company has extra text', 'Company', 'Keep only the employer name.'),
         'location_looks_like_page_text': ('Location has extra text', 'Location', 'Keep only the city/state/country.'),
         'invalid_work_type': ('Work type invalid', 'Work Type', 'Use Remote, Hybrid, Onsite, or n/a.'),
@@ -145,6 +162,7 @@ def _confidence_for(result, issues):
         'missing_location': 16,
         'generic_company': 16,
         'generic_job_title': 18,
+        'job_search_page': 42,
         'company_looks_like_page_text': 18,
         'location_looks_like_page_text': 14,
         'location_looks_like_work_type': 14,

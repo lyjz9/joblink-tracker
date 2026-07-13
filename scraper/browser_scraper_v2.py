@@ -656,6 +656,8 @@ def _looks_generic_title(value):
     }
     if low in blocked:
         return True
+    if re.match(r'^\d[\d,]*\+?\s+.{2,120}\s+jobs?\s+in\s+.{2,120}$', low):
+        return True
     return bool(re.match(r'^(?:www\.)?[\w-]+\.(?:com|org|net|ai|jobs)$', low))
 
 

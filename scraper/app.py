@@ -202,8 +202,13 @@ def _scrape_url(
         result = merged
     else:
         result = _public_scrape_result(result)
-    raw_error = result.get('error', '')
     issues = _quality_issues(result)
+    if 'job_search_page' in issues:
+        for field in ('company', 'job_title', 'location', 'work_type', 'salary'):
+            result[field] = 'n/a'
+        result['error'] = 'Job page redirected to a job search page and is likely unavailable.'
+        issues = sorted(set(_quality_issues(result) + ['job_search_page']))
+    raw_error = result.get('error', '')
     if issues:
         _record_issue(
             url,
@@ -387,7 +392,7 @@ def _friendly_error(error, url=''):
     low = str(error or '').lower()
     if 'monster.com' in urlparse(url or '').netloc.lower():
         return 'Monster blocks reliable job-detail scraping. Open the employer or company job page from Monster and use that link instead.'
-    if any(marker in low for marker in ('http 404', 'http 410', 'unavailable', 'general careers page')):
+    if any(marker in low for marker in ('http 404', 'http 410', 'unavailable', 'general careers page', 'job search page')):
         return 'This posting is unavailable or has expired.'
     if any(marker in low for marker in ('blocked automated access', 'access denied', 'captcha')):
         return 'The website blocked automated access. Open the job page yourself, then use JobLink Capture.'

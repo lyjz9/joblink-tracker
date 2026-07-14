@@ -26,7 +26,7 @@ class ScrapeCapacityFull(RuntimeError):
 
 
 class BackgroundJobManager:
-    """Run small scrape batches with fixed browser concurrency and bounded backlog."""
+    """Run small scraping batches without opening too many browser pages."""
 
     def __init__(
         self,

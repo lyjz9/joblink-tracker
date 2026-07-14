@@ -34,7 +34,7 @@ if not test_urls:
     sys.exit(1)
 
 print("=" * 80)
-print("JOB SCRAPER TESTER")
+print("JobLink scraper check")
 print("=" * 80)
 
 for i, url in enumerate(test_urls, 1):
@@ -54,11 +54,11 @@ for i, url in enumerate(test_urls, 1):
                 print(f"  OK {key}: {value}")
 
         if success:
-            print("\n  Status: SUCCESS")
+            print("\n  Status: Ready")
         else:
-            print("\n  Status: PARTIAL - Some fields missing")
+            print("\n  Status: Review - Some fields are missing")
 
     except Exception as exc:
-        print(f"  FAILED: {exc}")
+        print(f"  Could not scrape: {exc}")
 
 print("\n" + "=" * 80)

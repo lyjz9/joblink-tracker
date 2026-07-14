@@ -1,34 +1,34 @@
 # Background Scraping Jobs
 
-JobLink submits pasted links as a small background batch instead of keeping one browser request open for every link. The browser creates a job, polls for progress, and adds each completed result to the editable table.
+When you submit several links, JobLink works through them in the background. The page checks in for progress and adds each finished result to the table as soon as it is ready.
 
 ## API
 
-- `POST /api/jobs` accepts `urls` and an optional `date_applied`, then returns `202 Accepted`, an opaque job ID, and a polling URL.
-- `GET /api/jobs/<job_id>` returns job status, counts, and per-link results.
-- `DELETE /api/jobs/<job_id>` requests cancellation. A page already being scraped is allowed to finish; links that have not started are cancelled.
-- `POST /scrape` remains available for single-row retries and the existing Excel/VBA workflow. It shares the same scraper capacity limit.
+- `POST /api/jobs` accepts `urls` and an optional `date_applied`. It returns `202 Accepted`, a job ID, and the URL used to check progress.
+- `GET /api/jobs/<job_id>` returns the latest status, counts, and result for each link.
+- `DELETE /api/jobs/<job_id>` cancels work that has not started. A page already being read is allowed to finish.
+- `POST /scrape` still handles one-link retries and the Excel/VBA workflow. It uses the same scraper capacity.
 
-Jobs are kept only in process memory and are removed after `JOBLINK_JOB_TTL_SECONDS`. Uploaded workbooks are not part of the job payload or job store.
+Jobs live only in the running app's memory and expire after `JOBLINK_JOB_TTL_SECONDS`. Uploaded workbooks never enter this queue.
 
 ## Limits
 
 | Environment variable | Default | Purpose |
 | --- | ---: | --- |
-| `JOBLINK_SCRAPE_WORKERS` | `2` | Maximum concurrent browser-backed scrapes; capped at 4. |
-| `JOBLINK_MAX_PENDING_JOBS` | `25` | Maximum queued or running batches. |
-| `JOBLINK_JOB_TTL_SECONDS` | `1800` | How long completed and cancelled results remain pollable. |
-| `JOBLINK_SCRAPE_CAPACITY_WAIT_SECONDS` | `2` | How long a synchronous retry waits for scraper capacity. |
-| `JOBLINK_RATE_LIMIT_JOB_CREATE` | `10` | Batch submissions allowed per rate-limit window and client. |
+| `JOBLINK_SCRAPE_WORKERS` | `2` | Browser pages JobLink may read at the same time; capped at 4. |
+| `JOBLINK_MAX_PENDING_JOBS` | `25` | Batches that may be queued or running. |
+| `JOBLINK_JOB_TTL_SECONDS` | `1800` | How long finished or cancelled jobs remain available. |
+| `JOBLINK_SCRAPE_CAPACITY_WAIT_SECONDS` | `2` | How long a one-link retry waits for an open scraper slot. |
+| `JOBLINK_RATE_LIMIT_JOB_CREATE` | `10` | Batches one client may submit during a rate-limit window. |
 
 The existing `JOBLINK_MAX_JOBS` limit still controls links per batch.
 
-## Deployment Constraint
+## Why The Beta Uses One Process
 
-Use one web application process for this beta. Multiple Gunicorn workers or multiple containers would each create a separate in-memory job store, so a polling request could miss the process that accepted the job.
+Run one web process for this beta. Each Gunicorn worker or container would otherwise have its own private queue, and a progress request might reach the wrong one.
 
-The queue uses bounded worker threads inside that one process, so one process does not mean unlimited or serial-only scraping. Before horizontally scaling the app, replace the in-memory job manager with a shared durable backend such as Redis while preserving the current API response shape.
+That process still uses a small worker pool, so it can read more than one page without opening unlimited browsers. Before adding more processes, move the queue to shared storage such as Redis and keep the current API response shape.
 
-The included `gunicorn.conf.py` enforces one application process and uses HTTP threads so health checks, polling, and downloads can still be served while browser work runs in the bounded scraper pool. During shutdown, the queue stops accepting new jobs and cancels items that have not started.
+The included `gunicorn.conf.py` keeps one process and uses HTTP threads so health checks, progress requests, and downloads still work while scraping runs. During shutdown, JobLink stops accepting new work and cancels anything that has not started.
 
-After an application restart, in-progress and retained jobs are lost. The frontend reports the missing job clearly and users can submit the links again.
+Restarting the app clears the queue. If that happens mid-batch, the page explains that the job is gone and the links can be submitted again.

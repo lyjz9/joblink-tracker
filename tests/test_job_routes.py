@@ -94,7 +94,7 @@ def test_create_job_deduplicates_equivalent_links(job_api):
             {"urls": ["https://example.com/1", "https://example.com/2", "https://example.com/3"]},
             "up to 2",
         ),
-        ({"urls": ["https://example.com/1"], "date_applied": "not-a-date"}, "valid date"),
+        ({"urls": ["https://example.com/1"], "date_applied": "not-a-date"}, "valid application date"),
     ],
 )
 def test_create_job_rejects_invalid_batches(job_api, payload, message):

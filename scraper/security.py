@@ -23,7 +23,7 @@ REDIRECT_CODES = {301, 302, 303, 307, 308}
 
 
 def validate_public_url(value: object) -> tuple[str | None, str | None]:
-    """Return a normalized public HTTP(S) URL or a user-facing validation error."""
+    """Check a job link before the scraper opens it."""
     match = URL_PATTERN.search(str(value or ""))
     if match:
         value = match.group(0).rstrip(".,;:!)]}")
@@ -35,10 +35,10 @@ def validate_public_url(value: object) -> tuple[str | None, str | None]:
         parsed = urlparse(text)
         port = parsed.port
     except ValueError:
-        return None, "Enter a valid job posting URL."
+        return None, "Add a complete job link."
 
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        return None, "Only http and https job links are supported."
+        return None, "The link must start with http:// or https://."
     if parsed.username or parsed.password:
         return None, "Links containing usernames or passwords are not supported."
 
@@ -162,4 +162,3 @@ def validate_workbook_upload(
         raise ValueError("This file is not a readable Excel workbook.") from exc
     finally:
         stream.seek(0)
-

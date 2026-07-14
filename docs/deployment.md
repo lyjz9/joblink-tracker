@@ -1,11 +1,11 @@
 # Hosted Deployment Notes
 
-JobLink Tracker can run in a container, but a reliable hosted scraper is not currently the zero-cost beta path.
+JobLink can run in a container, but free hosting is a rough fit for a browser-based scraper. Chromium needs more memory and CPU than a small static site or basic Flask app.
 
-Hugging Face's current pricing lists hosting Docker Spaces as a PRO feature. Its CPU Basic hardware can be free, but a free hardware label does not remove the account feature requirement shown during Docker Space creation. See the official [Hugging Face pricing page](https://huggingface.co/pricing).
+Hosting plans change, so check the current [Hugging Face pricing](https://huggingface.co/pricing) before creating a Docker Space. Docker support may require a paid account even when a basic CPU tier is listed as free.
 
-Render offers a free web service, but it currently provides 512 MB RAM and 0.1 CPU, sleeps after 15 minutes of inactivity, and can suspend services that generate unusually high outbound traffic. Those limits are a poor fit for Playwright Chromium and multi-link scraping. See the official [Render pricing](https://render.com/pricing) and [free service limits](https://render.com/docs/free).
+Render also changes its limits over time. Compare the current [Render pricing](https://render.com/pricing) and [free service limits](https://render.com/docs/free) with Playwright's memory and outbound-traffic needs before relying on it.
 
-The repository keeps `Dockerfile`, `requirements-prod.txt`, and `gunicorn.conf.py` as a future paid-host or self-hosting option. They are not required for the Windows desktop beta.
+The repo keeps `Dockerfile`, `requirements-prod.txt`, and `gunicorn.conf.py` for future self-hosting or paid hosting. None of them are needed for the Windows desktop app.
 
-For the no-subscription distribution path, use [desktop_beta.md](desktop_beta.md).
+For a beta that does not require a subscription, use the [Windows desktop build](desktop_beta.md).

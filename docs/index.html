@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>JobLink Tracker</title>
-  <meta name="description" content="JobLink Tracker turns job posting links into structured Excel application tracker rows.">
+  <meta name="description" content="JobLink Tracker pulls useful details from job postings and adds reviewed rows to Excel.">
   <link rel="stylesheet" href="site.css">
 </head>
 <body>
@@ -24,10 +24,9 @@
   <main id="top">
     <section class="intro-band">
       <div class="intro-copy">
-        <p class="eyebrow">Local beta for job seekers</p>
-        <h1>Turn job posting links into Excel tracker rows.</h1>
+        <h1>JobLink Tracker</h1>
         <p class="lede">
-          JobLink Tracker is a Python + Excel project that helps reduce the repetitive copying that comes with tracking a lot of job applications.
+          Paste job links, check the details JobLink finds, and add the finished rows to Excel without copying every field by hand.
         </p>
         <div class="actions" aria-label="Primary links">
           <a class="button primary" href="https://github.com/lyjz9/joblink-tracker">View on GitHub</a>
@@ -35,78 +34,76 @@
         </div>
       </div>
       <figure class="preview">
-        <img src="assets/joblink-preview.png" alt="Preview of JobLink Tracker turning pasted links into reviewable Excel tracker rows.">
+        <img src="assets/joblink-preview.png?v=2" alt="Preview of JobLink Tracker turning pasted links into reviewable Excel tracker rows.">
       </figure>
     </section>
 
     <section class="status-strip" aria-label="Project status">
       <div>
-        <strong>v0.1 local beta</strong>
-        <span>Runs on your computer, not as a hosted scraper app.</span>
+        <strong>Runs locally</strong>
+        <span>The beta runs on your computer instead of a hosted service.</span>
       </div>
       <div>
-        <strong>Review-first</strong>
-        <span>Rows marked for review should be checked before saving.</span>
+        <strong>You make the final call</strong>
+        <span>JobLink flags uncertain rows so you can fix them before saving.</span>
       </div>
       <div>
-        <strong>Built for Excel</strong>
-        <span>Exports and updates tracker workbooks.</span>
+        <strong>Works with Excel</strong>
+        <span>Create a new tracker or update one you already use.</span>
       </div>
     </section>
 
     <section class="content-band" id="how-it-works">
       <div class="section-heading">
-        <p class="eyebrow">What it does</p>
-        <h2>Less copying, more reviewing.</h2>
+        <h2>What JobLink handles</h2>
       </div>
       <div class="feature-grid">
         <article>
-          <h3>Extract useful fields</h3>
-          <p>Pulls company, title, location, work type, salary, source, and job link details from job posting pages.</p>
+          <h3>Reads the posting</h3>
+          <p>Looks for the company, title, location, work type, salary, source, and original link.</p>
         </article>
         <article>
-          <h3>Save to a tracker</h3>
-          <p>Formats results into Excel-friendly rows so applications stay easier to compare and follow up on.</p>
+          <h3>Prepares the row</h3>
+          <p>Organizes the details into the same columns used by the ready-made Excel tracker.</p>
         </article>
         <article>
-          <h3>Keep manual control</h3>
-          <p>Flags uncertain results instead of pretending every scrape is perfect.</p>
+          <h3>Shows its doubts</h3>
+          <p>Marks uncertain fields for review instead of quietly filling the tracker with guesses.</p>
         </article>
       </div>
     </section>
 
     <section class="workflow-band" id="workflow">
       <div class="section-heading">
-        <p class="eyebrow">Workflow</p>
-        <h2>Paste, extract, review, save.</h2>
+        <h2>From job link to tracker</h2>
       </div>
       <ol class="steps">
         <li>
           <span>1</span>
           <div>
             <h3>Paste job links</h3>
-            <p>Use the local web beta, command line, or Excel input sheet.</p>
+            <p>Add links in the local app, from the command line, or through the Excel input sheet.</p>
           </div>
         </li>
         <li>
           <span>2</span>
           <div>
-            <h3>Extract details</h3>
-            <p>The scraper looks for structured job data and common career-page patterns.</p>
+            <h3>Let JobLink read them</h3>
+            <p>It checks structured job data, common career-page layouts, and visible page text.</p>
           </div>
         </li>
         <li>
           <span>3</span>
           <div>
-            <h3>Review uncertain rows</h3>
-            <p>Blocked sites, login-only pages, salary text, and work type fields may need a human check.</p>
+            <h3>Check the flagged rows</h3>
+            <p>Fix anything missing or suspicious, especially salary, location, and work type.</p>
           </div>
         </li>
         <li>
           <span>4</span>
           <div>
-            <h3>Save to Excel</h3>
-            <p>Download results or update an existing tracker workbook.</p>
+            <h3>Update Excel</h3>
+            <p>Download a new tracker or add the reviewed rows to your own workbook.</p>
           </div>
         </li>
       </ol>
@@ -114,12 +111,11 @@
 
     <section class="content-band muted" id="limitations">
       <div class="section-heading">
-        <p class="eyebrow">Honest status</p>
-        <h2>This is a helper, not a perfect scraper.</h2>
+        <h2>Where JobLink still needs help</h2>
       </div>
       <div class="split-list">
         <div>
-          <h3>Works best with</h3>
+          <h3>Usually works well</h3>
           <ul>
             <li>Company career pages</li>
             <li>Common ATS pages like Greenhouse, Lever, Ashby, and Workday</li>
@@ -127,7 +123,7 @@
           </ul>
         </div>
         <div>
-          <h3>Still being improved</h3>
+          <h3>Still needs attention</h3>
           <ul>
             <li>Salary ranges and hourly pay</li>
             <li>Work type detection</li>
@@ -140,8 +136,7 @@
 
     <section class="cta-band">
       <div>
-        <p class="eyebrow">Open source beta</p>
-        <h2>Try it locally, read the docs, or follow the repo while it improves.</h2>
+        <h2>Try it locally and tell me where it gets stuck.</h2>
       </div>
       <div class="actions">
         <a class="button primary" href="https://github.com/lyjz9/joblink-tracker">Open repository</a>

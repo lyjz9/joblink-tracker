@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "JobLink Capture",
   "version": "0.2.2",
-  "description": "Send the full opened job page to the local JobLink Beta app.",
+  "description": "Send the job page you have open to the JobLink app on your computer.",
   "permissions": ["activeTab", "scripting", "tabs"],
   "host_permissions": [
     "http://127.0.0.1:5050/*",

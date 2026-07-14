@@ -7,44 +7,43 @@
 [![Privacy: local first](https://img.shields.io/badge/privacy-local--first-0F766E?style=flat-square)](docs/privacy.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6D5BD0?style=flat-square)](LICENSE)
 
-JobLink Tracker is a local Python + Excel workflow I built for the part of job searching that quietly becomes exhausting: copying the same posting details into a spreadsheet over and over.
+JobLink Tracker is a small local app I built because copying the same details from job postings into Excel gets old fast.
 
-Paste in job links from company career pages or job boards, and the tool pulls out the details people usually track by hand: company, job title, location, work type, salary, and source. From there, you can review anything uncertain and save the cleaned rows into an Excel tracker.
+Paste a few job links and JobLink fills in the details people usually track by hand: company, job title, location, work type, salary, and source. You can fix anything it gets wrong before adding the rows to your tracker.
 
-It is especially meant for students, new grads, and anyone applying to enough roles that the tracking work starts becoming its own little job.
+I made it with students, new grads, and anyone juggling a long application list in mind.
 
 > Status: v0.1 private beta. A portable Windows build is available through the GitHub Actions build workflow, so testers can run JobLink without Python, PowerShell, Docker, or a hosting subscription.
 
 ## Known Limitations
 
-JobLink Tracker is a helper, not a perfect scraper. Company career pages and applicant-tracking-system links usually work best. Some job boards, login-only pages, Cloudflare checks, human verification pages, private APIs, and JavaScript-heavy pages may block scraping or return incomplete fields.
+Job scraping is messy, so JobLink will not get every posting right. Company career pages and ATS links usually give the cleanest results. Login walls, Cloudflare checks, human verification, private APIs, and heavily scripted pages can still block the scraper or hide important fields.
 
-Rows marked for review should be checked manually before they are added to a real application tracker. Salary, work type, and location are especially important to verify because different websites format these fields differently.
+Check any row marked `Review` before you save it. Salary, work type, and location deserve an extra look because every site formats them differently.
 
 See [docs/known_limitations.md](docs/known_limitations.md) for more detail.
 
 
 ## Why I Built This
 
-When you are applying to a lot of jobs, the tracking part can quietly turn into its own chore. Every posting has a company name, title, location, salary note, link, and follow-up date to copy somewhere. It is easy to lose time, make small mistakes, or stop tracking things clearly.
+When you are applying to a lot of jobs, the tracker can become a second job. Every posting has another company name, title, location, salary note, and link to copy. That busywork costs time and makes small mistakes easy.
 
-JobLink Tracker is my attempt to make that process less annoying. It does not try to replace your judgment. It handles some of the repetitive copying, then lets you review and edit everything before saving.
+JobLink handles the repetitive part and leaves the judgment to you. Nothing goes into your tracker until you have had a chance to review and edit it.
 
 ## Features
 
 - Pull company, job title, location, salary, and work type from job posting links.
 - Save results in an Excel-friendly application tracker format.
-- Process pasted links as a bounded background batch with live progress and cancellation.
-- Flag rows that may need a manual review with confidence and source reliability labels.
-- Save problem rows locally for later scraper debugging.
-- Help reduce repetitive copy-and-paste work during a job search.
+- Work through up to 20 links in the background while showing progress and letting you cancel.
+- Explain why a row needs review instead of quietly guessing.
+- Save problem rows locally so scraper issues can be investigated later.
 
 ## How It Works
 
-1. Paste job posting URLs into the web beta, command line, or Excel input sheet.
-2. JobLink Tracker opens each posting and looks for useful job details.
-3. Review anything marked for manual review, especially when a site blocks automation or the result looks incomplete.
-4. Save the cleaned rows to an Excel tracker.
+1. Paste job posting links into the local app, command line, or Excel input sheet.
+2. JobLink reads each posting and pulls out the fields it can trust.
+3. Check the rows it flags and fix anything that looks off.
+4. Add the reviewed rows to a new or existing Excel tracker.
 
 ## Included Tracker Columns
 
@@ -106,7 +105,7 @@ Playwright may request administrator permission while installing Linux browser d
 
 Copy `.env.example` to `.env` only when you need to change local defaults. Public deployment must set `JOBLINK_ENV=production` and provide a long, random `JOBLINK_SECRET_KEY` through the hosting provider's environment settings.
 
-The background-job queue is intentionally in memory for the local/private beta. Run one Flask application process so job creation and polling reach the same queue. See [docs/background_jobs.md](docs/background_jobs.md) before changing server workers or deploying publicly.
+For now, background jobs live in memory. Run one Flask process so the browser always talks to the same queue. Read [docs/background_jobs.md](docs/background_jobs.md) before changing the worker setup or deploying the app.
 
 For the no-subscription Windows package, build workflow, tester instructions, local data path, and release checks, see [docs/desktop_beta.md](docs/desktop_beta.md). Current paid and free hosting tradeoffs are recorded in [docs/deployment.md](docs/deployment.md).
 
@@ -191,7 +190,7 @@ On Windows, if you use the starter `.xlsx` template with VBA macros, save a pers
 
 The Python workbook processor supports `.xlsx` and `.xlsm` files on all three operating systems. Close the workbook in Excel or another spreadsheet program first, activate `.venv`, and use the matching command below.
 
-### Windows Excel Command
+### Windows
 
 ```powershell
 python process_excel_links.py "C:\Users\your-name\Documents\Job_Application_Tracker.xlsm"
@@ -203,7 +202,7 @@ For a workbook in the current folder:
 python process_excel_links.py ".\Job_Application_Tracker.xlsm"
 ```
 
-### macOS Excel Command
+### macOS
 
 ```bash
 python process_excel_links.py "/Users/your-name/Documents/Job_Application_Tracker.xlsx"
@@ -215,7 +214,7 @@ For a workbook in the current folder:
 python process_excel_links.py "./Job_Application_Tracker.xlsx"
 ```
 
-### Linux Excel Command
+### Linux
 
 ```bash
 python process_excel_links.py "/home/your-name/Documents/Job_Application_Tracker.xlsx"
@@ -227,18 +226,18 @@ For a workbook in the current folder:
 python process_excel_links.py "./Job_Application_Tracker.xlsx"
 ```
 
-## Private Desktop Beta
+## Windows Desktop Beta
 
-The portable Windows build lets testers double-click `JobLink Tracker.exe` without installing Python. It starts the same local interface and includes the compatible Chromium browser used by the scraper. See [docs/desktop_beta.md](docs/desktop_beta.md) for build and download instructions.
+The portable Windows build works without Python. Double-click `JobLink Tracker.exe` and it opens the same local app with the browser files the scraper needs. See [docs/desktop_beta.md](docs/desktop_beta.md) for build and testing instructions.
 
 Developers who already have the project environment can still double-click `Open_JobLink_Beta.vbs` during local development.
 
 - The browser opens at `http://127.0.0.1:5050`.
-- Choose the date applied, paste up to 20 job links, select `Extract jobs`, edit any result cells, and download the results to Excel.
+- Choose the date applied, paste up to 20 job links, select `Get job details`, fix anything that looks wrong, and save the results to Excel.
 - `Clear links` only clears the pasted links. Use row checkboxes, `Clear selected`, or a row remove button to remove results.
 - To add results to an existing tracker, select `Choose tracker`, pick an `.xlsx` or `.xlsm` file, then select `Update tracker`. Close the workbook in Excel first so the app can save the updated file cleanly.
-- Rows marked `Review` show the exact reason, confidence, and source reliability. Retry the row or edit the remaining fields manually.
-- The flag button on a result row saves that problem row to `logs/user_reported_issues.jsonl` so scraping issues can be debugged later.
+- Rows marked `Review` explain what looks wrong. Retry the row or correct the fields yourself.
+- The flag button saves a problem row to `logs/user_reported_issues.jsonl` so it can be investigated later.
 - If a job board exposes an employer/company application link, JobLink shows it as `Employer link`; that link is usually better than the repost.
 - If a site blocks automated access, open the job page yourself and use the Chrome capture extension in `browser_extension/joblink_capture`.
 
@@ -246,7 +245,7 @@ This beta runs locally on the tester's computer. Closing the desktop control win
 
 ## Browser Capture For Blocked Sites
 
-Some sites, including a few job boards with human checks or login walls, may block direct scraping. JobLink Tracker includes a small Chrome extension for pages that you can open manually.
+Some sites will let you read a job posting but block JobLink from opening it. The optional Chrome extension can hand the page you already opened back to the local app.
 
 1. Start JobLink Beta first.
 2. In Chrome, open `chrome://extensions`.
@@ -254,17 +253,17 @@ Some sites, including a few job boards with human checks or login walls, may blo
 4. Select `Load unpacked`.
 5. Choose the `browser_extension/joblink_capture` folder from this project.
 6. Open the blocked job page and finish any human check if the site asks.
-7. Click `JobLink Capture` from Chrome's extension menu, then select `Capture full job page`.
-8. Return to JobLink Tracker and select `Load captured jobs`.
+7. Click `JobLink Capture` from Chrome's extension menu, then select `Capture this job page`.
+8. Return to JobLink Tracker and select `Load browser captures`.
 
-Browser capture is still a helper, not a guarantee. Review captured results before saving them to a tracker.
+Capture gives JobLink more page text to work with, but it can still make mistakes. Check the result before saving it.
 
 ## Testing Notes
 
-- Start with company career pages when possible. They usually contain cleaner job data than reposts on aggregator sites.
+- Start with the company career page when you can. It usually has cleaner data than a repost.
 - Some sites block automation, require login, or hide job details behind private APIs, so results will not be perfect for every link. Use browser capture for pages that you can open yourself.
 - Monster search pages and many Monster job-detail links are not reliable scraper inputs. If Monster opens or links to the employer/company job page, use that employer link instead.
-- Source reliability labels mean: `Good` usually has clean structured data, `Okay` may need review, and `Limited` often blocks scraping or needs browser capture.
+- Source labels are a quick heads-up: `Good` is usually clean, `Okay` deserves a look, and `Limited` often needs capture or manual edits.
 - Captured rows may show suggested values under fields; selecting one replaces the current value.
 - Source should be a readable label such as Indeed, LinkedIn, Glassdoor, Greenhouse, or Company Website.
 - Work Type should be Remote, Hybrid, Onsite, or n/a. If the posting does not explicitly say the work type, use n/a.
@@ -272,14 +271,14 @@ Browser capture is still a helper, not a guarantee. Review captured results befo
 
 ## Privacy
 
-The local beta keeps diagnostic data on this computer. Hosted mode disables browser capture by default, hides internal logs, redacts full URLs from automatic diagnostics, and removes temporary workbook files after returning the download.
+The local beta keeps its diagnostic files on this computer. In hosted mode, browser capture is off by default, internal logs are private, full URLs are redacted from automatic diagnostics, and temporary workbook files are removed after download.
 
 See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling details. Do not commit personal trackers, generated exports, logs, screenshots, or notes containing private application information.
 
 ## Project Structure
 
 - `scraper/app.py` composes the Flask app and keeps the existing web and Excel routes.
-- `scraper/job_queue.py` owns bounded execution, cancellation, and result expiry.
+- `scraper/job_queue.py` keeps browser work within a small limit and handles cancellation and expiry.
 - `scraper/job_routes.py` exposes the background-job API.
 - `scraper/capture_parser.py` parses pages sent by the local Chrome capture extension.
 - `scraper/result_quality.py` assigns review issues, confidence, and reliability labels.
@@ -302,7 +301,7 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 
 ## Contributing
 
-Feedback, issues, and pull requests are welcome. This project is still early, so even small notes are useful.
+Feedback, issues, and pull requests are welcome. The project is still early, and a short note about one bad result is genuinely useful.
 
 Helpful contributions include parser fixes for specific job boards, sample links for testing, clearer setup docs, and better error messages for blocked sites.
 

@@ -6,9 +6,9 @@
 python test_scraper.py "https://example.com/job-posting-url"
 ```
 
-The output prints tracker-ready fields such as company, job title, location, work type, salary, and source.
+The command prints the fields that will go into the tracker, including company, title, location, work type, salary, and source.
 
-Latest smoke test run:
+Example result:
 
 ```text
 Command:
@@ -24,19 +24,19 @@ Source: iCIMS
 Status: SUCCESS
 ```
 
-## Run The Local Web Beta
+## Start The Local App
 
 ```powershell
 python scraper\app.py
 ```
 
-Then open:
+Open this address after the server starts:
 
 ```text
 http://127.0.0.1:5000
 ```
 
-On Windows, you can also double-click `Open_JobLink_Beta.vbs` to start the private beta at `http://127.0.0.1:5050`.
+On Windows, double-click `Open_JobLink_Beta.vbs` to start the local beta at `http://127.0.0.1:5050` without typing a command.
 
 ## Test The API Endpoint
 
@@ -50,9 +50,9 @@ Invoke-RestMethod -Uri http://127.0.0.1:5000/scrape -Method Post -ContentType "a
 Invoke-WebRequest -Uri http://127.0.0.1:5000/export -Method Post -ContentType "application/json" -Body '[{"company":"ACME","job_title":"Engineer","job_link":"https://example.com/job"}]' -OutFile jobs.xlsx
 ```
 
-## Process A Copied Tracker Workbook
+## Update A Test Workbook
 
-Use a copied workbook for testing, not your real personal tracker. You can start from `templates/joblink_tracker_template.xlsx`, then save your own working copy.
+Test with the ready-made file at `templates/joblink_tracker_template.xlsx` or a copy of your own tracker. Keep your personal workbook untouched until you are comfortable with the result.
 
 ```powershell
 python process_excel_links.py "path\to\copied_tracker.xlsm"

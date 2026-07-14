@@ -1,4 +1,4 @@
-"""Result normalization, review reasons, and confidence metadata."""
+"""Clean scraper results and explain which fields need a closer look."""
 
 import re
 
@@ -6,23 +6,23 @@ from scraper.browser_scraper_v2 import _detect_platform
 
 
 RELIABILITY = {
-    'greenhouse': ('Good', 'Usually has clean structured job data.'),
-    'lever': ('Good', 'Usually has clean structured job data.'),
-    'ashby': ('Good', 'Usually has clean structured job data.'),
-    'workday': ('Good', 'Usually has structured job data, but some pages load slowly.'),
-    'icims': ('Good', 'Usually works well after reading the embedded job frame.'),
-    'breezy': ('Good', 'Usually has readable job details.'),
-    'smartrecruiters': ('Good', 'Usually has clean structured job data.'),
-    'company_website': ('Good', 'Company career pages are usually the best source.'),
-    'linkedin': ('Okay', 'Often has title/company/location, but salary can be missing.'),
-    'indeed': ('Okay', 'Often works, but page text can include extra location words.'),
-    'glassdoor': ('Okay', 'Often works, but some pages block automation.'),
-    'ziprecruiter': ('Okay', 'Can work, but reposts may include noisy page text.'),
-    'simplyhired': ('Okay', 'Can work, but some pages redirect or hide details.'),
-    'dice': ('Okay', 'Can work, but some pages block automation.'),
-    'monster': ('Limited', 'Monster is unreliable. Use the employer/company link Monster opens instead.'),
-    'wellfound': ('Limited', 'Often blocks direct scraping. Browser capture may need review.'),
-    'upwork': ('Limited', 'Often blocks direct scraping and uses project-style fields.'),
+    'greenhouse': ('Good', 'Greenhouse usually provides clean job data.'),
+    'lever': ('Good', 'Lever usually provides clean job data.'),
+    'ashby': ('Good', 'Ashby usually provides clean job data.'),
+    'workday': ('Good', 'Workday usually provides useful job data, although some pages load slowly.'),
+    'icims': ('Good', 'iCIMS usually works once JobLink reads the job frame.'),
+    'breezy': ('Good', 'Breezy usually makes the job details easy to read.'),
+    'smartrecruiters': ('Good', 'SmartRecruiters usually provides clean job data.'),
+    'company_website': ('Good', 'The company career page is usually the best source.'),
+    'linkedin': ('Okay', 'LinkedIn often has the basics, but salary may be missing.'),
+    'indeed': ('Okay', 'Indeed often works, but locations can pick up extra words.'),
+    'glassdoor': ('Okay', 'Glassdoor often works, but some pages block JobLink.'),
+    'ziprecruiter': ('Okay', 'ZipRecruiter can work, but reposts may include extra page text.'),
+    'simplyhired': ('Okay', 'SimplyHired can redirect or hide some details.'),
+    'dice': ('Okay', 'Dice can work, but some pages block JobLink.'),
+    'monster': ('Limited', 'Use the employer career page that Monster opens instead.'),
+    'wellfound': ('Limited', 'Wellfound often blocks JobLink, and captures still need a close look.'),
+    'upwork': ('Limited', 'Upwork often blocks JobLink and does not use standard job-posting fields.'),
 }
 
 
@@ -90,15 +90,15 @@ def _review_notes(issues):
         'location_looks_like_work_type': 'Location may be a work type instead of a place.',
         'generic_company': 'Company name looks too generic.',
         'generic_job_title': 'Job title looks like a blocked or generic page.',
-        'job_search_page': 'The posting redirected to a job search page, so its fields cannot be trusted.',
+        'job_search_page': 'This link opened a list of jobs instead of one posting.',
         'company_looks_like_page_text': 'Company may be copied from page text.',
         'location_looks_like_page_text': 'Location may include extra page text.',
         'invalid_work_type': 'Work type should be Remote, Hybrid, Onsite, or n/a.',
-        'scrape_error': 'The scraper hit an error.',
-        'captured_page_review': 'Captured pages can include extra site text; review these fields.',
-        'capture_low_confidence': 'Captured fields were not found in a clear job header or label.',
+        'scrape_error': 'JobLink could not read this page.',
+        'captured_page_review': 'The browser capture may include extra site text.',
+        'capture_low_confidence': 'The capture did not have clear labels for these fields.',
         'monster_search_page': 'Monster search pages show many jobs at once. Use the employer/company link from Monster instead.',
-        'low_confidence': 'Extraction confidence is low.',
+        'low_confidence': 'JobLink is not confident about this row.',
     }
     notes = [labels.get(issue, issue.replace('_', ' ')) for issue in issues]
     return ' '.join(notes)
@@ -116,11 +116,11 @@ def _review_details(issues):
         'company_looks_like_page_text': ('Company has extra text', 'Company', 'Keep only the employer name.'),
         'location_looks_like_page_text': ('Location has extra text', 'Location', 'Keep only the city/state/country.'),
         'invalid_work_type': ('Work type invalid', 'Work Type', 'Use Remote, Hybrid, Onsite, or n/a.'),
-        'scrape_error': ('Scrape failed', 'Link', 'Retry, use browser capture, or edit the fields and click the check.'),
-        'captured_page_review': ('Captured page needs review', 'Captured row', 'Review fields because captured pages can include extra site text.'),
-        'capture_low_confidence': ('Capture confidence low', 'Captured row', 'Use the suggestions or edit the fields manually.'),
+        'scrape_error': ('Page could not be read', 'Link', 'Retry, use browser capture, or fix the fields yourself and choose the checkmark.'),
+        'captured_page_review': ('Check this browser capture', 'Captured row', 'Remove any menu, button, or footer text that slipped into the fields.'),
+        'capture_low_confidence': ('Capture needs a closer look', 'Captured row', 'Choose one of the suggestions or type the correct value.'),
         'monster_search_page': ('Monster unsupported', 'Link', 'Use the employer/company job page that Monster opens.'),
-        'low_confidence': ('Low confidence', 'Row', 'Review the row before saving.'),
+        'low_confidence': ('Needs a closer look', 'Row', 'Check this row before saving it.'),
     }
     return [
         {'code': issue, 'label': detail_map.get(issue, (issue.replace('_', ' ').title(), 'Row', 'Review this row.'))[0],
@@ -201,7 +201,7 @@ def _annotate_result(result, url='', issues=None):
     if not result.get('review_notes') and issues:
         result['review_notes'] = _review_notes(issues)
     if result.get('preferred_job_link'):
-        result['preferred_job_link_note'] = 'Employer/company job page found. This is usually better than the job-board link.'
+        result['preferred_job_link_note'] = "JobLink found the employer's own posting, which is usually more complete than the repost."
     return result
 
 

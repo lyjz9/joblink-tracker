@@ -1,21 +1,21 @@
 # Known Limitations
 
-JobLink Tracker is a v0.1 beta and job scraping is not perfect. Company career pages and applicant-tracking-system links usually work best, especially Greenhouse, Lever, Ashby, Workday, iCIMS, Breezy, and SmartRecruiters.
+JobLink is still a beta, and no scraper can read every job site perfectly. Company career pages and ATS links usually give the best results, especially Greenhouse, Lever, Ashby, Workday, iCIMS, Breezy, and SmartRecruiters.
 
-Some job boards, login-only pages, Cloudflare checks, human verification pages, private APIs, and JavaScript-heavy pages may block scraping or return incomplete fields. Rows marked for review should be checked manually before they are added to a real application tracker.
+Some job boards hide details behind login walls, Cloudflare checks, human verification, private APIs, or scripts that load after the page opens. When that happens, JobLink may return an error or only part of the posting. Check every row marked `Review` before saving it.
 
-Salary, work type, and location are especially important to verify because different websites format these fields differently.
+Pay, work type, and location deserve an extra look because sites label them in very different ways.
 
 ## Source Reliability
 
-- Good: company career pages and common ATS pages usually provide cleaner structured data.
-- Okay: job boards such as LinkedIn, Indeed, Glassdoor, ZipRecruiter, SimplyHired, and Dice can work, but may need review.
-- Limited: Monster, Wellfound, and Upwork often block direct scraping or need browser capture/manual review.
+- **Good:** Company career pages and common ATS pages usually provide clean structured data.
+- **Okay:** LinkedIn, Indeed, Glassdoor, ZipRecruiter, SimplyHired, and Dice often work but deserve a quick review.
+- **Limited:** Monster, Wellfound, and Upwork frequently block the scraper or need browser capture and manual edits.
 
 ## Monster Links
 
-Monster search pages show many jobs at once, so JobLink Tracker does not treat them as one scrapeable job posting. Many Monster job-detail pages also block reliable scraping. If Monster opens or links to an employer/company job page, use that employer link instead.
+A Monster search page contains many jobs, so it cannot be treated as one posting. Many individual Monster pages also block reliable access. When Monster opens or links to the employer's career page, use that link instead.
 
 ## Privacy
 
-The local beta runs on your computer. Do not commit personal tracker workbooks, generated Excel exports, logs, screenshots, or notes that contain private applications, email addresses, job history, or personal comments.
+The local beta runs on your computer. Keep personal trackers, exports, logs, screenshots, and notes out of Git, especially when they contain email addresses, application history, or private comments.

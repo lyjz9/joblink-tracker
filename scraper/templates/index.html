@@ -4,10 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>JobLink Beta</title>
+  <meta name="theme-color" content="#33292d">
   <link rel="icon" href="../static/brand-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../static/styles.css">
 </head>
 <body>
+  <a class="skip-link" href="#jobLinks">Skip to job links</a>
   <header class="app-header">
     <div class="brand">
       <img src="../static/brand-mark.svg" alt="" width="34" height="34">
@@ -27,6 +29,7 @@
 
   <main>
     <section class="input-band" aria-labelledby="inputTitle">
+      <div class="band-content">
       <div class="section-heading">
         <div>
           <h1 id="inputTitle">Job links</h1>
@@ -76,11 +79,13 @@
           Cancel
         </button>
       </div>
+      </div>
     </section>
 
     <section class="results-band" aria-labelledby="resultsTitle">
+      <div class="band-content">
       <div class="results-toolbar">
-        <div>
+        <div class="results-heading">
           <h2 id="resultsTitle">Results</h2>
           <div class="summary" aria-live="polite">
             <span><b id="totalCount">0</b> total</span>
@@ -98,47 +103,53 @@
           </div>
         </div>
         <div class="toolbar-actions">
-          <button class="button button-secondary" type="button" id="manualAddButton">
-            <i data-lucide="plus-circle" aria-hidden="true"></i>
-            Add job yourself
-          </button>
-          <button class="button button-quiet" type="button" id="selectAllButton" disabled>
-            <i data-lucide="check-square" aria-hidden="true"></i>
-            Select all
-          </button>
-          <button class="button button-quiet" type="button" id="retryAllButton" disabled>
-            <i data-lucide="rotate-cw" aria-hidden="true"></i>
-            Retry flagged rows
-          </button>
-          <button class="button button-quiet" type="button" id="clearResultsButton" disabled>
-            <i data-lucide="trash-2" aria-hidden="true"></i>
-            Clear selected
-          </button>
-          <button class="button button-quiet" type="button" id="reportSelectedButton" disabled>
-            <i data-lucide="flag" aria-hidden="true"></i>
-            Flag selected
-          </button>
-          <button class="button button-secondary" type="button" id="chooseWorkbookButton">
-            <i data-lucide="upload" aria-hidden="true"></i>
-            Choose tracker
-          </button>
-          <input id="workbookFile" class="sr-only" type="file" accept=".xlsx,.xlsm">
-          <span class="file-name" id="workbookName">No tracker selected</span>
-          <label class="duplicate-field" for="duplicateMode">
-            <span>If a link already exists</span>
-            <select id="duplicateMode">
-              <option value="skip">Leave that row alone</option>
-              <option value="update">Update that row</option>
-            </select>
-          </label>
-          <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
-            <i data-lucide="file-plus-2" aria-hidden="true"></i>
-            Update tracker
-          </button>
-          <button class="button button-secondary" type="button" id="downloadButton" disabled>
-            <i data-lucide="download" aria-hidden="true"></i>
-            Download Excel
-          </button>
+          <div class="action-group result-actions" role="group" aria-label="Result actions">
+            <button class="button button-secondary" type="button" id="manualAddButton">
+              <i data-lucide="plus-circle" aria-hidden="true"></i>
+              Add job yourself
+            </button>
+            <button class="button button-quiet" type="button" id="selectAllButton" disabled>
+              <i data-lucide="check-square" aria-hidden="true"></i>
+              Select all
+            </button>
+            <button class="button button-quiet" type="button" id="retryAllButton" disabled>
+              <i data-lucide="rotate-cw" aria-hidden="true"></i>
+              Retry flagged rows
+            </button>
+            <button class="button button-quiet" type="button" id="clearResultsButton" disabled>
+              <i data-lucide="trash-2" aria-hidden="true"></i>
+              Clear selected
+            </button>
+            <button class="button button-quiet" type="button" id="reportSelectedButton" disabled>
+              <i data-lucide="flag" aria-hidden="true"></i>
+              Flag selected
+            </button>
+          </div>
+          <div class="action-group tracker-actions" role="group" aria-label="Tracker options">
+            <button class="button button-secondary" type="button" id="chooseWorkbookButton">
+              <i data-lucide="upload" aria-hidden="true"></i>
+              Choose tracker
+            </button>
+            <input id="workbookFile" class="sr-only" type="file" accept=".xlsx,.xlsm" aria-label="Choose tracker workbook">
+            <span class="file-name" id="workbookName">No tracker selected</span>
+            <label class="duplicate-field" for="duplicateMode">
+              <span>If a link already exists</span>
+              <select id="duplicateMode">
+                <option value="skip">Leave that row alone</option>
+                <option value="update">Update that row</option>
+              </select>
+            </label>
+          </div>
+          <div class="action-group export-actions" role="group" aria-label="Excel actions">
+            <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
+              <i data-lucide="file-plus-2" aria-hidden="true"></i>
+              Update tracker
+            </button>
+            <button class="button button-secondary" type="button" id="downloadButton" disabled>
+              <i data-lucide="download" aria-hidden="true"></i>
+              Download Excel
+            </button>
+          </div>
         </div>
       </div>
 
@@ -213,6 +224,7 @@
           </thead>
           <tbody id="resultsBody"></tbody>
         </table>
+      </div>
       </div>
     </section>
   </main>

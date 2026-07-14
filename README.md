@@ -46,9 +46,9 @@ JobLink Tracker is my attempt to make that process less annoying. It does not tr
 3. Review anything marked for manual review, especially when a site blocks automation or the result looks incomplete.
 4. Save the cleaned rows to an Excel tracker.
 
-## Current Tracker Columns
+## Included Tracker Columns
 
-This is worksheet data, not a terminal command, and it is the same on Windows, macOS, and Linux:
+For reference, the template already contains these columns. You do not need to copy and paste them:
 
 ```text
 Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary Range, Follow-up, Source
@@ -179,22 +179,15 @@ curl --request POST \
 
 ## Excel Workflow
 
-You can start from the blank tracker template: [templates/joblink_tracker_template.xlsx](templates/joblink_tracker_template.xlsx).
+You can start from the ready-made tracker template: [templates/joblink_tracker_template.xlsx](templates/joblink_tracker_template.xlsx).
 
-If you want to use the Excel workflow manually, create a macro-enabled workbook with these sheets:
+The template is ready to use. It already includes the `Instructions`, `Input`, and `Applications` sheets with all required column names, so you do not need to create sheets or copy and paste headers.
 
-- `Applications`
-- `Input`
-
-Paste the headers from `excel_layout.csv` into the `Applications` sheet. In the `Input` sheet, add the following shared worksheet data on any operating system:
-
-```text
-Job Link, Source, Notes, Process Status, Processed At, Error Message
-```
+You can also upload your own existing `.xlsx` or `.xlsm` tracker in the web app. JobLink matches recognizable column names and adds the selected results to that workbook instead of making you rebuild it from the template.
 
 The included VBA button workflow is Windows-only because `VBA/JobTracker.bas` uses Windows Script Host and MSXML. On Windows, import the module using `Developer > Visual Basic > File > Import File`. If you want a button in the workbook, assign it to the `ProcessInputLinks` macro.
 
-On Windows, if you use the blank `.xlsx` template with VBA macros, save a personal copy as an Excel macro-enabled workbook (`.xlsm`) before importing the macro module.
+On Windows, if you use the starter `.xlsx` template with VBA macros, save a personal copy as an Excel macro-enabled workbook (`.xlsm`) before importing the macro module.
 
 The Python workbook processor supports `.xlsx` and `.xlsm` files on all three operating systems. Close the workbook in Excel or another spreadsheet program first, activate `.venv`, and use the matching command below.
 

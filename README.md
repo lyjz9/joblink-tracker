@@ -53,6 +53,8 @@ JobLink Tracker is my attempt to make that process less annoying. It does not tr
 
 ## Current Tracker Columns
 
+This is worksheet data, not a terminal command, and it is the same on Windows, macOS, and Linux:
+
 ```text
 Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary Range, Follow-up, Source
 ```
@@ -74,7 +76,7 @@ To run the project from source instead:
 
 ```powershell
 py -3.12 -m venv .venv
-.\.venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m playwright install chromium
 python scraper\app.py
@@ -123,28 +125,66 @@ For the no-subscription Windows package, build workflow, tester instructions, lo
 More examples are available in [docs/usage_examples.md](docs/usage_examples.md).
 For common setup and scraping issues, see [docs/troubleshooting.md](docs/troubleshooting.md).
 
-To test one job link directly:
+These examples assume you completed the matching setup above and activated `.venv`. Use the section for your computer.
+
+### Windows Usage
+
+Run these commands in PowerShell:
 
 ```powershell
+# Test one job link
 python test_scraper.py "https://example.com/job-posting-url"
-```
 
-To run the local web app:
-
-```powershell
+# Start the local web app
 python scraper\app.py
 ```
 
-Then open:
-
-```text
-http://127.0.0.1:5000
-```
-
-To test the API endpoint:
+After starting the web app, open `http://127.0.0.1:5000`. To test its API while it is running:
 
 ```powershell
-Invoke-RestMethod -Uri http://127.0.0.1:5000/scrape -Method Post -ContentType "application/json" -Body '{"url":"https://example.com/job-posting-url"}'
+Invoke-RestMethod -Uri "http://127.0.0.1:5000/scrape" -Method Post -ContentType "application/json" -Body '{"url":"https://example.com/job-posting-url"}'
+```
+
+### macOS Usage
+
+Run these commands in Terminal:
+
+```bash
+# Test one job link
+python test_scraper.py "https://example.com/job-posting-url"
+
+# Start the local web app
+python scraper/app.py
+```
+
+After starting the web app, open `http://127.0.0.1:5000`. To test its API while it is running:
+
+```bash
+curl --request POST \
+  --url "http://127.0.0.1:5000/scrape" \
+  --header "Content-Type: application/json" \
+  --data '{"url":"https://example.com/job-posting-url"}'
+```
+
+### Linux Usage
+
+Run these commands in Terminal:
+
+```bash
+# Test one job link
+python test_scraper.py "https://example.com/job-posting-url"
+
+# Start the local web app
+python scraper/app.py
+```
+
+After starting the web app, open `http://127.0.0.1:5000`. To test its API while it is running:
+
+```bash
+curl --request POST \
+  --url "http://127.0.0.1:5000/scrape" \
+  --header "Content-Type: application/json" \
+  --data '{"url":"https://example.com/job-posting-url"}'
 ```
 
 ## Excel Workflow
@@ -161,26 +201,52 @@ If you want to use the Excel workflow manually, create a macro-enabled workbook 
 - `Applications`
 - `Input`
 
-Paste the headers from `excel_layout.csv` into the `Applications` sheet. In the `Input` sheet, add these headers:
+Paste the headers from `excel_layout.csv` into the `Applications` sheet. In the `Input` sheet, add the following shared worksheet data on any operating system:
 
 ```text
 Job Link, Source, Notes, Process Status, Processed At, Error Message
 ```
 
-Import `VBA/JobTracker.bas` using `Developer > Visual Basic > File > Import File`. If you want a button in the workbook, assign it to the `ProcessInputLinks` macro.
+The included VBA button workflow is Windows-only because `VBA/JobTracker.bas` uses Windows Script Host and MSXML. On Windows, import the module using `Developer > Visual Basic > File > Import File`. If you want a button in the workbook, assign it to the `ProcessInputLinks` macro.
 
-If you use the blank `.xlsx` template with VBA macros, save a personal copy as an Excel macro-enabled workbook (`.xlsm`) before importing the macro module.
+On Windows, if you use the blank `.xlsx` template with VBA macros, save a personal copy as an Excel macro-enabled workbook (`.xlsm`) before importing the macro module.
 
-You can also test the same workflow without a button by passing the path to your own workbook:
+The Python workbook processor supports `.xlsx` and `.xlsm` files on all three operating systems. Close the workbook in Excel or another spreadsheet program first, activate `.venv`, and use the matching command below.
+
+### Windows Excel Command
 
 ```powershell
-python process_excel_links.py "path\to\your\Job_Application_Tracker.xlsm"
+python process_excel_links.py "C:\Users\your-name\Documents\Job_Application_Tracker.xlsm"
 ```
 
 For a workbook in the current folder:
 
 ```powershell
 python process_excel_links.py ".\Job_Application_Tracker.xlsm"
+```
+
+### macOS Excel Command
+
+```bash
+python process_excel_links.py "/Users/your-name/Documents/Job_Application_Tracker.xlsx"
+```
+
+For a workbook in the current folder:
+
+```bash
+python process_excel_links.py "./Job_Application_Tracker.xlsx"
+```
+
+### Linux Excel Command
+
+```bash
+python process_excel_links.py "/home/your-name/Documents/Job_Application_Tracker.xlsx"
+```
+
+For a workbook in the current folder:
+
+```bash
+python process_excel_links.py "./Job_Application_Tracker.xlsx"
 ```
 
 ## Private Desktop Beta

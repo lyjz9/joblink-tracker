@@ -9,24 +9,23 @@ import scraper.app as app_module
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
-    app_module.request_history.clear()
-    app_module.CAPTURED_JOBS.clear()
-    monkeypatch.setattr(app_module, "ISSUE_LOG", str(tmp_path / "issues.jsonl"))
-    monkeypatch.setattr(app_module, "USER_REPORT_LOG", str(tmp_path / "reports.jsonl"))
-    monkeypatch.setattr(app_module, "BETA_FEEDBACK_LOG", str(tmp_path / "feedback.jsonl"))
-    app_module.app.config.update(
-        TESTING=True,
-        IS_PRODUCTION=True,
-        CAPTURE_ENABLED=False,
-        EXPOSE_ISSUES=False,
-        STORE_FULL_URLS=False,
-        RATE_LIMIT_FEEDBACK=10,
-        RATE_LIMIT_CAPTURE=20,
-        RATE_WINDOW_SECONDS=600,
-    )
-    with app_module.app.test_client() as test_client:
-        yield test_client
+def client(tmp_path):
+    app = app_module.create_app("testing", {
+        "LOG_DIR": tmp_path,
+        "IS_PRODUCTION": True,
+        "SECRET_KEY": "x" * 32,
+        "CAPTURE_ENABLED": False,
+        "EXPOSE_ISSUES": False,
+        "STORE_FULL_URLS": False,
+        "RATE_LIMIT_FEEDBACK": 10,
+        "RATE_LIMIT_CAPTURE": 20,
+        "RATE_WINDOW_SECONDS": 600,
+    })
+    try:
+        with app.test_client() as test_client:
+            yield test_client
+    finally:
+        app_module.shutdown_app(app)
 
 
 def test_sensitive_read_endpoints_are_not_public(client):
@@ -62,7 +61,7 @@ def test_reported_issue_redacts_full_urls_in_production(client, tmp_path):
     )
 
     assert response.status_code == 200
-    record = json.loads((tmp_path / "reports.jsonl").read_text(encoding="utf-8"))
+    record = json.loads((tmp_path / "user_reported_issues.jsonl").read_text(encoding="utf-8"))
     assert "url" not in record
     assert len(record["url_hash"]) == 64
     assert record["job"]["job_link"] == ""

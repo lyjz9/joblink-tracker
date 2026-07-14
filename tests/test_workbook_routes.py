@@ -11,18 +11,20 @@ import scraper.app as app_module
 
 
 @pytest.fixture()
-def client():
-    app_module.request_history.clear()
-    app_module.app.config.update(
-        TESTING=True,
-        RATE_LIMIT_UPLOAD=10,
-        RATE_WINDOW_SECONDS=600,
-        MAX_EXPORT_JOBS=100,
-        MAX_WORKBOOK_UNCOMPRESSED_BYTES=80 * 1024 * 1024,
-        MAX_WORKBOOK_ARCHIVE_MEMBERS=5000,
-    )
-    with app_module.app.test_client() as test_client:
-        yield test_client
+def client(tmp_path):
+    app = app_module.create_app("testing", {
+        "LOG_DIR": tmp_path,
+        "RATE_LIMIT_UPLOAD": 10,
+        "RATE_WINDOW_SECONDS": 600,
+        "MAX_EXPORT_JOBS": 100,
+        "MAX_WORKBOOK_UNCOMPRESSED_BYTES": 80 * 1024 * 1024,
+        "MAX_WORKBOOK_ARCHIVE_MEMBERS": 5000,
+    })
+    try:
+        with app.test_client() as test_client:
+            yield test_client
+    finally:
+        app_module.shutdown_app(app)
 
 
 def test_append_workbook_rejects_fake_excel_file(client):
@@ -65,4 +67,3 @@ def test_append_workbook_returns_valid_xlsx(client):
     assert response.headers["X-JobLink-Added"] == "1"
     with ZipFile(io.BytesIO(response.data)) as workbook:
         assert "xl/workbook.xml" in workbook.namelist()
-

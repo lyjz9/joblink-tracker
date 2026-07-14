@@ -1,0 +1,48 @@
+name: Build Windows desktop beta
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install desktop dependencies
+        run: python -m pip install -r requirements-desktop.txt
+
+      - name: Install bundled Chromium
+        shell: pwsh
+        run: |
+          $env:PLAYWRIGHT_BROWSERS_PATH = "0"
+          python -m playwright install chromium --only-shell
+
+      - name: Build portable app
+        shell: pwsh
+        run: |
+          $env:PLAYWRIGHT_BROWSERS_PATH = "0"
+          python -m PyInstaller --noconfirm --clean packaging\joblink_tracker.spec
+          Copy-Item "templates\joblink_tracker_template.xlsx" `
+            "dist\JobLink Tracker\Blank JobLink Tracker.xlsx"
+          Compress-Archive -Path "dist\JobLink Tracker" `
+            -DestinationPath "dist\JobLink-Tracker-Windows.zip" `
+            -CompressionLevel Optimal
+
+      - name: Upload desktop beta
+        uses: actions/upload-artifact@v4
+        with:
+          name: JobLink-Tracker-Windows
+          path: dist/JobLink-Tracker-Windows.zip
+          if-no-files-found: error
+          retention-days: 14

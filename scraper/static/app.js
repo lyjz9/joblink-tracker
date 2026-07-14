@@ -1,6 +1,8 @@
 const state = {
   jobs: [],
   processing: false,
+  activeJobId: null,
+  progressRun: 0,
   workbookFile: null,
   workbookHandle: null,
   filter: 'all',
@@ -42,6 +44,7 @@ const elements = {
   progress: document.querySelector('#progress'),
   progressBar: document.querySelector('#progressBar'),
   progressText: document.querySelector('#progressText'),
+  cancelJob: document.querySelector('#cancelJobButton'),
   body: document.querySelector('#resultsBody'),
   table: document.querySelector('#tableWrap'),
   empty: document.querySelector('#emptyState'),
@@ -105,7 +108,12 @@ function urlsFromInput() {
   const matches = elements.links.value.match(/https?:\/\/[^\s<>"']+/gi) || [];
   return matches
     .map((value) => value.replace(/[.,;:!\)\]\}]+$/, ''))
-    .filter((value) => value && !seen.has(value) && seen.add(value));
+    .filter((value) => {
+      const key = linkKey(value);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 function validateInput() {
@@ -340,6 +348,7 @@ function render() {
   elements.download.disabled = !hasExportableJobs;
   elements.appendWorkbook.disabled = state.processing || !hasExportableJobs || !state.workbookFile;
   elements.retryAll.disabled = state.processing || !state.jobs.some((job) => jobStatus(job) !== 'ready');
+  elements.appliedDate.disabled = state.processing;
   elements.clearResults.disabled = state.processing || !someSelected;
   if (elements.reportSelected) elements.reportSelected.disabled = state.processing || !someSelected;
   elements.clearResults.innerHTML = `${icon('trash-2')} Clear selected${selectedCount ? ` (${selectedCount})` : ''}`;
@@ -373,37 +382,135 @@ async function scrapeOne(url) {
   return { ...result, job_link: result.job_link || url, date_applied: selectedAppliedDate() || result.date_applied };
 }
 
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function createScrapeJob(urls, dateApplied) {
+  const response = await fetch('/api/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ urls, date_applied: dateApplied }),
+  });
+  const payload = await response.json().catch(() => ({ error: 'The server returned an unreadable response.' }));
+  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status}).`);
+  return payload;
+}
+
+async function readScrapeJob(pollUrl) {
+  const response = await fetch(pollUrl, { cache: 'no-store' });
+  const payload = await response.json().catch(() => ({ error: 'The server returned an unreadable response.' }));
+  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status}).`);
+  return payload;
+}
+
+function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
+  let changed = false;
+  (snapshot.items || []).forEach((item, index) => {
+    if (!['completed', 'failed'].includes(item.status) || appliedItems.has(index)) return;
+    const target = plan[index];
+    if (!target) return;
+    const result = {
+      ...(item.result || { error: 'The scraper could not process this job page.' }),
+      job_link: item.result?.job_link || target.url,
+    };
+    if (dateApplied) result.date_applied = dateApplied;
+    if (target.action === 'update') {
+      result.selected = Boolean(state.jobs[target.index]?.selected);
+      state.jobs[target.index] = result;
+    } else {
+      result.selected = false;
+      state.jobs.push(result);
+    }
+    appliedItems.add(index);
+    changed = true;
+  });
+  return changed;
+}
+
 async function processLinks() {
   const urls = validateInput();
   if (!urls.length || state.processing) return;
+  const plan = [];
+  let skipped = 0;
+  urls.forEach((url) => {
+    const duplicate = duplicateResultChoice(url);
+    if (duplicate.action === 'skip') {
+      skipped += 1;
+    } else {
+      plan.push({ url, ...duplicate });
+    }
+  });
+  if (!plan.length) {
+    showToast(skipped === 1 ? 'Duplicate link skipped' : `${skipped} duplicate links skipped`);
+    return;
+  }
+
+  const runId = state.progressRun + 1;
+  state.progressRun = runId;
   state.processing = true;
   elements.progress.hidden = false;
   elements.progressBar.style.width = '0%';
+  elements.progressText.textContent = 'Adding job to queue';
+  elements.cancelJob.hidden = true;
+  elements.cancelJob.disabled = false;
   render();
 
-  for (let index = 0; index < urls.length; index += 1) {
-    elements.progressText.textContent = `${index + 1} of ${urls.length}`;
-    const duplicate = duplicateResultChoice(urls[index]);
-    if (duplicate.action === 'skip') {
-      elements.progressBar.style.width = `${Math.round(((index + 1) / urls.length) * 100)}%`;
-      continue;
+  const appliedItems = new Set();
+  const dateApplied = selectedAppliedDate();
+  let finalStatus = 'stopped';
+  try {
+    let snapshot = await createScrapeJob(plan.map(({ url }) => url), dateApplied);
+    state.activeJobId = snapshot.job_id;
+    elements.cancelJob.hidden = false;
+    while (true) {
+      const changed = applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied);
+      const settled = (snapshot.items || []).filter((item) => !['queued', 'running'].includes(item.status)).length;
+      const processed = skipped + settled;
+      elements.progressBar.style.width = `${Math.round((processed / urls.length) * 100)}%`;
+      elements.progressText.textContent = `${processed} of ${urls.length}`;
+      if (changed) render();
+      if (['completed', 'cancelled'].includes(snapshot.status)) {
+        finalStatus = snapshot.status;
+        break;
+      }
+      await wait(600);
+      snapshot = await readScrapeJob(snapshot.poll_url || `/api/jobs/${snapshot.job_id}`);
     }
-    const job = await scrapeOne(urls[index]);
-    if (duplicate.action === 'update') {
-      state.jobs[duplicate.index] = job;
+    if (finalStatus === 'completed') {
+      showToast(`${appliedItems.size} ${appliedItems.size === 1 ? 'job' : 'jobs'} processed${skipped ? `, ${skipped} skipped` : ''}`);
     } else {
-      state.jobs.push(job);
+      showToast(`${appliedItems.size} completed before cancellation`);
     }
-    elements.progressBar.style.width = `${Math.round(((index + 1) / urls.length) * 100)}%`;
+  } catch (error) {
+    elements.progressText.textContent = 'Stopped';
+    showToast(error.message || 'The scrape job stopped unexpectedly.');
+  } finally {
+    state.activeJobId = null;
+    state.processing = false;
+    elements.cancelJob.hidden = true;
+    elements.progressText.textContent = finalStatus === 'completed' ? 'Complete' : finalStatus === 'cancelled' ? 'Cancelled' : 'Stopped';
     render();
+    validateInput();
+    window.setTimeout(() => {
+      if (state.progressRun === runId && !state.processing) elements.progress.hidden = true;
+    }, 1200);
   }
+}
 
-  state.processing = false;
-  elements.progressText.textContent = 'Complete';
-  render();
-  validateInput();
-  showToast(`${urls.length} ${urls.length === 1 ? 'job' : 'jobs'} processed`);
-  setTimeout(() => { elements.progress.hidden = true; }, 1200);
+async function cancelActiveJob() {
+  const jobId = state.activeJobId;
+  if (!jobId || elements.cancelJob.disabled) return;
+  elements.cancelJob.disabled = true;
+  elements.progressText.textContent = 'Cancelling';
+  try {
+    const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'Could not cancel this scrape job.');
+  } catch (error) {
+    showToast(error.message);
+    if (state.activeJobId === jobId) elements.cancelJob.disabled = false;
+  }
 }
 
 async function retryJob(index) {
@@ -838,6 +945,7 @@ elements.links.addEventListener('input', () => {
   saveSession();
 });
 elements.extract.addEventListener('click', processLinks);
+if (elements.cancelJob) elements.cancelJob.addEventListener('click', cancelActiveJob);
 elements.download.addEventListener('click', downloadExcel);
 elements.appendWorkbook.addEventListener('click', appendToWorkbook);
 elements.chooseWorkbook.addEventListener('click', chooseWorkbook);

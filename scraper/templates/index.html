@@ -68,9 +68,13 @@
           </button>
         </div>
       </div>
-      <div class="progress" id="progress" hidden>
+      <div class="progress" id="progress" aria-live="polite" hidden>
         <div class="progress-track"><span id="progressBar"></span></div>
         <span id="progressText">Preparing</span>
+        <button class="button button-quiet progress-cancel" type="button" id="cancelJobButton" hidden>
+          <i data-lucide="x" aria-hidden="true"></i>
+          Cancel
+        </button>
       </div>
     </section>
 

@@ -5,6 +5,7 @@
 [![Flask app](https://img.shields.io/badge/web-Flask-000000)](scraper/app.py)
 [![Playwright scraper](https://img.shields.io/badge/scraper-Playwright-2f855a)](scraper/browser_scraper_v2.py)
 [![Excel tracker](https://img.shields.io/badge/excel-tracker-217346)](#excel-workflow)
+[![Windows desktop beta](https://img.shields.io/badge/windows-desktop%20beta-0078d4)](docs/desktop_beta.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 JobLink Tracker is a local Python + Excel workflow I built for the part of job searching that quietly becomes exhausting: copying the same posting details into a spreadsheet over and over.
@@ -13,7 +14,7 @@ Paste in job links from company career pages or job boards, and the tool pulls o
 
 It is especially meant for students, new grads, and anyone applying to enough roles that the tracking work starts becoming its own little job.
 
-> Status: v0.1 local beta. This project is actively being improved and is not a hosted public app yet.
+> Status: v0.1 private beta. A portable Windows build is available through the GitHub Actions build workflow, so testers can run JobLink without Python, PowerShell, Docker, or a hosting subscription.
 
 ## Known Limitations
 
@@ -38,7 +39,7 @@ JobLink Tracker is my attempt to make that process less annoying. It does not tr
 
 - Pull company, job title, location, salary, and work type from job posting links.
 - Save results in an Excel-friendly application tracker format.
-- Process one link at a time or a batch of links from an Excel workbook.
+- Process pasted links as a bounded background batch with live progress and cancellation.
 - Flag rows that may need a manual review with confidence and source reliability labels.
 - Save problem rows locally for later scraper debugging.
 - Help reduce repetitive copy-and-paste work during a job search.
@@ -74,6 +75,10 @@ python -m playwright install chromium
 If Python 3.12 is not installed, Python 3.11 also works. On macOS or Linux, use `python3` instead of `py -3.12` if needed.
 
 Copy `.env.example` to `.env` only when you need to change local defaults. Public deployment must set `JOBLINK_ENV=production` and provide a long, random `JOBLINK_SECRET_KEY` through the hosting provider's environment settings.
+
+The background-job queue is intentionally in memory for the local/private beta. Run one Flask application process so job creation and polling reach the same queue. See [docs/background_jobs.md](docs/background_jobs.md) before changing server workers or deploying publicly.
+
+For the no-subscription Windows package, build workflow, tester instructions, local data path, and release checks, see [docs/desktop_beta.md](docs/desktop_beta.md). Current paid and free hosting tradeoffs are recorded in [docs/deployment.md](docs/deployment.md).
 
 ## Usage
 
@@ -140,13 +145,15 @@ For a workbook in the current folder:
 python process_excel_links.py ".\Job_Application_Tracker.xlsm"
 ```
 
-## Private Web Beta
+## Private Desktop Beta
 
 [![Runs on localhost](https://img.shields.io/badge/runs%20on-localhost%3A5050-2563eb)](scraper/app.py)
-[![Windows launcher](https://img.shields.io/badge/windows-launcher-0078d4)](Open_JobLink_Beta.vbs)
+[![Windows launcher](https://img.shields.io/badge/windows-launcher-0078d4)](desktop_launcher.py)
 [![Manual review](https://img.shields.io/badge/results-reviewable-f97316)](docs/known_limitations.md)
 
-On Windows, double-click `Open_JobLink_Beta.vbs` to start the local beta without opening PowerShell manually.
+The portable Windows build lets testers double-click `JobLink Tracker.exe` without installing Python. It starts the same local interface and includes the compatible Chromium browser used by the scraper. See [docs/desktop_beta.md](docs/desktop_beta.md) for build and download instructions.
+
+Developers who already have the project environment can still double-click `Open_JobLink_Beta.vbs` during local development.
 
 - The browser opens at `http://127.0.0.1:5050`.
 - Choose the date applied, paste up to 20 job links, select `Extract jobs`, edit any result cells, and download the results to Excel.
@@ -157,7 +164,7 @@ On Windows, double-click `Open_JobLink_Beta.vbs` to start the local beta without
 - If a job board exposes an employer/company application link, JobLink shows it as `Employer link`; that link is usually better than the repost.
 - If a site blocks automated access, open the job page yourself and use the Chrome capture extension in `browser_extension/joblink_capture`.
 
-This beta runs locally on your computer. It is not a hosted public app yet.
+This beta runs locally on the tester's computer. Closing the desktop control window stops the local server.
 
 ## Browser Capture For Blocked Sites
 
@@ -195,11 +202,24 @@ The local beta keeps diagnostic data on this computer. Hosted mode disables brow
 
 See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling details. Do not commit personal trackers, generated exports, logs, screenshots, or notes containing private application information.
 
+## Project Structure
+
+- `scraper/app.py` composes the Flask app and keeps the existing web and Excel routes.
+- `scraper/job_queue.py` owns bounded execution, cancellation, and result expiry.
+- `scraper/job_routes.py` exposes the background-job API.
+- `scraper/capture_parser.py` parses pages sent by the local Chrome capture extension.
+- `scraper/result_quality.py` assigns review issues, confidence, and reliability labels.
+- `export/` contains new-workbook export and existing-workbook update logic.
+- `desktop_launcher.py` starts and stops the one-click Windows beta.
+- `packaging/joblink_tracker.spec` bundles Python, project assets, and Chromium with PyInstaller.
+- `.github/workflows/build-windows-desktop.yml` creates the downloadable Windows ZIP.
+- `Dockerfile` and `gunicorn.conf.py` define the single-process hosted runtime.
+
 ## Roadmap
 
 [![Parser improvements](https://img.shields.io/badge/focus-parser%20improvements-2563eb)](scraper/browser_scraper_v2.py)
 [![Testing links](https://img.shields.io/badge/testing-real%20job%20links-f97316)](#testing-notes)
-[![Future hosted demo](https://img.shields.io/badge/future-hosted%20demo-6b7280)](#roadmap)
+[![Desktop beta](https://img.shields.io/badge/next-windows%20desktop%20beta-6b7280)](docs/desktop_beta.md)
 
 - Make salary extraction more reliable, especially hourly pay, yearly ranges, and LinkedIn base-pay text.
 - Clean up location results when pages include extra words like posting status, job category, or repeated page text.
@@ -208,7 +228,7 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 - Improve source labels for school career sites, reposts, and company career pages.
 - Add a small set of real test links that cover the tricky cases found during testing.
 - Add screenshots or a short demo once the main workflow feels stable.
-- Add a hosted demo later, with authentication if exposed beyond localhost.
+- Build and test the portable Windows beta before adding a full installer or code signing.
 
 ## Contributing
 

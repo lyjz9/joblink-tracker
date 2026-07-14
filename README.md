@@ -117,7 +117,7 @@ For common setup and scraping issues, see [docs/troubleshooting.md](docs/trouble
 
 These examples assume you completed the matching setup above and activated `.venv`. Use the section for your computer.
 
-### Windows Usage
+### Windows
 
 Run these commands in PowerShell:
 
@@ -135,7 +135,7 @@ After starting the web app, open `http://127.0.0.1:5000`. To test its API while 
 Invoke-RestMethod -Uri "http://127.0.0.1:5000/scrape" -Method Post -ContentType "application/json" -Body '{"url":"https://example.com/job-posting-url"}'
 ```
 
-### macOS Usage
+### macOS
 
 Run these commands in Terminal:
 
@@ -156,7 +156,7 @@ curl --request POST \
   --data '{"url":"https://example.com/job-posting-url"}'
 ```
 
-### Linux Usage
+### Linux
 
 Run these commands in Terminal:
 

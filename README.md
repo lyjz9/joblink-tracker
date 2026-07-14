@@ -60,19 +60,57 @@ Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary 
 ## Setup
 
 [![Runtime: Python 3.11 or 3.12](https://img.shields.io/badge/runtime-Python%203.11%20%7C%203.12-3776AB?style=flat-square&logo=python&logoColor=white)](#setup)
-[![Install: requirements.txt](https://img.shields.io/badge/install-requirements.txt-475569?style=flat-square)](requirements.txt)
-[![Browser: Chromium required](https://img.shields.io/badge/browser-Chromium%20required-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://playwright.dev/python/docs/browsers)
+[![Windows: desktop or source](https://img.shields.io/badge/Windows-desktop%20%7C%20source-0078D4?style=flat-square&logo=windows11&logoColor=white)](#windows)
+[![macOS: source setup](https://img.shields.io/badge/macOS-source%20setup-555555?style=flat-square&logo=apple&logoColor=white)](#macos)
+[![Linux: source setup](https://img.shields.io/badge/Linux-source%20setup-FCC624?style=flat-square&logo=linux&logoColor=black)](#linux)
 
 JobLink Tracker is currently tested with Python 3.11 and 3.12.
+
+### Windows
+
+For private beta testing, the easiest option is the portable desktop build. Extract `JobLink-Tracker-Windows.zip`, open the `JobLink Tracker` folder, and double-click `JobLink Tracker.exe`. Python and PowerShell are not required. See [docs/desktop_beta.md](docs/desktop_beta.md) for the complete tester instructions.
+
+To run the project from source instead:
 
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 python -m playwright install chromium
+python scraper\app.py
 ```
 
-If Python 3.12 is not installed, Python 3.11 also works. On macOS or Linux, use `python3` instead of `py -3.12` if needed.
+If Python 3.12 is not installed, replace `py -3.12` with `py -3.11`.
+
+### macOS
+
+The portable Windows `.exe` does not run on macOS, so use the source setup:
+
+```bash
+python3 --version
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m playwright install chromium
+python scraper/app.py
+```
+
+Use Python 3.11 or 3.12. After the server starts, open `http://127.0.0.1:5000` in your browser.
+
+### Linux
+
+Linux uses the source setup and does not have a packaged desktop build. These instructions are useful for contributors, but Linux is not yet part of the formal beta test matrix.
+
+```bash
+python3 --version
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m playwright install --with-deps chromium
+python scraper/app.py
+```
+
+Playwright may request administrator permission while installing Linux browser dependencies. After the server starts, open `http://127.0.0.1:5000`.
 
 Copy `.env.example` to `.env` only when you need to change local defaults. Public deployment must set `JOBLINK_ENV=production` and provide a long, random `JOBLINK_SECRET_KEY` through the hosting provider's environment settings.
 

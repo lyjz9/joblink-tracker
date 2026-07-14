@@ -40,7 +40,7 @@ jobs:
             -CompressionLevel Optimal
 
       - name: Upload desktop beta
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: JobLink-Tracker-Windows
           path: dist/JobLink-Tracker-Windows.zip

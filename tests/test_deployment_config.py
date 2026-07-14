@@ -55,7 +55,7 @@ def test_desktop_workflow_builds_a_portable_windows_artifact():
     assert 'PLAYWRIGHT_BROWSERS_PATH = "0"' in workflow
     assert "playwright install chromium --only-shell" in workflow
     assert "packaging\\joblink_tracker.spec" in workflow
-    assert "actions/upload-artifact@v4" in workflow
+    assert "actions/upload-artifact@v7" in workflow
 
 
 def test_desktop_requirements_pin_pyinstaller():

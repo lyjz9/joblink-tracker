@@ -1,12 +1,12 @@
 # JobLink Tracker
 
-[![Status: local beta](https://img.shields.io/badge/status-local%20beta-f59e0b)](#known-limitations)
-[![Python: 3.11 or 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB)](#setup)
-[![Flask app](https://img.shields.io/badge/web-Flask-000000)](scraper/app.py)
-[![Playwright scraper](https://img.shields.io/badge/scraper-Playwright-2f855a)](scraper/browser_scraper_v2.py)
-[![Excel tracker](https://img.shields.io/badge/excel-tracker-217346)](#excel-workflow)
-[![Windows desktop beta](https://img.shields.io/badge/windows-desktop%20beta-0078d4)](docs/desktop_beta.md)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Release: v0.1 private beta](https://img.shields.io/badge/release-v0.1%20private%20beta-F26B4B?style=flat-square)](docs/desktop_beta.md)
+[![Platform: Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D4?style=flat-square&logo=windows11&logoColor=white)](docs/desktop_beta.md)
+[![Desktop build](https://github.com/lyjz9/joblink-tracker/actions/workflows/build-windows-desktop.yml/badge.svg?branch=main)](https://github.com/lyjz9/joblink-tracker/actions/workflows/build-windows-desktop.yml)
+[![Python: 3.11 or 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?style=flat-square&logo=python&logoColor=white)](#setup)
+[![Excel: XLSX and XLSM](https://img.shields.io/badge/excel-XLSX%20%7C%20XLSM-217346?style=flat-square&logo=microsoftexcel&logoColor=white)](#excel-workflow)
+[![Privacy: local first](https://img.shields.io/badge/privacy-local--first-0F766E?style=flat-square)](docs/privacy.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-6D5BD0?style=flat-square)](LICENSE)
 
 JobLink Tracker is a local Python + Excel workflow I built for the part of job searching that quietly becomes exhausting: copying the same posting details into a spreadsheet over and over.
 
@@ -18,9 +18,9 @@ It is especially meant for students, new grads, and anyone applying to enough ro
 
 ## Known Limitations
 
-[![Review required](https://img.shields.io/badge/review-required-f97316)](#known-limitations)
-[![Blocked sites vary](https://img.shields.io/badge/blocked%20sites-vary-b91c1c)](#browser-capture-for-blocked-sites)
-[![Best with career pages](https://img.shields.io/badge/best%20with-career%20pages-2563eb)](docs/known_limitations.md)
+[![Best input: employer and ATS pages](https://img.shields.io/badge/best%20input-employer%20%2B%20ATS%20pages-2F855A?style=flat-square)](docs/known_limitations.md)
+[![Review: editable before export](https://img.shields.io/badge/review-editable%20before%20export-D97706?style=flat-square)](#private-desktop-beta)
+[![Blocked pages: capture or manual entry](https://img.shields.io/badge/blocked%20pages-capture%20%7C%20manual%20entry-B91C1C?style=flat-square)](#browser-capture-for-blocked-sites)
 
 JobLink Tracker is a helper, not a perfect scraper. Company career pages and applicant-tracking-system links usually work best. Some job boards, login-only pages, Cloudflare checks, human verification pages, private APIs, and JavaScript-heavy pages may block scraping or return incomplete fields.
 
@@ -59,9 +59,9 @@ Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary 
 
 ## Setup
 
-[![Python environment](https://img.shields.io/badge/setup-virtualenv-6b7280)](#setup)
-[![pip install](https://img.shields.io/badge/dependencies-pip-3776AB)](requirements.txt)
-[![Chromium required](https://img.shields.io/badge/browser-Chromium-4285f4)](https://playwright.dev/python/docs/browsers)
+[![Runtime: Python 3.11 or 3.12](https://img.shields.io/badge/runtime-Python%203.11%20%7C%203.12-3776AB?style=flat-square&logo=python&logoColor=white)](#setup)
+[![Install: requirements.txt](https://img.shields.io/badge/install-requirements.txt-475569?style=flat-square)](requirements.txt)
+[![Browser: Chromium required](https://img.shields.io/badge/browser-Chromium%20required-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://playwright.dev/python/docs/browsers)
 
 JobLink Tracker is currently tested with Python 3.11 and 3.12.
 
@@ -111,10 +111,10 @@ Invoke-RestMethod -Uri http://127.0.0.1:5000/scrape -Method Post -ContentType "a
 
 ## Excel Workflow
 
-[![Template included](https://img.shields.io/badge/template-included-217346)](templates/joblink_tracker_template.xlsx)
-[![XLSX/XLSM](https://img.shields.io/badge/workbooks-xlsx%20%7C%20xlsm-217346)](#excel-workflow)
-[![openpyxl](https://img.shields.io/badge/excel-openpyxl-6b7280)](export/workbook_appender.py)
-[![VBA optional](https://img.shields.io/badge/VBA-optional-8673a1)](VBA/README.md)
+[![Starter file: blank tracker](https://img.shields.io/badge/starter%20file-blank%20tracker-217346?style=flat-square&logo=microsoftexcel&logoColor=white)](templates/joblink_tracker_template.xlsx)
+[![Formats: XLSX and XLSM](https://img.shields.io/badge/formats-XLSX%20%7C%20XLSM-16803A?style=flat-square)](#excel-workflow)
+[![Workflow: update existing tracker](https://img.shields.io/badge/workflow-update%20existing%20tracker-0F766E?style=flat-square)](export/workbook_appender.py)
+[![Macros: optional](https://img.shields.io/badge/macros-optional-6D5BD0?style=flat-square)](VBA/README.md)
 
 You can start from the blank tracker template: [templates/joblink_tracker_template.xlsx](templates/joblink_tracker_template.xlsx).
 
@@ -147,9 +147,9 @@ python process_excel_links.py ".\Job_Application_Tracker.xlsm"
 
 ## Private Desktop Beta
 
-[![Runs on localhost](https://img.shields.io/badge/runs%20on-localhost%3A5050-2563eb)](scraper/app.py)
-[![Windows launcher](https://img.shields.io/badge/windows-launcher-0078d4)](desktop_launcher.py)
-[![Manual review](https://img.shields.io/badge/results-reviewable-f97316)](docs/known_limitations.md)
+[![Distribution: portable ZIP](https://img.shields.io/badge/distribution-portable%20ZIP-F26B4B?style=flat-square)](docs/desktop_beta.md)
+[![Browser: Chromium bundled](https://img.shields.io/badge/browser-Chromium%20bundled-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](packaging/joblink_tracker.spec)
+[![Tester setup: no Python required](https://img.shields.io/badge/tester%20setup-no%20Python%20required-0F766E?style=flat-square)](docs/desktop_beta.md)
 
 The portable Windows build lets testers double-click `JobLink Tracker.exe` without installing Python. It starts the same local interface and includes the compatible Chromium browser used by the scraper. See [docs/desktop_beta.md](docs/desktop_beta.md) for build and download instructions.
 
@@ -168,9 +168,9 @@ This beta runs locally on the tester's computer. Closing the desktop control win
 
 ## Browser Capture For Blocked Sites
 
-[![Chrome extension](https://img.shields.io/badge/chrome-extension-4285f4)](browser_extension/joblink_capture/README.md)
-[![Manifest V3](https://img.shields.io/badge/manifest-v3-6b7280)](browser_extension/joblink_capture/manifest.json)
-[![Blocked page helper](https://img.shields.io/badge/blocked%20pages-helper-b91c1c)](#browser-capture-for-blocked-sites)
+[![Extension: Chrome MV3](https://img.shields.io/badge/extension-Chrome%20MV3-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](browser_extension/joblink_capture/README.md)
+[![Capture: full loaded page](https://img.shields.io/badge/capture-full%20loaded%20page-D97706?style=flat-square)](browser_extension/joblink_capture/manifest.json)
+[![Handoff: localhost only](https://img.shields.io/badge/handoff-localhost%20only-0F766E?style=flat-square)](docs/privacy.md)
 
 Some sites, including a few job boards with human checks or login walls, may block direct scraping. JobLink Tracker includes a small Chrome extension for pages that you can open manually.
 
@@ -217,10 +217,6 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 
 ## Roadmap
 
-[![Parser improvements](https://img.shields.io/badge/focus-parser%20improvements-2563eb)](scraper/browser_scraper_v2.py)
-[![Testing links](https://img.shields.io/badge/testing-real%20job%20links-f97316)](#testing-notes)
-[![Desktop beta](https://img.shields.io/badge/next-windows%20desktop%20beta-6b7280)](docs/desktop_beta.md)
-
 - Make salary extraction more reliable, especially hourly pay, yearly ranges, and LinkedIn base-pay text.
 - Clean up location results when pages include extra words like posting status, job category, or repeated page text.
 - Improve work type detection so Remote, Hybrid, Onsite, and n/a are not guessed too aggressively.
@@ -228,7 +224,7 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 - Improve source labels for school career sites, reposts, and company career pages.
 - Add a small set of real test links that cover the tricky cases found during testing.
 - Add screenshots or a short demo once the main workflow feels stable.
-- Build and test the portable Windows beta before adding a full installer or code signing.
+- Collect private beta feedback before adding a full installer or paid code signing.
 
 ## Contributing
 

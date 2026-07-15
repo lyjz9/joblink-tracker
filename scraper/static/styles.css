@@ -19,12 +19,22 @@
   --red: #b42318;
   --green: #18794e;
   --focus: #c9573b;
-  font-family: "Aptos", "Helvetica Neue", sans-serif;
+  --font-sans: "Aptos", "Avenir Next", "Helvetica Neue", sans-serif;
 }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { max-width: 100%; overflow-x: hidden; }
+html,
+body,
+button,
+input,
+select,
+textarea,
+table {
+  font-family: var(--font-sans);
+}
+
 body {
   margin: 0;
   color: var(--ink);
@@ -34,7 +44,8 @@ body {
 }
 
 button, textarea, input, select {
-  font: inherit;
+  font-size: inherit;
+  line-height: inherit;
   letter-spacing: 0;
 }
 

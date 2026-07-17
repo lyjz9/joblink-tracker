@@ -59,7 +59,7 @@ JobLink Tracker is currently tested with Python 3.11 and 3.12.
 
 ### Windows
 
-For private beta testing, the easiest option is the portable desktop build. Extract `JobLink-Tracker-Windows.zip`, open the `JobLink Tracker` folder, and double-click `JobLink Tracker.exe`. Python and PowerShell are not required. See [docs/desktop_beta.md](docs/desktop_beta.md) for the complete tester instructions.
+For private beta testing, the easiest option is the portable desktop build. Extract `JobLink-Tracker-Windows.zip`, open the `JobLink Tracker` folder, and double-click `JobLink Tracker.exe`. Python and PowerShell are not required. See [docs/desktop_beta.md](docs/desktop_beta.md) for the desktop instructions and [docs/beta_testing.md](docs/beta_testing.md) for a short tester checklist.
 
 To run the project from source instead:
 
@@ -295,7 +295,7 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 - Improve work type detection so Remote, Hybrid, Onsite, and n/a are not guessed too aggressively.
 - Handle expired, login-only, or blocked postings more clearly instead of returning confusing fields.
 - Improve source labels for school career sites, reposts, and company career pages.
-- Add a small set of real test links that cover the tricky cases found during testing.
+- Grow the saved cross-site regression set when beta testing finds a repeated parser problem.
 - Add screenshots or a short demo once the main workflow feels stable.
 - Collect private beta feedback before adding a full installer or paid code signing.
 

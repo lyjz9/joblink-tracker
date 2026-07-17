@@ -2,6 +2,8 @@
 
 The Windows beta puts the app, scraper, Excel tools, Python, and Chromium in one portable folder. A tester can open it without installing Python, setting up a virtual environment, using PowerShell, running Docker, or paying for hosting.
 
+For a short, repeatable test session and a message you can send to testers, use the [private beta test guide](beta_testing.md).
+
 ## What Testers Download
 
 The build creates `JobLink-Tracker-Windows.zip`. Extract it, open the `JobLink Tracker` folder, and double-click `JobLink Tracker.exe`.

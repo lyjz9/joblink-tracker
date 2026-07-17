@@ -121,7 +121,7 @@ function validateInput() {
   const hasTextWithoutUrl = elements.links.value.trim() && !urls.length;
   elements.counter.textContent = `${urls.length} / 20`;
   elements.validation.textContent = hasTextWithoutUrl
-    ? 'No valid web address was found.'
+    ? 'I could not find a complete web address.'
     : urls.length > 20
       ? 'Process up to 20 links at a time.'
       : '';
@@ -171,7 +171,7 @@ function findJobIndexByLink(url) {
 function duplicateResultChoice(url) {
   const existingIndex = findJobIndexByLink(url);
   if (existingIndex < 0) return { action: 'add', index: -1 };
-  const update = window.confirm('This job link is already in your results. Click OK to update the existing row, or Cancel to skip it.');
+  const update = window.confirm('This link is already in your results. Choose OK to replace that row, or Cancel to leave it alone.');
   return update ? { action: 'update', index: existingIndex } : { action: 'skip', index: existingIndex };
 }
 
@@ -319,7 +319,7 @@ function render() {
           <div class="row-actions">
             <button class="icon-button retry-row" type="button" title="Retry extraction" aria-label="Retry extraction">${icon('rotate-cw')}</button>
             ${canUseEdited ? `<button class="icon-button use-row" type="button" title="Use edited row" aria-label="Use edited row">${icon('check-circle')}</button>` : ''}
-            <button class="icon-button report-row" type="button" title="Report issue" aria-label="Report issue">${icon('flag')}</button>
+            <button class="icon-button report-row" type="button" title="Flag this row" aria-label="Flag this row">${icon('flag')}</button>
             <a class="icon-button" href="${escapeHtml(job.job_link || '#')}" target="_blank" rel="noopener noreferrer" title="Open job posting" aria-label="Open job posting">${icon('external-link')}</a>
             <button class="icon-button remove-row" type="button" title="Remove row" aria-label="Remove row">${icon('x')}</button>
           </div>
@@ -341,7 +341,7 @@ function render() {
   elements.empty.hidden = Boolean(rows.length);
   if (elements.emptyTitle) {
     elements.emptyTitle.textContent = state.jobs.length
-      ? `No ${state.filter === 'all' ? '' : state.filter + ' '}jobs found`.replace('  ', ' ')
+      ? 'No jobs in this view'
       : 'No jobs yet';
   }
   const hasExportableJobs = state.jobs.some((job) => !job.error);
@@ -377,8 +377,8 @@ async function scrapeOne(url) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url }),
   });
-  const result = await response.json().catch(() => ({ error: 'The server returned an unreadable response.' }));
-  if (!response.ok && !result.error) result.error = `Request failed (${response.status}).`;
+  const result = await response.json().catch(() => ({ error: 'JobLink received a response it could not read.' }));
+  if (!response.ok && !result.error) result.error = `JobLink could not finish that request (${response.status}).`;
   return { ...result, job_link: result.job_link || url, date_applied: selectedAppliedDate() || result.date_applied };
 }
 
@@ -392,15 +392,15 @@ async function createScrapeJob(urls, dateApplied) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ urls, date_applied: dateApplied }),
   });
-  const payload = await response.json().catch(() => ({ error: 'The server returned an unreadable response.' }));
-  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status}).`);
+  const payload = await response.json().catch(() => ({ error: 'JobLink received a response it could not read.' }));
+  if (!response.ok) throw new Error(payload.error || `JobLink could not finish that request (${response.status}).`);
   return payload;
 }
 
 async function readScrapeJob(pollUrl) {
   const response = await fetch(pollUrl, { cache: 'no-store' });
-  const payload = await response.json().catch(() => ({ error: 'The server returned an unreadable response.' }));
-  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status}).`);
+  const payload = await response.json().catch(() => ({ error: 'JobLink received a response it could not read.' }));
+  if (!response.ok) throw new Error(payload.error || `JobLink could not finish that request (${response.status}).`);
   return payload;
 }
 
@@ -411,7 +411,7 @@ function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
     const target = plan[index];
     if (!target) return;
     const result = {
-      ...(item.result || { error: 'The scraper could not process this job page.' }),
+      ...(item.result || { error: 'JobLink could not read this job page.' }),
       job_link: item.result?.job_link || target.url,
     };
     if (dateApplied) result.date_applied = dateApplied;
@@ -442,7 +442,7 @@ async function processLinks() {
     }
   });
   if (!plan.length) {
-    showToast(skipped === 1 ? 'Duplicate link skipped' : `${skipped} duplicate links skipped`);
+    showToast(skipped === 1 ? 'That link is already here' : `${skipped} links are already here`);
     return;
   }
 
@@ -451,7 +451,7 @@ async function processLinks() {
   state.processing = true;
   elements.progress.hidden = false;
   elements.progressBar.style.width = '0%';
-  elements.progressText.textContent = 'Adding job to queue';
+  elements.progressText.textContent = 'Starting';
   elements.cancelJob.hidden = true;
   elements.cancelJob.disabled = false;
   render();
@@ -478,13 +478,13 @@ async function processLinks() {
       snapshot = await readScrapeJob(snapshot.poll_url || `/api/jobs/${snapshot.job_id}`);
     }
     if (finalStatus === 'completed') {
-      showToast(`${appliedItems.size} ${appliedItems.size === 1 ? 'job' : 'jobs'} processed${skipped ? `, ${skipped} skipped` : ''}`);
+      showToast(`Finished ${appliedItems.size} ${appliedItems.size === 1 ? 'job' : 'jobs'}${skipped ? `; ${skipped} already existed` : ''}`);
     } else {
-      showToast(`${appliedItems.size} completed before cancellation`);
+      showToast(`Finished ${appliedItems.size} before you cancelled`);
     }
   } catch (error) {
     elements.progressText.textContent = 'Stopped';
-    showToast(error.message || 'The scrape job stopped unexpectedly.');
+    showToast(error.message || 'Something stopped the scrape. Try those links again.');
   } finally {
     state.activeJobId = null;
     state.processing = false;
@@ -502,11 +502,11 @@ async function cancelActiveJob() {
   const jobId = state.activeJobId;
   if (!jobId || elements.cancelJob.disabled) return;
   elements.cancelJob.disabled = true;
-  elements.progressText.textContent = 'Cancelling';
+  elements.progressText.textContent = 'Stopping';
   try {
     const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || 'Could not cancel this scrape job.');
+    if (!response.ok) throw new Error(payload.error || 'JobLink could not stop this batch.');
   } catch (error) {
     showToast(error.message);
     if (state.activeJobId === jobId) elements.cancelJob.disabled = false;
@@ -522,7 +522,7 @@ async function retryJob(index) {
   state.jobs[index] = retried;
   state.processing = false;
   render();
-  showToast(jobStatus(retried) === 'ready' ? 'Job extracted' : 'The job still needs review');
+  showToast(jobStatus(retried) === 'ready' ? 'Job updated' : 'This job still needs a look');
 }
 
 async function retryAllErrors() {
@@ -537,7 +537,7 @@ async function retryAllErrors() {
   state.processing = false;
   render();
   const remaining = state.jobs.filter((job) => jobStatus(job) !== 'ready').length;
-  showToast(remaining ? `${remaining} ${remaining === 1 ? 'row' : 'rows'} still need review` : 'All review rows cleared');
+  showToast(remaining ? `${remaining} ${remaining === 1 ? 'row still needs' : 'rows still need'} a look` : 'Everything is ready now');
 }
 
 async function reportJob(index) {
@@ -550,8 +550,8 @@ async function reportJob(index) {
       body: JSON.stringify({ job, status: jobStatus(job) }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || 'Could not save this row.');
-    showToast('Problem row saved');
+    if (!response.ok) throw new Error(payload.error || 'JobLink could not save this row for review.');
+    showToast('Saved this row for review');
   } catch (error) {
     showToast(error.message);
   }
@@ -584,14 +584,14 @@ async function reportSelectedJobs() {
   }
   state.processing = false;
   render();
-  showToast(failed ? `${saved} reported, ${failed} skipped` : `${saved} ${saved === 1 ? 'row' : 'rows'} reported`);
+  showToast(failed ? `${saved} saved; ${failed} could not be saved` : `${saved} ${saved === 1 ? 'row' : 'rows'} saved for review`);
 }
 
 async function loadCaptures() {
   if (state.processing) return;
   try {
     const response = await fetch('/api/captures');
-    if (!response.ok) throw new Error('Captured pages could not be loaded.');
+    if (!response.ok) throw new Error('JobLink could not load your browser captures.');
     const payload = await response.json();
     const captures = Array.isArray(payload.jobs) ? payload.jobs : [];
     let added = 0;
@@ -616,9 +616,9 @@ async function loadCaptures() {
 
     render();
     if (added || updated) {
-      showToast(`${added} added${updated ? `, ${updated} updated` : ''}`);
+      showToast(`${added} added${updated ? ` and ${updated} updated` : ''}`);
     } else {
-      showToast(captures.length ? 'Captured jobs are already loaded' : 'No captured pages yet');
+      showToast(captures.length ? 'Those browser captures are already here' : 'No browser captures yet');
     }
   } catch (error) {
     showToast(error.message);
@@ -637,10 +637,10 @@ async function downloadExcel() {
     });
     if (!response.ok) {
       const detail = await response.json().catch(() => ({}));
-      throw new Error(detail.error || 'Export failed.');
+      throw new Error(detail.error || 'JobLink could not create the Excel file.');
     }
     await downloadResponse(response, 'job_tracker_export.xlsx');
-    showToast('Excel file created');
+    showToast('Your Excel file is ready');
   } catch (error) {
     showToast(error.message);
   } finally {
@@ -676,7 +676,7 @@ async function appendToWorkbook() {
     if (!response) throw new Error('Choose an Excel tracker to update.');
     if (!response.ok) {
       const detail = await response.json().catch(() => ({}));
-      throw new Error(detail.error || 'Tracker update failed.');
+      throw new Error(detail.error || 'JobLink could not update this tracker.');
     }
     const blob = await response.blob();
     const added = response.headers.get('X-JobLink-Added') || '0';
@@ -689,11 +689,11 @@ async function appendToWorkbook() {
       state.workbookHandle = null;
       state.workbookFile = new File([blob], outputName, { type: blob.type || workbookFile.type });
       elements.workbookFile.value = '';
-      elements.workbookName.textContent = `${outputName} ready`;
+      elements.workbookName.textContent = `${outputName} is ready`;
     }
-    showToast(`${added} added${Number(updated) ? `, ${updated} updated` : ''}${Number(skipped) ? `, ${skipped} skipped` : ''}${savedToSelected ? ' to tracker' : ''}`);
+    showToast(`${added} added${Number(updated) ? `, ${updated} updated` : ''}${Number(skipped) ? `, ${skipped} left unchanged` : ''}${savedToSelected ? ' in your tracker' : ''}`);
   } catch (error) {
-    showToast(error.message === 'Failed to fetch' ? 'Tracker update lost connection. Try Update tracker again.' : error.message);
+    showToast(error.message === 'Failed to fetch' ? 'The connection dropped. Choose Update tracker again.' : error.message);
   } finally {
     elements.appendWorkbook.disabled = false;
     render();
@@ -733,10 +733,10 @@ async function saveBlobToSelectedWorkbook(blob) {
     await writable.write(blob);
     await writable.close();
     state.workbookFile = await state.workbookHandle.getFile();
-    elements.workbookName.textContent = `${state.workbookFile.name} saved`;
+    elements.workbookName.textContent = `${state.workbookFile.name} is saved`;
     return true;
   } catch (error) {
-    showToast('Could not save over the tracker. Close it in Excel and try again.');
+    showToast('Close the tracker in Excel, then try again.');
     return false;
   }
 }
@@ -801,7 +801,7 @@ async function submitFeedback(event) {
   event.preventDefault();
   const message = elements.feedbackMessage.value.trim();
   if (!message) {
-    elements.feedbackValidation.textContent = 'Write a quick note first.';
+    elements.feedbackValidation.textContent = 'Add a short note first.';
     elements.feedbackMessage.focus();
     return;
   }
@@ -819,11 +819,11 @@ async function submitFeedback(event) {
       }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || 'Could not save feedback.');
+    if (!response.ok) throw new Error(payload.error || 'JobLink could not save your feedback.');
     elements.feedbackMessage.value = '';
     elements.feedbackType.value = 'general';
     toggleFeedbackPanel(false);
-    showToast('Feedback saved');
+    showToast('Feedback saved on this computer');
   } catch (error) {
     elements.feedbackValidation.textContent = error.message;
   } finally {
@@ -851,7 +851,7 @@ function useEditedRow(index) {
   if (!job) return;
   const missing = missingRequiredFields(job);
   if (missing.length) {
-    showToast(`Fill ${missing.map(fieldLabel).join(', ')} first`);
+    showToast(`Add ${missing.map(fieldLabel).join(', ')} first`);
     return;
   }
   if (missingValue(job.work_type)) job.work_type = 'n/a';
@@ -865,7 +865,7 @@ function useEditedRow(index) {
   job.confidence = 'Manual';
   job.confidence_score = 100;
   render();
-  showToast('Edited row will be included in the tracker');
+  showToast('Your edits are ready for the tracker');
 }
 
 async function currentWorkbookFile() {
@@ -915,7 +915,7 @@ function addManualJob(event) {
   const job = manualJobFromForm();
   const missing = missingRequiredFields(job);
   if (missing.length) {
-    elements.manualValidation.textContent = `Fill ${missing.map(fieldLabel).join(', ')} first.`;
+    elements.manualValidation.textContent = `Add ${missing.map(fieldLabel).join(', ')} first.`;
     return;
   }
   if (job.job_link && !/^https?:\/\//i.test(job.job_link)) {
@@ -937,7 +937,7 @@ function addManualJob(event) {
   resetManualForm();
   toggleManualPanel(false);
   render();
-  showToast('Manual job added');
+  showToast('Job added');
 }
 
 elements.links.addEventListener('input', () => {

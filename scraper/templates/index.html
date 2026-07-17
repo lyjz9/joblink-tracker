@@ -4,16 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>JobLink Beta</title>
+  <meta name="theme-color" content="#33292d">
   <link rel="icon" href="../static/brand-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../static/styles.css">
 </head>
 <body>
+  <a class="skip-link" href="#jobLinks">Skip to job links</a>
   <header class="app-header">
     <div class="brand">
       <img src="../static/brand-mark.svg" alt="" width="34" height="34">
       <div>
         <strong>JobLink</strong>
-        <span>Private beta</span>
+        <span>Local beta</span>
       </div>
     </div>
     <div class="header-actions">
@@ -21,12 +23,13 @@
         <i data-lucide="message-circle" aria-hidden="true"></i>
         Feedback
       </button>
-      <div class="health" id="healthStatus"><span></span> Local scraper</div>
+      <div class="health" id="healthStatus"><span></span> Running locally</div>
     </div>
   </header>
 
   <main>
     <section class="input-band" aria-labelledby="inputTitle">
+      <div class="band-content">
       <div class="section-heading">
         <div>
           <h1 id="inputTitle">Job links</h1>
@@ -49,38 +52,40 @@
         </div>
         <button class="button button-primary" type="button" id="extractButton" disabled>
           <i data-lucide="sparkles" aria-hidden="true"></i>
-          Extract jobs
+          Get job details
         </button>
       </div>
       <div class="beta-note">
         <i data-lucide="info" aria-hidden="true"></i>
-        Direct company and ATS links work best. Monster, Upwork, Wellfound, and some Cloudflare-protected sites may block scraping; use the employer career link or manual entry when that happens.
+        Company career pages and ATS links usually work best. Monster, Upwork, Wellfound, and some protected sites may block JobLink; use the employer's career page or add the job yourself when that happens.
       </div>
       <div class="capture-panel" aria-labelledby="captureTitle">
         <div>
-          <h2 id="captureTitle">Blocked job page?</h2>
-          <p>Install the Chrome extension from <b>browser_extension/joblink_capture</b>. On a blocked job page, click <b>JobLink Capture</b> in Chrome to capture the full loaded page, then come back and load it here.</p>
+          <h2 id="captureTitle">Can you open a page that JobLink cannot?</h2>
+          <p>Install the Chrome extension from <b>browser_extension/joblink_capture</b>. Open the posting yourself, choose <b>JobLink Capture</b> in Chrome, then come back here and load the capture.</p>
         </div>
         <div class="capture-actions">
           <button class="button button-secondary" type="button" id="loadCapturesButton">
             <i data-lucide="inbox" aria-hidden="true"></i>
-            Load captured jobs
+            Load browser captures
           </button>
         </div>
       </div>
       <div class="progress" id="progress" aria-live="polite" hidden>
         <div class="progress-track"><span id="progressBar"></span></div>
-        <span id="progressText">Preparing</span>
+        <span id="progressText">Getting ready</span>
         <button class="button button-quiet progress-cancel" type="button" id="cancelJobButton" hidden>
           <i data-lucide="x" aria-hidden="true"></i>
           Cancel
         </button>
       </div>
+      </div>
     </section>
 
     <section class="results-band" aria-labelledby="resultsTitle">
+      <div class="band-content">
       <div class="results-toolbar">
-        <div>
+        <div class="results-heading">
           <h2 id="resultsTitle">Results</h2>
           <div class="summary" aria-live="polite">
             <span><b id="totalCount">0</b> total</span>
@@ -98,47 +103,53 @@
           </div>
         </div>
         <div class="toolbar-actions">
-          <button class="button button-secondary" type="button" id="manualAddButton">
-            <i data-lucide="plus-circle" aria-hidden="true"></i>
-            Add manual job
-          </button>
-          <button class="button button-quiet" type="button" id="selectAllButton" disabled>
-            <i data-lucide="check-square" aria-hidden="true"></i>
-            Select all
-          </button>
-          <button class="button button-quiet" type="button" id="retryAllButton" disabled>
-            <i data-lucide="rotate-cw" aria-hidden="true"></i>
-            Retry review
-          </button>
-          <button class="button button-quiet" type="button" id="clearResultsButton" disabled>
-            <i data-lucide="trash-2" aria-hidden="true"></i>
-            Clear selected
-          </button>
-          <button class="button button-quiet" type="button" id="reportSelectedButton" disabled>
-            <i data-lucide="flag" aria-hidden="true"></i>
-            Report issue
-          </button>
-          <button class="button button-secondary" type="button" id="chooseWorkbookButton">
-            <i data-lucide="upload" aria-hidden="true"></i>
-            Choose tracker
-          </button>
-          <input id="workbookFile" class="sr-only" type="file" accept=".xlsx,.xlsm">
-          <span class="file-name" id="workbookName">No tracker selected</span>
-          <label class="duplicate-field" for="duplicateMode">
-            <span>Tracker duplicates</span>
-            <select id="duplicateMode">
-              <option value="skip">Skip existing</option>
-              <option value="update">Update existing</option>
-            </select>
-          </label>
-          <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
-            <i data-lucide="file-plus-2" aria-hidden="true"></i>
-            Update tracker
-          </button>
-          <button class="button button-secondary" type="button" id="downloadButton" disabled>
-            <i data-lucide="download" aria-hidden="true"></i>
-            Download Excel
-          </button>
+          <div class="action-group result-actions" role="group" aria-label="Result actions">
+            <button class="button button-secondary" type="button" id="manualAddButton">
+              <i data-lucide="plus-circle" aria-hidden="true"></i>
+              Manual add
+            </button>
+            <button class="button button-quiet" type="button" id="selectAllButton" disabled>
+              <i data-lucide="check-square" aria-hidden="true"></i>
+              Select all
+            </button>
+            <button class="button button-quiet" type="button" id="retryAllButton" disabled>
+              <i data-lucide="rotate-cw" aria-hidden="true"></i>
+              Retry flagged rows
+            </button>
+            <button class="button button-quiet" type="button" id="clearResultsButton" disabled>
+              <i data-lucide="trash-2" aria-hidden="true"></i>
+              Clear selected
+            </button>
+            <button class="button button-quiet" type="button" id="reportSelectedButton" disabled>
+              <i data-lucide="flag" aria-hidden="true"></i>
+              Flag selected
+            </button>
+          </div>
+          <div class="action-group tracker-actions" role="group" aria-label="Tracker options">
+            <button class="button button-secondary" type="button" id="chooseWorkbookButton">
+              <i data-lucide="upload" aria-hidden="true"></i>
+              Choose tracker
+            </button>
+            <input id="workbookFile" class="sr-only" type="file" accept=".xlsx,.xlsm" aria-label="Choose tracker workbook">
+            <span class="file-name" id="workbookName">No tracker selected</span>
+            <label class="duplicate-field" for="duplicateMode">
+              <span>If a link already exists</span>
+              <select id="duplicateMode">
+                <option value="skip">Leave that row alone</option>
+                <option value="update">Update that row</option>
+              </select>
+            </label>
+          </div>
+          <div class="action-group export-actions" role="group" aria-label="Excel actions">
+            <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
+              <i data-lucide="file-plus-2" aria-hidden="true"></i>
+              Update tracker
+            </button>
+            <button class="button button-secondary" type="button" id="downloadButton" disabled>
+              <i data-lucide="download" aria-hidden="true"></i>
+              Download Excel
+            </button>
+          </div>
         </div>
       </div>
 
@@ -191,7 +202,7 @@
       <div class="empty-state" id="emptyState">
         <img src="../static/empty-jobs.svg" alt="" width="180" height="120">
         <strong id="emptyTitle">No jobs yet</strong>
-        <span>Paste job links, load captured jobs, or add one manually.</span>
+        <span>Paste a few links above, load a browser capture, or add a job yourself.</span>
       </div>
 
       <div class="table-wrap" id="tableWrap" hidden>
@@ -214,20 +225,21 @@
           <tbody id="resultsBody"></tbody>
         </table>
       </div>
+      </div>
     </section>
   </main>
 
   <footer class="app-footer">
     <span>JobLink Beta v0.1</span>
-    <span>Private beta: links, rows, and tracker files are processed locally in this app session.</span>
+    <span>This beta runs on your computer. Links, results, and tracker files stay in this local session.</span>
   </footer>
 
   <section class="feedback-panel" id="feedbackPanel" aria-labelledby="feedbackTitle" hidden>
     <form id="feedbackForm">
       <div class="feedback-heading">
         <div>
-          <h2 id="feedbackTitle">Beta feedback</h2>
-          <span>Saved locally for review.</span>
+          <h2 id="feedbackTitle">Share feedback</h2>
+          <span>Saved in this app's local logs.</span>
         </div>
         <button class="icon-button" type="button" id="feedbackCloseButton" aria-label="Close feedback">
           <i data-lucide="x" aria-hidden="true"></i>
@@ -236,22 +248,22 @@
       <label>
         <span>Type</span>
         <select id="feedbackType">
-          <option value="general">General</option>
-          <option value="bug">Bug</option>
-          <option value="idea">Idea</option>
-          <option value="confusing">Confusing</option>
+          <option value="general">General note</option>
+          <option value="bug">Something is broken</option>
+          <option value="idea">Suggestion</option>
+          <option value="confusing">Something is unclear</option>
         </select>
       </label>
       <label>
         <span>Message</span>
-        <textarea id="feedbackMessage" rows="4" maxlength="3000" placeholder="What should we improve?"></textarea>
+        <textarea id="feedbackMessage" rows="4" maxlength="3000" placeholder="What happened, or what would you change?"></textarea>
       </label>
       <div class="manual-actions">
         <div class="validation-message" id="feedbackValidation" role="status"></div>
         <button class="button button-quiet" type="button" id="feedbackCancelButton">Cancel</button>
         <button class="button button-primary" type="submit">
           <i data-lucide="send" aria-hidden="true"></i>
-          Send feedback
+          Save feedback
         </button>
       </div>
     </form>

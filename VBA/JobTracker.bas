@@ -35,7 +35,7 @@ Sub ProcessInputLinks()
     appLinkCol = FindHeaderColumnOnSheet(applicationsWs, "Job link")
 
     If linkCol = 0 Or statusCol = 0 Or processedCol = 0 Or errorCol = 0 Or appLinkCol = 0 Then
-        MsgBox "The Input or Applications headers are missing. See the README Excel Batch Setup section.", vbExclamation
+        MsgBox "This workbook is missing one or more JobLink columns. Start with the ready-made tracker or check the Excel Workflow section in the README.", vbExclamation
         Exit Sub
     End If
 
@@ -81,12 +81,12 @@ Sub ProcessInputLinks()
 
     Application.ScreenUpdating = True
     ThisWorkbook.Save
-    MsgBox added & " job(s) added, " & duplicateCount & " duplicate(s), " & errorCount & " error(s).", vbInformation
+    MsgBox "Done. Added " & added & " job(s), found " & duplicateCount & " duplicate(s), and hit " & errorCount & " error(s).", vbInformation
     Exit Sub
 
 setupError:
     Application.ScreenUpdating = True
-    MsgBox "Create sheets named Input and Applications before running Process Links.", vbExclamation
+    MsgBox "This workbook needs Input and Applications sheets. Use the ready-made JobLink tracker and try again.", vbExclamation
 End Sub
 
 Function GetJobDetailsDirect(jobUrl As String) As String
@@ -156,7 +156,7 @@ Function EnsureScraperServer() As Boolean
     pythonExe = projectFolder & "\.venv\Scripts\python.exe"
 
     If Dir(appPath) = "" Or Dir(pythonExe) = "" Then
-        MsgBox "Could not find the scraper or Python environment. Keep the workbook in the job folder or its outputs folder.", vbExclamation
+        MsgBox "JobLink could not find Python or the scraper files. Keep this workbook in the project folder or its outputs folder.", vbExclamation
         Exit Function
     End If
 
@@ -174,7 +174,7 @@ Function EnsureScraperServer() As Boolean
         End If
     Next attempt
 
-    MsgBox "The local scraper did not start. Run python scraper\app.py in PowerShell and try again.", vbExclamation
+    MsgBox "JobLink did not start. Run python scraper\app.py in PowerShell, then try again.", vbExclamation
 End Function
 
 Function IsScraperServerRunning() As Boolean
@@ -336,7 +336,7 @@ Sub FetchJobDetailsForRow(r As Range)
     Dim resp As String
     resp = GetJobDetailsFromServer(jobLink)
     If Len(resp) = 0 Then
-        MsgBox "No response from server. Make sure the Python scraper is running."
+        MsgBox "JobLink did not answer. Make sure the local app is running, then try again."
         Exit Sub
     End If
     Dim json As String
@@ -345,10 +345,10 @@ Sub FetchJobDetailsForRow(r As Range)
     ' Simple JSON parsing for known keys. For robust parsing, install VBA-JSON and use ParseJson(json).
     On Error GoTo fallback
     WriteParsedFieldsToRow r, json
-    MsgBox "Job details populated (best-effort)."
+    MsgBox "Job details added. Check the row before saving."
     Exit Sub
 fallback:
-    MsgBox "Failed to parse response. Consider installing VBA-JSON: https://github.com/VBA-tools/VBA-JSON"
+    MsgBox "Excel could not read JobLink's response. Try VBA-JSON for fuller JSON support: https://github.com/VBA-tools/VBA-JSON"
 End Sub
 
 Function FindHeaderColumn(headerName As String) As Long

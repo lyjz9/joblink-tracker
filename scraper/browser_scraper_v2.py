@@ -901,8 +901,15 @@ def _extract_breezy_fields(soup, full_text, page_title=''):
     if len(headings) >= 2:
         if not fields.get('company'):
             fields['company'] = _clean_company(headings[0])
-        if not fields.get('job_title') or _looks_generic_title(fields.get('job_title')):
-            fields['job_title'] = _clean_title(headings[1], fields.get('company', ''))
+        heading_title = _clean_title(headings[1], fields.get('company', ''))
+        current_title = fields.get('job_title', '')
+        heading_extends_title = (
+            current_title
+            and heading_title.lower().startswith(current_title.lower())
+            and len(heading_title) > len(current_title)
+        )
+        if not current_title or _looks_generic_title(current_title) or heading_extends_title:
+            fields['job_title'] = heading_title
     location = _first_text(soup, ['li.location', '.location', '[class*="location" i]'], 'location')
     if location:
         fields['location'] = location
@@ -1364,7 +1371,7 @@ def _extract_work_type(text):
         'hybrid', 'flexible workplace', 'flexible work arrangement',
     ))
     has_onsite = any(term in low for term in (
-        'on-site', 'onsite', 'in-office', 'in office', 'in person', 'on site',
+        'on-site', 'onsite', 'in-office', 'in office', 'in-person', 'in person', 'on site',
         'office-based', 'office based',
     ))
     if has_hybrid:
@@ -1472,7 +1479,7 @@ def _normalize_work_type(value):
         return 'Hybrid'
     if 'remote' in low or 'telecommute' in low:
         return 'Remote'
-    if any(term in low for term in ('on-site', 'onsite', 'on site', 'in-office', 'in office', 'in person')):
+    if any(term in low for term in ('on-site', 'onsite', 'on site', 'in-office', 'in office', 'in-person', 'in person')):
         return 'Onsite'
     return ''
 

@@ -102,7 +102,7 @@ def show_existing_app() -> int:
     from tkinter import messagebox
 
     webbrowser.open(APP_URL, new=2)
-    messagebox.showinfo(APP_NAME, "JobLink Tracker is already running.")
+    messagebox.showinfo(APP_NAME, "JobLink is already running, so I opened it in your browser.")
     return 0
 
 
@@ -111,7 +111,7 @@ def show_port_error() -> int:
 
     messagebox.showerror(
         APP_NAME,
-        "JobLink could not start because another program is using port 5050.",
+        "JobLink needs local port 5050, but another program is using it. Close that program and try again.",
     )
     return 1
 
@@ -137,7 +137,7 @@ def run_control_window(server, flask_app, shutdown_app) -> None:
 
     tk.Label(
         frame,
-        text="JobLink Tracker is running",
+        text="JobLink is ready",
         background="#fffdfb",
         foreground="#2f282a",
         font=("Calibri", 14, "bold"),
@@ -197,7 +197,7 @@ def run_control_window(server, flask_app, shutdown_app) -> None:
         if stopping:
             return
         stopping = True
-        status.set("Stopping JobLink Tracker...")
+        status.set("Closing JobLink...")
         open_button.configure(state="disabled")
         stop_button.configure(state="disabled")
         threading.Thread(target=shutdown_worker, daemon=True).start()
@@ -245,7 +245,7 @@ def main() -> int:
             server.shutdown()
             server.server_close()
             shutdown_app(app, wait=False)
-            raise RuntimeError("The local JobLink server did not become ready.")
+            raise RuntimeError("JobLink did not finish starting.")
 
         run_control_window(server, app, shutdown_app)
         return 0
@@ -253,7 +253,7 @@ def main() -> int:
         error_path = write_startup_error(data_dir)
         messagebox.showerror(
             APP_NAME,
-            f"JobLink Tracker could not start. Details were saved to:\n{error_path}",
+            f"JobLink could not start. I saved the technical details here:\n{error_path}",
         )
         return 1
 

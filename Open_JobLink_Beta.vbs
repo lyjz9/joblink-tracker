@@ -8,7 +8,7 @@ projectFolder = fileSystem.GetParentFolderName(WScript.ScriptFullName)
 pythonExe = projectFolder & "\.venv\Scripts\pythonw.exe"
 
 If Not fileSystem.FileExists(pythonExe) Then
-    MsgBox "The Python environment was not found in the job folder.", vbExclamation, "JobLink"
+    MsgBox "JobLink could not find its Python environment. Finish the local setup, then try again.", vbExclamation, "JobLink"
     WScript.Quit 1
 End If
 

@@ -10,7 +10,7 @@ from scraper.browser_scraper_v2 import parse_job_with_browser
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print(json.dumps({"error": "One job URL is required."}))
+        print(json.dumps({"error": "Add one job link."}))
         return 1
 
     result = {}

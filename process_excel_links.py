@@ -232,11 +232,11 @@ def main() -> int:
     args = parser.parse_args()
     workbook_path = Path(args.workbook).expanduser().resolve()
     if not workbook_path.exists():
-        print(f"Workbook not found: {workbook_path}")
+        print(f"I could not find that workbook: {workbook_path}")
         return 1
 
     processed, duplicates, errors = process_workbook(workbook_path)
-    print(f"Finished: {processed} added, {duplicates} duplicate, {errors} error.")
+    print(f"Done. Added: {processed}. Duplicates: {duplicates}. Errors: {errors}.")
     return 0 if errors == 0 else 2
 
 

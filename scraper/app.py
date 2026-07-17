@@ -206,7 +206,7 @@ def _scrape_url(
     if 'job_search_page' in issues:
         for field in ('company', 'job_title', 'location', 'work_type', 'salary'):
             result[field] = 'n/a'
-        result['error'] = 'Job page redirected to a job search page and is likely unavailable.'
+        result['error'] = 'This link opened a job search page instead of the original posting.'
         issues = sorted(set(_quality_issues(result) + ['job_search_page']))
     raw_error = result.get('error', '')
     if issues:
@@ -244,9 +244,9 @@ def _monster_guidance_result(url):
         'salary': 'n/a',
         'follow_up': '',
         'source': 'Monster',
-        'error': 'Monster search pages are not supported. Open the employer or company job page from Monster and use that link instead.',
+        'error': "A Monster search page contains many jobs. Open the employer's own posting and use that link instead.",
         'review_issues': ['monster_search_page'],
-        'review_notes': 'Monster search pages show many jobs at once, so JobLink cannot turn them into one accurate tracker row. Use the employer/company job page link from Monster instead.',
+        'review_notes': "JobLink cannot turn a page full of Monster results into one accurate row. Use the employer's own job page instead.",
     }
     _annotate_result(result, url, result['review_issues'])
     return result
@@ -322,12 +322,12 @@ def issues():
 def report_issue():
     runtime = get_runtime()
     if _rate_limited('report-issue', current_app.config['RATE_LIMIT_FEEDBACK']):
-        return jsonify({'error': 'Too many reports. Wait a few minutes and try again.'}), 429
+        return jsonify({'error': 'Too many rows were flagged at once. Wait a few minutes and try again.'}), 429
     payload = request.get_json(silent=True) or {}
     job = payload.get('job') if isinstance(payload.get('job'), dict) else {}
     url = str(job.get('job_link') or payload.get('url') or '').strip()
     if not url:
-        return jsonify({'error': 'No job row was provided.'}), 400
+        return jsonify({'error': 'Choose a job row to flag.'}), 400
 
     runtime.user_report_log.parent.mkdir(parents=True, exist_ok=True)
     job_record = {
@@ -364,11 +364,11 @@ def report_issue():
 def beta_feedback():
     runtime = get_runtime()
     if _rate_limited('feedback', current_app.config['RATE_LIMIT_FEEDBACK']):
-        return jsonify({'error': 'Too much feedback was sent. Wait a few minutes and try again.'}), 429
+        return jsonify({'error': 'Too many feedback notes were saved at once. Wait a few minutes and try again.'}), 429
     payload = request.get_json(silent=True) or {}
     message = str(payload.get('message') or '').strip()
     if not message:
-        return jsonify({'error': 'Feedback message is required.'}), 400
+        return jsonify({'error': 'Write a short feedback note first.'}), 400
 
     feedback_type = str(payload.get('type') or 'general').strip().lower()
     if feedback_type not in {'general', 'bug', 'idea', 'confusing'}:
@@ -391,18 +391,18 @@ def beta_feedback():
 def _friendly_error(error, url=''):
     low = str(error or '').lower()
     if 'monster.com' in urlparse(url or '').netloc.lower():
-        return 'Monster blocks reliable job-detail scraping. Open the employer or company job page from Monster and use that link instead.'
+        return "Monster blocks reliable access. Open the employer's own job page from Monster and use that link instead."
     if any(marker in low for marker in ('http 404', 'http 410', 'unavailable', 'general careers page', 'job search page')):
         return 'This posting is unavailable or has expired.'
     if any(marker in low for marker in ('blocked automated access', 'access denied', 'captcha')):
         return 'The website blocked automated access. Open the job page yourself, then use JobLink Capture.'
     if any(marker in low for marker in ('timeout', 'timed out')):
-        return 'The website took too long to respond. Retry this job.'
+        return 'The website took too long to respond. Try this job again.'
     if any(marker in low for marker in ('http 403', 'http 429', 'access denied', 'captcha')):
         return 'The website blocked automated access. Open the job page yourself, then use JobLink Capture.'
     if 'cannot navigate to invalid url' in low:
         return 'The job link is not a valid web address.'
-    return 'The scraper could not read this posting. Retry it or review the link.'
+    return 'JobLink could not read this posting. Try again or check the link yourself.'
 
 
 def _capture_response(payload, status=200):
@@ -480,15 +480,15 @@ def capture_page():
     if request.method == 'OPTIONS':
         return _capture_response({'status': 'ok'})
     if _rate_limited('capture', current_app.config['RATE_LIMIT_CAPTURE']):
-        return _capture_response({'error': 'Too many captures. Wait a few minutes and try again.'}, 429)
+        return _capture_response({'error': 'Too many pages were captured at once. Wait a few minutes and try again.'}, 429)
 
     payload = request.get_json(silent=True) or request.form.to_dict()
     if not isinstance(payload, dict):
-        return _capture_response({'error': 'The captured page could not be read.'}, 400)
+        return _capture_response({'error': 'JobLink could not read that browser capture.'}, 400)
 
     if not _capture_payload_has_content(payload):
         return _capture_response({
-            'error': 'The extension could not read the job details. Make sure the real job posting is visible, then capture again.',
+            'error': 'The extension could not find the job details. Make sure the real posting is visible, then capture it again.',
         }, 400)
 
     job = _parse_captured_page(payload)
@@ -506,7 +506,7 @@ def captures():
 @web.route('/scrape', methods=['POST'])
 def scrape():
     if _rate_limited('scrape', current_app.config['RATE_LIMIT_SCRAPE']):
-        return jsonify({'error': 'Too many requests. Wait a few minutes and try again.'}), 429
+        return jsonify({'error': 'Too many jobs were retried at once. Wait a few minutes and try again.'}), 429
 
     data = request.get_json() or {}
     url, validation_error = _validate_public_url(data.get('url'))
@@ -516,22 +516,22 @@ def scrape():
     try:
         return jsonify(get_runtime().job_manager.run_sync(url))
     except ScrapeCapacityFull:
-        return jsonify({'error': 'The scraper is busy. Wait for a running job to finish.'}), 503
+        return jsonify({'error': 'JobLink is busy with another page. Wait for it to finish, then try again.'}), 503
     except Exception:
         current_app.logger.exception('Job scraping failed')
-        return jsonify({'error': 'The scraper could not process this job page.'}), 500
+        return jsonify({'error': 'JobLink could not read this job page.'}), 500
 
 
 @web.route('/export', methods=['POST'])
 def export():
     if _rate_limited('export', current_app.config['RATE_LIMIT_EXPORT']):
-        return jsonify({'error': 'Too many exports. Wait a few minutes and try again.'}), 429
+        return jsonify({'error': 'Too many Excel files were requested at once. Wait a few minutes and try again.'}), 429
     jobs = request.get_json() or []
     if not isinstance(jobs, list) or not jobs:
         return jsonify({'error': 'Add at least one job before exporting.'}), 400
     max_jobs = current_app.config['MAX_EXPORT_JOBS']
     if len(jobs) > max_jobs:
-        return jsonify({'error': f'A maximum of {max_jobs} jobs can be exported at once.'}), 400
+        return jsonify({'error': f'Export up to {max_jobs} jobs at a time.'}), 400
     with tempfile.TemporaryDirectory(prefix='joblink-export-') as temp_dir:
         out_path = export_jobs_to_xlsx(jobs, outdir=temp_dir)
         workbook_bytes = Path(out_path).read_bytes()
@@ -547,7 +547,7 @@ def export():
 @web.route('/append-workbook', methods=['POST'])
 def append_workbook():
     if _rate_limited('append-workbook', current_app.config['RATE_LIMIT_UPLOAD']):
-        return jsonify({'error': 'Too many tracker updates. Wait a few minutes and try again.'}), 429
+        return jsonify({'error': 'Too many tracker updates were requested at once. Wait a few minutes and try again.'}), 429
     uploaded = request.files.get('workbook')
     if not uploaded or not uploaded.filename:
         return jsonify({'error': 'Choose an Excel tracker to update.'}), 400
@@ -561,15 +561,15 @@ def append_workbook():
         )
         jobs = json.loads(request.form.get('jobs', '[]'))
     except json.JSONDecodeError:
-        return jsonify({'error': 'The job results could not be read.'}), 400
+        return jsonify({'error': 'JobLink could not read the rows you selected.'}), 400
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
 
     if not isinstance(jobs, list) or not jobs:
-        return jsonify({'error': 'Extract at least one job before updating a tracker.'}), 400
+        return jsonify({'error': 'Add at least one finished job before updating a tracker.'}), 400
     max_jobs = current_app.config['MAX_EXPORT_JOBS']
     if len(jobs) > max_jobs:
-        return jsonify({'error': f'A maximum of {max_jobs} jobs can be added at once.'}), 400
+        return jsonify({'error': f'Add up to {max_jobs} jobs at a time.'}), 400
 
     try:
         duplicate_mode = request.form.get('duplicate_mode', 'skip')
@@ -587,7 +587,7 @@ def append_workbook():
         return jsonify({'error': str(exc)}), 400
     except Exception:
         current_app.logger.exception('Workbook append failed')
-        return jsonify({'error': 'The server could not update this workbook.'}), 500
+        return jsonify({'error': 'JobLink could not update this workbook.'}), 500
 
     suffix = Path(uploaded.filename).suffix.casefold()
     mimetype = (

@@ -1,4 +1,4 @@
-"""Flask blueprint for bounded background scrape jobs."""
+"""Flask routes for small background scraping batches."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def create_job_blueprint(
     @blueprint.post("")
     def create_job():
         if rate_limited("create-job", create_rate_limit):
-            return jsonify({"error": "Too many scrape jobs. Wait a few minutes and try again."}), 429
+            return jsonify({"error": "Too many batches were submitted. Wait a few minutes and try again."}), 429
 
         payload = request.get_json(silent=True) or {}
         raw_urls = payload.get("urls")
@@ -49,7 +49,7 @@ def create_job_blueprint(
         try:
             snapshot = manager.submit(urls, date_applied)
         except JobQueueFull:
-            return jsonify({"error": "The scraper is busy. Wait for a running batch to finish."}), 503
+            return jsonify({"error": "JobLink is busy with another batch. Wait for it to finish, then try again."}), 503
 
         snapshot["poll_url"] = url_for("scrape_jobs.job_status", job_id=snapshot["job_id"])
         response = jsonify(snapshot)
@@ -63,14 +63,14 @@ def create_job_blueprint(
         try:
             return jsonify(manager.snapshot(job_id))
         except JobNotFound:
-            return jsonify({"error": "This scrape job was not found or has expired."}), 404
+            return jsonify({"error": "This batch is no longer available. Submit the links again."}), 404
 
     @blueprint.delete("/<job_id>")
     def cancel_job(job_id: str):
         try:
             return jsonify(manager.cancel(job_id))
         except JobNotFound:
-            return jsonify({"error": "This scrape job was not found or has expired."}), 404
+            return jsonify({"error": "This batch is no longer available. Submit the links again."}), 404
 
     return blueprint
 
@@ -84,4 +84,4 @@ def _normalize_date(value) -> tuple[str, str | None]:
             return datetime.strptime(text, pattern).strftime("%m/%d/%Y"), None
         except ValueError:
             pass
-    return "", "Application date must be a valid date."
+    return "", "Choose a valid application date."

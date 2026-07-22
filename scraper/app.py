@@ -392,6 +392,8 @@ def _friendly_error(error, url=''):
     low = str(error or '').lower()
     if 'monster.com' in urlparse(url or '').netloc.lower():
         return "Monster blocks reliable access. Open the employer's own job page from Monster and use that link instead."
+    if 'browser runtime unavailable' in low:
+        return 'JobLink could not start its browser. Restart JobLink and try again. If it continues, reinstall the app.'
     if any(marker in low for marker in ('http 404', 'http 410', 'unavailable', 'general careers page', 'job search page')):
         return 'This posting is unavailable or has expired.'
     if any(marker in low for marker in ('blocked automated access', 'access denied', 'captcha')):

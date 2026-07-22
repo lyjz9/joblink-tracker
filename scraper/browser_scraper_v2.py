@@ -468,12 +468,42 @@ def _icims_iframe_result(url):
     return _public_result(data)
 
 
-def _direct_html_result(url):
+def _is_direct_html_candidate(url):
     parsed = urlparse(url)
     platform = _detect_platform(url)
-    is_custom_career_page = '/jobs/careers/' in parsed.path.lower()
-    is_indeed_posting = platform == 'indeed' and 'viewjob' in parsed.path.lower()
-    if not is_custom_career_page and not is_indeed_posting:
+    path = parsed.path.lower()
+    query = parsed.query.lower()
+    parts = [part for part in path.split('/') if part]
+
+    if platform == 'monster':
+        return False
+    if platform == 'linkedin':
+        return '/jobs/view/' in path
+    if platform == 'indeed':
+        return 'viewjob' in path
+    if platform == 'glassdoor':
+        return 'job-listing' in path and 'srch_' not in path
+    if platform == 'wellfound':
+        return bool(re.search(r'/jobs/\d+', path))
+    if platform == 'upwork':
+        return '/freelance-jobs/apply/' in path
+
+    search_markers = ('/search', 'jobsearch', 'srch_', 'keywords=')
+    if any(marker in path or marker in query for marker in search_markers):
+        return False
+    if platform != 'company_website':
+        return len(parts) >= 2
+
+    if path.rstrip('/') in {'/career', '/careers', '/job', '/jobs', '/openings', '/opportunities'}:
+        return False
+    return any(marker in path for marker in (
+        '/job', 'jobdetail', '/career', '/position', '/opening', '/vacanc',
+        '/role', '/opportunit', '/employment',
+    ))
+
+
+def _direct_html_result(url):
+    if not _is_direct_html_candidate(url):
         return None
 
     try:
@@ -498,9 +528,11 @@ def _direct_html_result(url):
     result = _public_result(_extract_from_soup(soup, final_url, url))
     if result.get('error'):
         return None
-    if result.get('company') in {'', 'n/a', None}:
+    if _looks_generic_company(result.get('company', '')):
         return None
-    if result.get('job_title') in {'', 'n/a', None}:
+    if _looks_generic_title(result.get('job_title', '')):
+        return None
+    if result.get('location') in {'', 'n/a', None}:
         return None
     return result
 
@@ -1938,6 +1970,19 @@ def _unavailable_redirect(original_url, final_url):
     return 'error=true' in final.query.lower()
 
 
+async def _launch_browser(playwright, launch_args=None):
+    options = {'headless': True, 'args': launch_args or []}
+    last_error = None
+    for channel in (None, 'msedge', 'chrome'):
+        try:
+            if channel:
+                return await playwright.chromium.launch(channel=channel, **options)
+            return await playwright.chromium.launch(**options)
+        except Exception as exc:
+            last_error = exc
+    raise last_error
+
+
 async def scrape_job_with_browser(url, timeout=60000, launch_args=None):
     greenhouse_result = _greenhouse_api_result(url)
     if greenhouse_result:
@@ -1954,7 +1999,13 @@ async def scrape_job_with_browser(url, timeout=60000, launch_args=None):
     fetch_url = _alternate_fetch_url(url) or url
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=launch_args or [])
+        try:
+            browser = await _launch_browser(p, launch_args)
+        except Exception as exc:
+            data = _empty_result(url, _detect_platform(url))
+            _apply_url_hints(data, url)
+            data['error'] = f'Browser runtime unavailable: {exc}'
+            return _public_result(data)
         context = await browser.new_context(
             user_agent=(
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '

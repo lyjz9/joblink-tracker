@@ -147,6 +147,17 @@ def test_scrape_timeout_and_chromium_args_are_forwarded(monkeypatch, tmp_path):
     }
 
 
+def test_missing_browser_error_tells_user_how_to_recover():
+    message = app_module._friendly_error(
+        "Browser runtime unavailable: executable does not exist"
+    )
+
+    assert message == (
+        "JobLink could not start its browser. Restart JobLink and try again. "
+        "If it continues, reinstall the app."
+    )
+
+
 def test_browser_readiness_launches_the_headless_browser(monkeypatch):
     observed = {}
 
@@ -189,3 +200,42 @@ def test_browser_readiness_launches_the_headless_browser(monkeypatch):
         "args": ["--test-flag"],
         "closed": True,
     }
+
+
+def test_browser_readiness_uses_installed_edge_as_fallback(monkeypatch):
+    calls = []
+
+    class Browser:
+        def close(self):
+            calls.append("closed")
+
+    class Chromium:
+        def launch(self, **options):
+            calls.append(options)
+            if options.get("channel") == "msedge":
+                return Browser()
+            raise RuntimeError("bundled browser missing")
+
+    class PlaywrightContext:
+        def __enter__(self):
+            return SimpleNamespace(chromium=Chromium())
+
+        def __exit__(self, *_args):
+            return False
+
+    import playwright.sync_api
+
+    monkeypatch.setattr(
+        playwright.sync_api,
+        "sync_playwright",
+        lambda: PlaywrightContext(),
+    )
+
+    ready, status = runtime_module._browser_runtime_status(True)
+
+    assert (ready, status) == (True, "available")
+    assert calls == [
+        {"headless": True, "args": []},
+        {"channel": "msedge", "headless": True, "args": []},
+        "closed",
+    ]

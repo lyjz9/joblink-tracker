@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+from types import SimpleNamespace
+
 import pytest
 from bs4 import BeautifulSoup
 
@@ -10,6 +13,8 @@ from scraper.browser_scraper_v2 import (
     _extract_from_soup,
     _extract_work_type,
     _greenhouse_api_result,
+    _is_direct_html_candidate,
+    _launch_browser,
     _normalize_work_type,
     _public_result,
 )
@@ -439,6 +444,83 @@ def test_indeed_posting_can_use_direct_html_without_browser(monkeypatch):
     assert result["work_type"] == "n/a"
     assert result["salary"] == "$23 - $25 an hour"
     assert result["source"] == "Indeed"
+
+
+def test_linkedin_posting_can_use_direct_html_without_browser(monkeypatch):
+    url = "https://www.linkedin.com/jobs/view/4430000000/"
+    html = """
+        <html><head><title>Operations Analyst | LinkedIn</title></head><body>
+          <h1>Operations Analyst</h1>
+          <a data-tracking-control-name="public_jobs_topcard-org-name">Example Company</a>
+          <span class="topcard__flavor--bullet">New York, NY</span>
+          <div class="description__job-criteria-text">Hybrid</div>
+          <div class="show-more-less-html__markup">
+            This hybrid analyst role supports reporting and operating processes.
+          </div>
+        </body></html>
+    """
+
+    class Response:
+        status_code = 200
+        text = html
+
+        def __init__(self):
+            self.url = url
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    result = _direct_html_result(url)
+
+    assert result["company"] == "Example Company"
+    assert result["job_title"] == "Operations Analyst"
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Hybrid"
+    assert result["source"] == "LinkedIn"
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://www.linkedin.com/jobs/search/?keywords=analyst",
+        "https://www.indeed.com/jobs?q=analyst",
+        "https://www.glassdoor.com/Job/new-york-analyst-jobs-SRCH_IL.0,8.htm",
+        "https://example.com/careers",
+    ),
+)
+def test_direct_html_fallback_rejects_job_search_pages(url):
+    assert not _is_direct_html_candidate(url)
+
+
+def test_browser_launch_uses_installed_edge_when_bundled_chromium_is_missing():
+    calls = []
+    edge_browser = object()
+
+    class Chromium:
+        async def launch(self, **options):
+            calls.append(options)
+            if options.get("channel") == "msedge":
+                return edge_browser
+            raise RuntimeError("browser missing")
+
+    browser = asyncio.run(
+        _launch_browser(
+            SimpleNamespace(chromium=Chromium()),
+            ["--disable-dev-shm-usage"],
+        )
+    )
+
+    assert browser is edge_browser
+    assert calls == [
+        {"headless": True, "args": ["--disable-dev-shm-usage"]},
+        {
+            "channel": "msedge",
+            "headless": True,
+            "args": ["--disable-dev-shm-usage"],
+        },
+    ]
 
 
 @pytest.mark.parametrize(

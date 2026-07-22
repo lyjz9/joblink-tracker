@@ -89,12 +89,20 @@ def _browser_runtime_status(
         from playwright.sync_api import sync_playwright
 
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(
-                headless=True,
-                args=chromium_args or [],
-            )
-            browser.close()
-            return True, "available"
+            options = {
+                "headless": True,
+                "args": chromium_args or [],
+            }
+            for channel in (None, "msedge", "chrome"):
+                try:
+                    if channel:
+                        browser = playwright.chromium.launch(channel=channel, **options)
+                    else:
+                        browser = playwright.chromium.launch(**options)
+                    browser.close()
+                    return True, "available"
+                except Exception:
+                    continue
     except Exception:
         pass
     return False, "missing"

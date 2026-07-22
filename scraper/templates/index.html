@@ -104,51 +104,60 @@
         </div>
         <div class="toolbar-actions">
           <div class="action-group result-actions" role="group" aria-label="Result actions">
-            <button class="button button-secondary" type="button" id="manualAddButton">
-              <i data-lucide="plus-circle" aria-hidden="true"></i>
-              Manual add
-            </button>
-            <button class="button button-quiet" type="button" id="selectAllButton" disabled>
-              <i data-lucide="check-square" aria-hidden="true"></i>
-              Select all
-            </button>
-            <button class="button button-quiet" type="button" id="retryAllButton" disabled>
-              <i data-lucide="rotate-cw" aria-hidden="true"></i>
-              Retry flagged rows
-            </button>
-            <button class="button button-quiet" type="button" id="clearResultsButton" disabled>
-              <i data-lucide="trash-2" aria-hidden="true"></i>
-              Clear selected
-            </button>
-            <button class="button button-quiet" type="button" id="reportSelectedButton" disabled>
-              <i data-lucide="flag" aria-hidden="true"></i>
-              Flag selected
-            </button>
+            <div class="action-group-heading">
+              <strong>Table actions</strong>
+              <span id="selectionCount">0 selected</span>
+            </div>
+            <div class="action-buttons">
+              <button class="button button-secondary" type="button" id="manualAddButton">
+                <i data-lucide="plus-circle" aria-hidden="true"></i>
+                Manual add
+              </button>
+              <button class="button button-tool" type="button" id="selectAllButton" disabled>
+                <i data-lucide="check-square" aria-hidden="true"></i>
+                Select all
+              </button>
+              <button class="button button-tool" type="button" id="retryAllButton" disabled>
+                <i data-lucide="rotate-cw" aria-hidden="true"></i>
+                Retry flagged
+              </button>
+              <button class="button button-danger" type="button" id="clearResultsButton" disabled>
+                <i data-lucide="trash-2" aria-hidden="true"></i>
+                Remove selected
+              </button>
+              <button class="button button-tool" type="button" id="reportSelectedButton" disabled>
+                <i data-lucide="flag" aria-hidden="true"></i>
+                Report selected
+              </button>
+            </div>
           </div>
           <div class="action-group tracker-actions" role="group" aria-label="Tracker options">
-            <button class="button button-secondary" type="button" id="chooseWorkbookButton">
-              <i data-lucide="upload" aria-hidden="true"></i>
-              Choose tracker
-            </button>
+            <div class="action-group-heading">
+              <strong>Excel tracker</strong>
+              <span class="file-name" id="workbookName">No tracker selected</span>
+            </div>
+            <div class="tracker-buttons">
+              <button class="button button-secondary" type="button" id="chooseWorkbookButton">
+                <i data-lucide="upload" aria-hidden="true"></i>
+                Choose tracker
+              </button>
+              <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
+                <i data-lucide="file-plus-2" aria-hidden="true"></i>
+                Update tracker
+              </button>
+              <button class="button button-secondary" type="button" id="downloadButton" disabled>
+                <i data-lucide="download" aria-hidden="true"></i>
+                Download new Excel
+              </button>
+            </div>
             <input id="workbookFile" class="sr-only" type="file" accept=".xlsx,.xlsm" aria-label="Choose tracker workbook">
-            <span class="file-name" id="workbookName">No tracker selected</span>
             <label class="duplicate-field" for="duplicateMode">
-              <span>If a link already exists</span>
+              <span>When a link repeats</span>
               <select id="duplicateMode">
-                <option value="skip">Leave that row alone</option>
-                <option value="update">Update that row</option>
+                <option value="skip">Keep the existing row</option>
+                <option value="update">Replace with new details</option>
               </select>
             </label>
-          </div>
-          <div class="action-group export-actions" role="group" aria-label="Excel actions">
-            <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
-              <i data-lucide="file-plus-2" aria-hidden="true"></i>
-              Update tracker
-            </button>
-            <button class="button button-secondary" type="button" id="downloadButton" disabled>
-              <i data-lucide="download" aria-hidden="true"></i>
-              Download Excel
-            </button>
           </div>
         </div>
       </div>

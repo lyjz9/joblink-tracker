@@ -313,6 +313,10 @@ textarea::placeholder { color: #968b8f; }
 .button-primary:hover:not(:disabled) { background: #9f3d28; border-color: #9f3d28; }
 .button-secondary { color: #5d3b34; background: #ffffff; border-color: var(--line-strong); }
 .button-secondary:hover:not(:disabled) { color: #7f321f; background: #fff5f1; border-color: #d49c8a; }
+.button-tool { color: #564d50; background: #ffffff; border-color: #d8cbc6; }
+.button-tool:hover:not(:disabled) { color: #71301f; background: #fff5f1; border-color: #d49c8a; }
+.button-danger { color: #9f2f23; background: #ffffff; border-color: #dfb7b0; }
+.button-danger:hover:not(:disabled) { color: #842219; background: #fff0ed; border-color: #cf887e; }
 .button-quiet { color: #665d61; background: transparent; border-color: transparent; }
 .button-quiet:hover:not(:disabled) { color: var(--ink); background: #f2ecea; }
 
@@ -397,7 +401,7 @@ textarea::placeholder { color: #968b8f; }
 
 .toolbar-actions {
   display: grid;
-  grid-template-columns: minmax(470px, 1.35fr) minmax(350px, 1fr) minmax(158px, auto);
+  grid-template-columns: minmax(470px, 1.15fr) minmax(440px, 1fr);
   overflow: hidden;
   background: rgba(255, 255, 255, .94);
   border: 1px solid #dccac3;
@@ -406,26 +410,52 @@ textarea::placeholder { color: #968b8f; }
 
 .action-group {
   min-width: 0;
-  padding: 9px;
+  padding: 0;
   align-content: center;
 }
 
 .action-group + .action-group { border-left: 1px solid var(--line); }
 
+.action-group-heading {
+  min-height: 38px;
+  padding: 8px 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #faf6f4;
+  border-bottom: 1px solid #e5dcd8;
+}
+
+.action-group-heading strong { color: #51474b; font-size: 12px; }
+.action-group-heading > span { color: var(--muted); font-size: 11px; }
+
 .result-actions {
   display: grid;
-  grid-template-columns: repeat(3, max-content);
+}
+
+.action-buttons {
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.action-buttons .button,
+.tracker-buttons .button {
+  width: 100%;
+  justify-content: flex-start;
 }
 
 .tracker-actions {
   display: grid;
-  grid-template-columns: auto minmax(110px, 1fr);
-  gap: 7px 10px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
 }
 
 .file-name {
   min-width: 0;
-  max-width: 220px;
+  max-width: 260px;
   align-self: center;
   overflow: hidden;
   color: var(--muted);
@@ -434,11 +464,18 @@ textarea::placeholder { color: #968b8f; }
   white-space: nowrap;
 }
 
-.duplicate-field {
-  grid-column: 1 / -1;
-  min-width: 0;
+.tracker-buttons {
+  padding: 10px;
   display: grid;
-  grid-template-columns: auto minmax(150px, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.duplicate-field {
+  min-width: 0;
+  margin: 0 10px 10px;
+  display: grid;
+  grid-template-columns: auto minmax(170px, 1fr);
   align-items: center;
   gap: 7px;
   color: var(--muted);
@@ -459,12 +496,6 @@ textarea::placeholder { color: #968b8f; }
 .duplicate-field select:focus {
   border-color: var(--focus);
   box-shadow: 0 0 0 3px rgba(201, 87, 59, .14);
-}
-
-.export-actions {
-  display: grid;
-  grid-template-columns: 1fr;
-  align-content: center;
 }
 
 .manual-panel {
@@ -760,9 +791,8 @@ th:nth-child(9) { width: 118px; }
 }
 
 @media (max-width: 1180px) {
-  .toolbar-actions { grid-template-columns: minmax(0, 1fr) minmax(330px, .8fr); }
-  .result-actions { grid-column: 1 / -1; border-bottom: 1px solid var(--line); }
-  .tracker-actions { border-left: 0 !important; }
+  .toolbar-actions { grid-template-columns: 1fr; }
+  .action-group + .action-group { border-top: 1px solid var(--line); border-left: 0; }
 }
 
 @media (max-width: 860px) {
@@ -784,14 +814,12 @@ th:nth-child(9) { width: 118px; }
   .toolbar-actions { grid-template-columns: 1fr; }
   .action-group { border-left: 0 !important; }
   .action-group + .action-group { border-top: 1px solid var(--line); }
-  .result-actions {
-    grid-column: auto;
-    display: grid;
+  .action-buttons {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .result-actions #manualAddButton { grid-column: 1 / -1; }
-  .tracker-actions { grid-template-columns: auto minmax(0, 1fr); }
-  .export-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .action-buttons #manualAddButton { grid-column: 1 / -1; }
+  .tracker-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tracker-buttons #chooseWorkbookButton { grid-column: 1 / -1; }
   .file-name { max-width: none; }
   .manual-grid { grid-template-columns: 1fr; }
   .manual-actions { align-items: stretch; flex-direction: column; }
@@ -817,8 +845,10 @@ th:nth-child(9) { width: 118px; }
   .filter-tab { min-width: 0; padding: 0 5px; font-size: 11px; }
   .summary { gap: 7px 11px; }
   .duplicate-field { grid-template-columns: 1fr; }
-  .tracker-actions { grid-template-columns: 1fr; }
-  .tracker-actions .file-name { min-height: 20px; }
+  .tracker-buttons { grid-template-columns: 1fr; }
+  .action-buttons .button,
+  .tracker-buttons .button { justify-content: center; }
+  .action-group-heading .file-name { max-width: 58%; }
   .empty-state { min-height: 260px; padding: 18px; }
 }
 

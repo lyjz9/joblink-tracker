@@ -20,6 +20,7 @@ const elements = {
   clear: document.querySelector('#clearButton'),
   clearResults: document.querySelector('#clearResultsButton'),
   reportSelected: document.querySelector('#reportSelectedButton'),
+  selectionCount: document.querySelector('#selectionCount'),
   selectAll: document.querySelector('#selectAllRows'),
   selectAllButton: document.querySelector('#selectAllButton'),
   manualAdd: document.querySelector('#manualAddButton'),
@@ -171,8 +172,8 @@ function findJobIndexByLink(url) {
 function duplicateResultChoice(url) {
   const existingIndex = findJobIndexByLink(url);
   if (existingIndex < 0) return { action: 'add', index: -1 };
-  const update = window.confirm('This link is already in your results. Choose OK to replace that row, or Cancel to leave it alone.');
-  return update ? { action: 'update', index: existingIndex } : { action: 'skip', index: existingIndex };
+  const action = elements.duplicateMode?.value === 'update' ? 'update' : 'skip';
+  return { action, index: existingIndex };
 }
 
 function saveSession() {
@@ -351,7 +352,10 @@ function render() {
   elements.appliedDate.disabled = state.processing;
   elements.clearResults.disabled = state.processing || !someSelected;
   if (elements.reportSelected) elements.reportSelected.disabled = state.processing || !someSelected;
-  elements.clearResults.innerHTML = `${icon('trash-2')} Clear selected${selectedCount ? ` (${selectedCount})` : ''}`;
+  elements.clearResults.innerHTML = `${icon('trash-2')} Remove selected${selectedCount ? ` (${selectedCount})` : ''}`;
+  if (elements.selectionCount) {
+    elements.selectionCount.textContent = `${selectedCount} selected`;
+  }
   if (elements.selectAll) {
     elements.selectAll.checked = allSelected;
     elements.selectAll.indeterminate = selectedVisibleCount > 0 && !allSelected;
@@ -924,7 +928,10 @@ function addManualJob(event) {
   }
   if (job.job_link) {
     const duplicate = duplicateResultChoice(job.job_link);
-    if (duplicate.action === 'skip') return;
+    if (duplicate.action === 'skip') {
+      showToast('That link is already here');
+      return;
+    }
     if (duplicate.action === 'update') {
       state.jobs[duplicate.index] = job;
     } else {

@@ -178,7 +178,7 @@ LOCATION_RE = re.compile(
     rf'\b(?:Remote|Hybrid|United States|US|USA|[A-Z][A-Za-z.\'-]+(?:\s+[A-Z][A-Za-z.\'-]+){{0,3}},\s*(?:{US_STATE}|United States|USA|Canada|UK|[A-Z][a-z]+))\b'
 )
 SALARY_RE = re.compile(
-    r'(?:Base pay range\s*)?(?:USD\s*)?\$\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)?(?:\s*(?:-|\u2013|\u2014|to|and)\s*(?:USD\s*)?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\+?\s*(?:k|K)?)?(?:\s*(?:per|/|a)\s*(?:year|yr|hour|hr|annum|week|wk))?|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\s*(?:-|\u2013|\u2014|to|and)\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\b|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:-|\u2013|\u2014|to|and)\s*\d+(?:,\d{3})*(?:\.\d+)?\s*USD\b',
+    r'(?:Base pay range\s*)?(?:USD\s*)?\$\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)?(?:\s*(?:-|\u2013|\u2014|to|and)\s*(?:USD\s*)?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\+?\s*(?:k|K)?)?(?:\s*(?:per|/|an?)\s*(?:year|yr|hour|hr|annum|week|wk))?|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\s*(?:-|\u2013|\u2014|to|and)\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\b|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:-|\u2013|\u2014|to|and)\s*\d+(?:,\d{3})*(?:\.\d+)?\s*USD\b',
     re.IGNORECASE,
 )
 
@@ -468,9 +468,12 @@ def _icims_iframe_result(url):
     return _public_result(data)
 
 
-def _career_site_html_result(url):
+def _direct_html_result(url):
     parsed = urlparse(url)
-    if '/jobs/careers/' not in parsed.path.lower():
+    platform = _detect_platform(url)
+    is_custom_career_page = '/jobs/careers/' in parsed.path.lower()
+    is_indeed_posting = platform == 'indeed' and 'viewjob' in parsed.path.lower()
+    if not is_custom_career_page and not is_indeed_posting:
         return None
 
     try:
@@ -482,6 +485,7 @@ def _career_site_html_result(url):
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
                     'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
                 ),
+                'Accept-Language': 'en-US,en;q=0.9',
             },
         )
         if response.status_code != 200:
@@ -492,6 +496,8 @@ def _career_site_html_result(url):
     final_url = getattr(response, 'url', '') or url
     soup = BeautifulSoup(response.text, 'html.parser')
     result = _public_result(_extract_from_soup(soup, final_url, url))
+    if result.get('error'):
+        return None
     if result.get('company') in {'', 'n/a', None}:
         return None
     if result.get('job_title') in {'', 'n/a', None}:
@@ -1942,9 +1948,9 @@ async def scrape_job_with_browser(url, timeout=60000, launch_args=None):
     icims_result = _icims_iframe_result(url)
     if icims_result:
         return icims_result
-    career_site_result = _career_site_html_result(url)
-    if career_site_result:
-        return career_site_result
+    direct_html_result = _direct_html_result(url)
+    if direct_html_result:
+        return direct_html_result
     fetch_url = _alternate_fetch_url(url) or url
 
     async with async_playwright() as p:

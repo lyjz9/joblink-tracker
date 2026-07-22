@@ -5,8 +5,8 @@ from bs4 import BeautifulSoup
 
 from scraper.browser_scraper_v2 import (
     _blocked_page_error,
-    _career_site_html_result,
     _clean_title,
+    _direct_html_result,
     _extract_from_soup,
     _extract_work_type,
     _greenhouse_api_result,
@@ -394,13 +394,51 @@ def test_custom_career_page_can_use_direct_html_without_browser(monkeypatch):
         lambda *_args, **_kwargs: Response(),
     )
 
-    result = _career_site_html_result(url)
+    result = _direct_html_result(url)
 
     assert result["company"] == "Achieve Test Prep"
     assert result["job_title"] == "Project Specialist"
     assert result["location"] == "Remote"
     assert result["work_type"] == "Remote"
     assert result["salary"] == "n/a"
+
+
+def test_indeed_posting_can_use_direct_html_without_browser(monkeypatch):
+    url = "https://www.indeed.com/viewjob?jk=f4d6c2bbde0e1092"
+    html = """
+        <html><head>
+          <title>Data and Inventory Specialist TEMP - New York, NY - Indeed.com</title>
+        </head><body>
+          <h1>Data and Inventory Specialist TEMP</h1>
+          <a data-testid="inlineHeader-companyName">Seaport Entertainment Group</a>
+          <div data-testid="jobsearch-JobInfoHeader-companyLocation">New York, NY 10038</div>
+          <div data-testid="salaryInfoAndJobType">$23 - $25 an hour</div>
+          <div id="jobDescriptionText">
+            The specialist maintains inventory records and supports the data team.
+          </div>
+        </body></html>
+    """
+
+    class Response:
+        status_code = 200
+        text = html
+
+        def __init__(self):
+            self.url = url
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    result = _direct_html_result(url)
+
+    assert result["company"] == "Seaport Entertainment Group"
+    assert result["job_title"] == "Data and Inventory Specialist TEMP"
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "n/a"
+    assert result["salary"] == "$23 - $25 an hour"
+    assert result["source"] == "Indeed"
 
 
 @pytest.mark.parametrize(

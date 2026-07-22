@@ -23,4 +23,4 @@ github_repo_compare
 *.log
 *.xlsx
 *.xlsm
-!templates/joblink_tracker_template.xlsx
+!templates/linc_tracker_template.xlsx

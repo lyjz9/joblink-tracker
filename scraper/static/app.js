@@ -381,8 +381,8 @@ async function scrapeOne(url) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url }),
   });
-  const result = await response.json().catch(() => ({ error: 'JobLink received a response it could not read.' }));
-  if (!response.ok && !result.error) result.error = `JobLink could not finish that request (${response.status}).`;
+  const result = await response.json().catch(() => ({ error: 'Linc received a response it could not read.' }));
+  if (!response.ok && !result.error) result.error = `Linc could not finish that request (${response.status}).`;
   return { ...result, job_link: result.job_link || url, date_applied: selectedAppliedDate() || result.date_applied };
 }
 
@@ -396,15 +396,15 @@ async function createScrapeJob(urls, dateApplied) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ urls, date_applied: dateApplied }),
   });
-  const payload = await response.json().catch(() => ({ error: 'JobLink received a response it could not read.' }));
-  if (!response.ok) throw new Error(payload.error || `JobLink could not finish that request (${response.status}).`);
+  const payload = await response.json().catch(() => ({ error: 'Linc received a response it could not read.' }));
+  if (!response.ok) throw new Error(payload.error || `Linc could not finish that request (${response.status}).`);
   return payload;
 }
 
 async function readScrapeJob(pollUrl) {
   const response = await fetch(pollUrl, { cache: 'no-store' });
-  const payload = await response.json().catch(() => ({ error: 'JobLink received a response it could not read.' }));
-  if (!response.ok) throw new Error(payload.error || `JobLink could not finish that request (${response.status}).`);
+  const payload = await response.json().catch(() => ({ error: 'Linc received a response it could not read.' }));
+  if (!response.ok) throw new Error(payload.error || `Linc could not finish that request (${response.status}).`);
   return payload;
 }
 
@@ -415,7 +415,7 @@ function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
     const target = plan[index];
     if (!target) return;
     const result = {
-      ...(item.result || { error: 'JobLink could not read this job page.' }),
+      ...(item.result || { error: 'Linc could not read this job page.' }),
       job_link: item.result?.job_link || target.url,
     };
     if (dateApplied) result.date_applied = dateApplied;
@@ -510,7 +510,7 @@ async function cancelActiveJob() {
   try {
     const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || 'JobLink could not stop this batch.');
+    if (!response.ok) throw new Error(payload.error || 'Linc could not stop this batch.');
   } catch (error) {
     showToast(error.message);
     if (state.activeJobId === jobId) elements.cancelJob.disabled = false;
@@ -554,7 +554,7 @@ async function reportJob(index) {
       body: JSON.stringify({ job, status: jobStatus(job) }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || 'JobLink could not save this row for review.');
+    if (!response.ok) throw new Error(payload.error || 'Linc could not save this row for review.');
     showToast('Saved this row for review');
   } catch (error) {
     showToast(error.message);
@@ -595,7 +595,7 @@ async function loadCaptures() {
   if (state.processing) return;
   try {
     const response = await fetch('/api/captures');
-    if (!response.ok) throw new Error('JobLink could not load your browser captures.');
+    if (!response.ok) throw new Error('Linc could not load your browser captures.');
     const payload = await response.json();
     const captures = Array.isArray(payload.jobs) ? payload.jobs : [];
     let added = 0;
@@ -641,7 +641,7 @@ async function downloadExcel() {
     });
     if (!response.ok) {
       const detail = await response.json().catch(() => ({}));
-      throw new Error(detail.error || 'JobLink could not create the Excel file.');
+      throw new Error(detail.error || 'Linc could not create the Excel file.');
     }
     await downloadResponse(response, 'job_tracker_export.xlsx');
     showToast('Your Excel file is ready');
@@ -680,7 +680,7 @@ async function appendToWorkbook() {
     if (!response) throw new Error('Choose an Excel tracker to update.');
     if (!response.ok) {
       const detail = await response.json().catch(() => ({}));
-      throw new Error(detail.error || 'JobLink could not update this tracker.');
+      throw new Error(detail.error || 'Linc could not update this tracker.');
     }
     const blob = await response.blob();
     const added = response.headers.get('X-JobLink-Added') || '0';
@@ -823,7 +823,7 @@ async function submitFeedback(event) {
       }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || 'JobLink could not save your feedback.');
+    if (!response.ok) throw new Error(payload.error || 'Linc could not save your feedback.');
     elements.feedbackMessage.value = '';
     elements.feedbackType.value = 'general';
     toggleFeedbackPanel(false);

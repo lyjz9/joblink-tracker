@@ -1,23 +1,23 @@
-# JobLink Tracker
+# Linc
 
-[![Release: v0.1 private beta](https://img.shields.io/badge/release-v0.1%20private%20beta-F26B4B?style=flat-square)](docs/desktop_beta.md)
+[![Release: v0.1.0 beta](https://img.shields.io/badge/release-v0.1.0%20beta-F26B4B?style=flat-square)](docs/desktop_beta.md)
 [![Desktop build](https://github.com/lyjz9/joblink-tracker/actions/workflows/build-windows-desktop.yml/badge.svg?branch=main)](https://github.com/lyjz9/joblink-tracker/actions/workflows/build-windows-desktop.yml)
 [![Python: 3.11 or 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?style=flat-square&logo=python&logoColor=white)](#setup)
 [![Excel: XLSX and XLSM](https://img.shields.io/badge/excel-XLSX%20%7C%20XLSM-217346?style=flat-square&logo=microsoftexcel&logoColor=white)](#excel-workflow)
 [![Privacy: local first](https://img.shields.io/badge/privacy-local--first-0F766E?style=flat-square)](docs/privacy.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6D5BD0?style=flat-square)](LICENSE)
 
-JobLink Tracker is a small local app I built because copying the same details from job postings into Excel gets old fast.
+Linc is a small local app I built because copying the same details from job postings into Excel gets old fast.
 
-Paste a few job links and JobLink fills in the details people usually track by hand: company, job title, location, work type, salary, and source. You can fix anything it gets wrong before adding the rows to your tracker.
+Paste a few job links and Linc fills in the details people usually track by hand: company, job title, location, work type, salary, and source. You can fix anything it gets wrong before adding the rows to your tracker.
 
 I made it with students, new grads, and anyone juggling a long application list in mind.
 
-> Status: v0.1 private beta. A portable Windows build is available through the GitHub Actions build workflow, so testers can run JobLink without Python, PowerShell, Docker, or a hosting subscription.
+> Status: v0.1.0 Windows beta. A portable build is available through GitHub Actions, so testers can run Linc without Python, PowerShell, Docker, or a hosting subscription.
 
 ## Known Limitations
 
-Job scraping is messy, so JobLink will not get every posting right. Company career pages and ATS links usually give the cleanest results. Login walls, Cloudflare checks, human verification, private APIs, and heavily scripted pages can still block the scraper or hide important fields.
+Job scraping is messy, so Linc will not get every posting right. Company career pages and ATS links usually give the cleanest results. Login walls, Cloudflare checks, human verification, private APIs, and heavily scripted pages can still block the scraper or hide important fields.
 
 Check any row marked `Review` before you save it. Salary, work type, and location deserve an extra look because every site formats them differently.
 
@@ -28,7 +28,7 @@ See [docs/known_limitations.md](docs/known_limitations.md) for more detail.
 
 When you are applying to a lot of jobs, the tracker can become a second job. Every posting has another company name, title, location, salary note, and link to copy. That busywork costs time and makes small mistakes easy.
 
-JobLink handles the repetitive part and leaves the judgment to you. Nothing goes into your tracker until you have had a chance to review and edit it.
+Linc handles the repetitive part and leaves the judgment to you. Nothing goes into your tracker until you have had a chance to review and edit it.
 
 ## Features
 
@@ -41,7 +41,7 @@ JobLink handles the repetitive part and leaves the judgment to you. Nothing goes
 ## How It Works
 
 1. Paste job posting links into the local app, command line, or Excel input sheet.
-2. JobLink reads each posting and pulls out the fields it can trust.
+2. Linc reads each posting and pulls out the fields it can trust.
 3. Check the rows it flags and fix anything that looks off.
 4. Add the reviewed rows to a new or existing Excel tracker.
 
@@ -55,11 +55,11 @@ Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary 
 
 ## Setup
 
-JobLink Tracker is currently tested with Python 3.11 and 3.12.
+Linc is currently tested with Python 3.11 and 3.12.
 
 ### Windows
 
-For private beta testing, the easiest option is the portable desktop build. Extract `JobLink-Tracker-Windows.zip`, open the `JobLink Tracker` folder, and double-click `JobLink Tracker.exe`. Python and PowerShell are not required. See [docs/desktop_beta.md](docs/desktop_beta.md) for the desktop instructions and [docs/beta_testing.md](docs/beta_testing.md) for a short tester checklist.
+For beta testing, the easiest option is the portable desktop build. Extract `Linc-v0.1.0-Windows.zip`, open the `Linc` folder, and double-click `Linc.exe`. Python and PowerShell are not required. See [docs/desktop_beta.md](docs/desktop_beta.md) for the desktop instructions and [docs/beta_testing.md](docs/beta_testing.md) for a short tester checklist.
 
 To run the project from source instead:
 
@@ -178,11 +178,11 @@ curl --request POST \
 
 ## Excel Workflow
 
-You can start from the ready-made tracker template: [templates/joblink_tracker_template.xlsx](templates/joblink_tracker_template.xlsx).
+You can start from the ready-made tracker template: [templates/linc_tracker_template.xlsx](templates/linc_tracker_template.xlsx).
 
 The template is ready to use. It already includes the `Instructions`, `Input`, and `Applications` sheets with all required column names, so you do not need to create sheets or copy and paste headers.
 
-You can also upload your own existing `.xlsx` or `.xlsm` tracker in the web app. JobLink matches recognizable column names and adds the selected results to that workbook instead of making you rebuild it from the template.
+You can also upload your own existing `.xlsx` or `.xlsm` tracker in the web app. Linc matches recognizable column names and adds the selected results to that workbook instead of making you rebuild it from the template.
 
 The included VBA button workflow is Windows-only because `VBA/JobTracker.bas` uses Windows Script Host and MSXML. On Windows, import the module using `Developer > Visual Basic > File > Import File`. If you want a button in the workbook, assign it to the `ProcessInputLinks` macro.
 
@@ -228,9 +228,9 @@ python process_excel_links.py "./Job_Application_Tracker.xlsx"
 
 ## Windows Desktop Beta
 
-The portable Windows build works without Python. Double-click `JobLink Tracker.exe` and it opens the same local app with the browser files the scraper needs. See [docs/desktop_beta.md](docs/desktop_beta.md) for build and testing instructions.
+The portable Windows build works without Python. Double-click `Linc.exe` and it opens the same local app with the browser files the scraper needs. See [docs/desktop_beta.md](docs/desktop_beta.md) for build and testing instructions.
 
-Developers who already have the project environment can still double-click `Open_JobLink_Beta.vbs` during local development.
+Developers who already have the project environment can still double-click `Open_Linc_Beta.vbs` during local development.
 
 - The browser opens at `http://127.0.0.1:5050`.
 - Choose the date applied, paste up to 20 job links, select `Get job details`, fix anything that looks wrong, and save the results to Excel.
@@ -238,25 +238,25 @@ Developers who already have the project environment can still double-click `Open
 - To add results to an existing tracker, select `Choose tracker`, pick an `.xlsx` or `.xlsm` file, then select `Update tracker`. Close the workbook in Excel first so the app can save the updated file cleanly.
 - Rows marked `Review` explain what looks wrong. Retry the row or correct the fields yourself.
 - The flag button saves a problem row to `logs/user_reported_issues.jsonl` so it can be investigated later.
-- If a job board exposes an employer/company application link, JobLink shows it as `Employer link`; that link is usually better than the repost.
-- If a site blocks automated access, open the job page yourself and use the Chrome capture extension in `browser_extension/joblink_capture`.
+- If a job board exposes an employer/company application link, Linc shows it as `Employer link`; that link is usually better than the repost.
+- If a site blocks automated access, open the job page yourself and use the Chrome capture extension in `browser_extension/linc_capture`.
 
 This beta runs locally on the tester's computer. Closing the desktop control window stops the local server.
 
 ## Browser Capture For Blocked Sites
 
-Some sites will let you read a job posting but block JobLink from opening it. The optional Chrome extension can hand the page you already opened back to the local app.
+Some sites will let you read a job posting but block Linc from opening it. The optional Chrome extension can hand the page you already opened back to the local app.
 
-1. Start JobLink Beta first.
+1. Start Linc first.
 2. In Chrome, open `chrome://extensions`.
 3. Turn on `Developer mode`.
 4. Select `Load unpacked`.
-5. Choose the `browser_extension/joblink_capture` folder from this project.
+5. Choose the `browser_extension/linc_capture` folder from this project.
 6. Open the blocked job page and finish any human check if the site asks.
-7. Click `JobLink Capture` from Chrome's extension menu, then select `Capture this job page`.
-8. Return to JobLink Tracker and select `Load browser captures`.
+7. Click `Linc Capture` from Chrome's extension menu, then select `Capture this job page`.
+8. Return to Linc and select `Load browser captures`.
 
-Capture gives JobLink more page text to work with, but it can still make mistakes. Check the result before saving it.
+Capture gives Linc more page text to work with, but it can still make mistakes. Check the result before saving it.
 
 ## Testing Notes
 
@@ -284,7 +284,7 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 - `scraper/result_quality.py` assigns review issues, confidence, and reliability labels.
 - `export/` contains new-workbook export and existing-workbook update logic.
 - `desktop_launcher.py` starts and stops the one-click Windows beta.
-- `packaging/joblink_tracker.spec` bundles Python, project assets, and Chromium with PyInstaller.
+- `packaging/linc.spec` bundles Python, project assets, and Chromium with PyInstaller.
 - `.github/workflows/build-windows-desktop.yml` creates the downloadable Windows ZIP.
 - `Dockerfile` and `gunicorn.conf.py` define the single-process hosted runtime.
 
@@ -296,8 +296,8 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 - Handle expired, login-only, or blocked postings more clearly instead of returning confusing fields.
 - Improve source labels for school career sites, reposts, and company career pages.
 - Grow the saved cross-site regression set when beta testing finds a repeated parser problem.
-- Add screenshots or a short demo once the main workflow feels stable.
-- Collect private beta feedback before adding a full installer or paid code signing.
+- Add a short demo once the main workflow feels stable.
+- Collect beta feedback before adding a full installer or paid code signing.
 
 ## Contributing
 

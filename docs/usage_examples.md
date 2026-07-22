@@ -36,7 +36,7 @@ Open this address after the server starts:
 http://127.0.0.1:5000
 ```
 
-On Windows, double-click `Open_JobLink_Beta.vbs` to start the local beta at `http://127.0.0.1:5050` without typing a command.
+On Windows, double-click `Open_Linc_Beta.vbs` to start the local beta at `http://127.0.0.1:5050` without typing a command.
 
 ## Test The API Endpoint
 

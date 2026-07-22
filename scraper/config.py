@@ -1,4 +1,4 @@
-"""Environment-backed configuration for local and hosted JobLink modes."""
+"""Environment-backed configuration for local and hosted Linc modes."""
 
 from __future__ import annotations
 

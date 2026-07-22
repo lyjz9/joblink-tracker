@@ -35,7 +35,7 @@ Sub ProcessInputLinks()
     appLinkCol = FindHeaderColumnOnSheet(applicationsWs, "Job link")
 
     If linkCol = 0 Or statusCol = 0 Or processedCol = 0 Or errorCol = 0 Or appLinkCol = 0 Then
-        MsgBox "This workbook is missing one or more JobLink columns. Start with the ready-made tracker or check the Excel Workflow section in the README.", vbExclamation
+        MsgBox "This workbook is missing one or more Linc columns. Start with the ready-made tracker or check the Excel Workflow section in the README.", vbExclamation
         Exit Sub
     End If
 
@@ -86,7 +86,7 @@ Sub ProcessInputLinks()
 
 setupError:
     Application.ScreenUpdating = True
-    MsgBox "This workbook needs Input and Applications sheets. Use the ready-made JobLink tracker and try again.", vbExclamation
+    MsgBox "This workbook needs Input and Applications sheets. Use the ready-made Linc tracker and try again.", vbExclamation
 End Sub
 
 Function GetJobDetailsDirect(jobUrl As String) As String
@@ -156,7 +156,7 @@ Function EnsureScraperServer() As Boolean
     pythonExe = projectFolder & "\.venv\Scripts\python.exe"
 
     If Dir(appPath) = "" Or Dir(pythonExe) = "" Then
-        MsgBox "JobLink could not find Python or the scraper files. Keep this workbook in the project folder or its outputs folder.", vbExclamation
+        MsgBox "Linc could not find Python or the scraper files. Keep this workbook in the project folder or its outputs folder.", vbExclamation
         Exit Function
     End If
 
@@ -174,7 +174,7 @@ Function EnsureScraperServer() As Boolean
         End If
     Next attempt
 
-    MsgBox "JobLink did not start. Run python scraper\app.py in PowerShell, then try again.", vbExclamation
+    MsgBox "Linc did not start. Run python scraper\app.py in PowerShell, then try again.", vbExclamation
 End Function
 
 Function IsScraperServerRunning() As Boolean
@@ -336,7 +336,7 @@ Sub FetchJobDetailsForRow(r As Range)
     Dim resp As String
     resp = GetJobDetailsFromServer(jobLink)
     If Len(resp) = 0 Then
-        MsgBox "JobLink did not answer. Make sure the local app is running, then try again."
+        MsgBox "Linc did not answer. Make sure the local app is running, then try again."
         Exit Sub
     End If
     Dim json As String
@@ -348,7 +348,7 @@ Sub FetchJobDetailsForRow(r As Range)
     MsgBox "Job details added. Check the row before saving."
     Exit Sub
 fallback:
-    MsgBox "Excel could not read JobLink's response. Try VBA-JSON for fuller JSON support: https://github.com/VBA-tools/VBA-JSON"
+    MsgBox "Excel could not read Linc's response. Try VBA-JSON for fuller JSON support: https://github.com/VBA-tools/VBA-JSON"
 End Sub
 
 Function FindHeaderColumn(headerName As String) As Long

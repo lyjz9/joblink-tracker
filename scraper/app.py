@@ -246,7 +246,7 @@ def _monster_guidance_result(url):
         'source': 'Monster',
         'error': "A Monster search page contains many jobs. Open the employer's own posting and use that link instead.",
         'review_issues': ['monster_search_page'],
-        'review_notes': "JobLink cannot turn a page full of Monster results into one accurate row. Use the employer's own job page instead.",
+        'review_notes': "Linc cannot turn a page full of Monster results into one accurate row. Use the employer's own job page instead.",
     }
     _annotate_result(result, url, result['review_issues'])
     return result
@@ -381,7 +381,7 @@ def beta_feedback():
         'message': message[:3000],
         'page': urlparse(str(payload.get('page') or '')).path[:200],
         'job_count': payload.get('job_count', 0),
-        'version': 'JobLink Beta v0.1',
+        'version': 'Linc Beta v0.1.0',
     }
     with runtime.beta_feedback_log.open('a', encoding='utf-8') as handle:
         handle.write(json.dumps(record, ensure_ascii=True) + '\n')
@@ -393,18 +393,18 @@ def _friendly_error(error, url=''):
     if 'monster.com' in urlparse(url or '').netloc.lower():
         return "Monster blocks reliable access. Open the employer's own job page from Monster and use that link instead."
     if 'browser runtime unavailable' in low:
-        return 'JobLink could not start its browser. Restart JobLink and try again. If it continues, reinstall the app.'
+        return 'Linc could not start its browser. Restart Linc and try again. If it continues, reinstall the app.'
     if any(marker in low for marker in ('http 404', 'http 410', 'unavailable', 'general careers page', 'job search page')):
         return 'This posting is unavailable or has expired.'
     if any(marker in low for marker in ('blocked automated access', 'access denied', 'captcha')):
-        return 'The website blocked automated access. Open the job page yourself, then use JobLink Capture.'
+        return 'The website blocked automated access. Open the job page yourself, then use Linc Capture.'
     if any(marker in low for marker in ('timeout', 'timed out')):
         return 'The website took too long to respond. Try this job again.'
     if any(marker in low for marker in ('http 403', 'http 429', 'access denied', 'captcha')):
-        return 'The website blocked automated access. Open the job page yourself, then use JobLink Capture.'
+        return 'The website blocked automated access. Open the job page yourself, then use Linc Capture.'
     if 'cannot navigate to invalid url' in low:
         return 'The job link is not a valid web address.'
-    return 'JobLink could not read this posting. Try again or check the link yourself.'
+    return 'Linc could not read this posting. Try again or check the link yourself.'
 
 
 def _capture_response(payload, status=200):
@@ -477,7 +477,7 @@ def capture_page():
     runtime = get_runtime()
     if not current_app.config['CAPTURE_ENABLED']:
         return _capture_response({
-            'error': 'Browser capture is available only in the local JobLink app.'
+            'error': 'Browser capture is available only in the local Linc app.'
         }, 404)
     if request.method == 'OPTIONS':
         return _capture_response({'status': 'ok'})
@@ -486,7 +486,7 @@ def capture_page():
 
     payload = request.get_json(silent=True) or request.form.to_dict()
     if not isinstance(payload, dict):
-        return _capture_response({'error': 'JobLink could not read that browser capture.'}, 400)
+        return _capture_response({'error': 'Linc could not read that browser capture.'}, 400)
 
     if not _capture_payload_has_content(payload):
         return _capture_response({
@@ -518,10 +518,10 @@ def scrape():
     try:
         return jsonify(get_runtime().job_manager.run_sync(url))
     except ScrapeCapacityFull:
-        return jsonify({'error': 'JobLink is busy with another page. Wait for it to finish, then try again.'}), 503
+        return jsonify({'error': 'Linc is busy with another page. Wait for it to finish, then try again.'}), 503
     except Exception:
         current_app.logger.exception('Job scraping failed')
-        return jsonify({'error': 'JobLink could not read this job page.'}), 500
+        return jsonify({'error': 'Linc could not read this job page.'}), 500
 
 
 @web.route('/export', methods=['POST'])
@@ -563,7 +563,7 @@ def append_workbook():
         )
         jobs = json.loads(request.form.get('jobs', '[]'))
     except json.JSONDecodeError:
-        return jsonify({'error': 'JobLink could not read the rows you selected.'}), 400
+        return jsonify({'error': 'Linc could not read the rows you selected.'}), 400
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
 
@@ -589,7 +589,7 @@ def append_workbook():
         return jsonify({'error': str(exc)}), 400
     except Exception:
         current_app.logger.exception('Workbook append failed')
-        return jsonify({'error': 'JobLink could not update this workbook.'}), 500
+        return jsonify({'error': 'Linc could not update this workbook.'}), 500
 
     suffix = Path(uploaded.filename).suffix.casefold()
     mimetype = (

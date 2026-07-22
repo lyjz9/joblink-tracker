@@ -1,4 +1,4 @@
-"""One-click Windows launcher for the local JobLink web application."""
+"""One-click Windows launcher for the local Linc web application."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from urllib.request import urlopen
 import webbrowser
 
 
-APP_NAME = "JobLink Tracker"
+APP_NAME = "Linc"
 HOST = "127.0.0.1"
 PORT = 5050
 APP_URL = f"http://{HOST}:{PORT}"
@@ -102,7 +102,7 @@ def show_existing_app() -> int:
     from tkinter import messagebox
 
     webbrowser.open(APP_URL, new=2)
-    messagebox.showinfo(APP_NAME, "JobLink is already running, so I opened it in your browser.")
+    messagebox.showinfo(APP_NAME, "Linc is already running, so I opened it in your browser.")
     return 0
 
 
@@ -111,7 +111,7 @@ def show_port_error() -> int:
 
     messagebox.showerror(
         APP_NAME,
-        "JobLink needs local port 5050, but another program is using it. Close that program and try again.",
+        "Linc needs local port 5050, but another program is using it. Close that program and try again.",
     )
     return 1
 
@@ -137,7 +137,7 @@ def run_control_window(server, flask_app, shutdown_app) -> None:
 
     tk.Label(
         frame,
-        text="JobLink is ready",
+        text="Linc is ready",
         background="#fffdfb",
         foreground="#2f282a",
         font=("Calibri", 14, "bold"),
@@ -160,7 +160,7 @@ def run_control_window(server, flask_app, shutdown_app) -> None:
 
     open_button = tk.Button(
         actions,
-        text="Open JobLink",
+        text="Open Linc",
         command=lambda: webbrowser.open(APP_URL, new=2),
         background="#c74f32",
         activebackground="#a83f28",
@@ -197,7 +197,7 @@ def run_control_window(server, flask_app, shutdown_app) -> None:
         if stopping:
             return
         stopping = True
-        status.set("Closing JobLink...")
+        status.set("Closing Linc...")
         open_button.configure(state="disabled")
         stop_button.configure(state="disabled")
         threading.Thread(target=shutdown_worker, daemon=True).start()
@@ -245,7 +245,7 @@ def main() -> int:
             server.shutdown()
             server.server_close()
             shutdown_app(app, wait=False)
-            raise RuntimeError("JobLink did not finish starting.")
+            raise RuntimeError("Linc did not finish starting.")
 
         run_control_window(server, app, shutdown_app)
         return 0
@@ -253,7 +253,7 @@ def main() -> int:
         error_path = write_startup_error(data_dir)
         messagebox.showerror(
             APP_NAME,
-            f"JobLink could not start. I saved the technical details here:\n{error_path}",
+            f"Linc could not start. I saved the technical details here:\n{error_path}",
         )
         return 1
 

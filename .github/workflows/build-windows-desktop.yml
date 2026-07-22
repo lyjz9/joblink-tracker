@@ -1,4 +1,4 @@
-name: Build Windows desktop beta
+name: Build Linc Windows beta
 
 on:
   workflow_dispatch:
@@ -32,17 +32,17 @@ jobs:
         shell: pwsh
         run: |
           $env:PLAYWRIGHT_BROWSERS_PATH = "0"
-          python -m PyInstaller --noconfirm --clean packaging\joblink_tracker.spec
-          Copy-Item "templates\joblink_tracker_template.xlsx" `
-            "dist\JobLink Tracker\Blank JobLink Tracker.xlsx"
-          Compress-Archive -Path "dist\JobLink Tracker" `
-            -DestinationPath "dist\JobLink-Tracker-Windows.zip" `
+          python -m PyInstaller --noconfirm --clean packaging\linc.spec
+          Copy-Item "templates\linc_tracker_template.xlsx" `
+            "dist\Linc\Blank Linc Tracker.xlsx"
+          Compress-Archive -Path "dist\Linc" `
+            -DestinationPath "dist\Linc-v0.1.0-Windows.zip" `
             -CompressionLevel Optimal
 
       - name: Upload desktop beta
         uses: actions/upload-artifact@v7
         with:
-          name: JobLink-Tracker-Windows
-          path: dist/JobLink-Tracker-Windows.zip
+          name: Linc-v0.1.0-Windows
+          path: dist/Linc-v0.1.0-Windows.zip
           if-no-files-found: error
           retention-days: 14

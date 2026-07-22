@@ -10,19 +10,19 @@ RELIABILITY = {
     'lever': ('Good', 'Lever usually provides clean job data.'),
     'ashby': ('Good', 'Ashby usually provides clean job data.'),
     'workday': ('Good', 'Workday usually provides useful job data, although some pages load slowly.'),
-    'icims': ('Good', 'iCIMS usually works once JobLink reads the job frame.'),
+    'icims': ('Good', 'iCIMS usually works once Linc reads the job frame.'),
     'breezy': ('Good', 'Breezy usually makes the job details easy to read.'),
     'smartrecruiters': ('Good', 'SmartRecruiters usually provides clean job data.'),
     'company_website': ('Good', 'The company career page is usually the best source.'),
     'linkedin': ('Okay', 'LinkedIn often has the basics, but salary may be missing.'),
     'indeed': ('Okay', 'Indeed often works, but locations can pick up extra words.'),
-    'glassdoor': ('Okay', 'Glassdoor often works, but some pages block JobLink.'),
+    'glassdoor': ('Okay', 'Glassdoor often works, but some pages block Linc.'),
     'ziprecruiter': ('Okay', 'ZipRecruiter can work, but reposts may include extra page text.'),
     'simplyhired': ('Okay', 'SimplyHired can redirect or hide some details.'),
-    'dice': ('Okay', 'Dice can work, but some pages block JobLink.'),
+    'dice': ('Okay', 'Dice can work, but some pages block Linc.'),
     'monster': ('Limited', 'Use the employer career page that Monster opens instead.'),
-    'wellfound': ('Limited', 'Wellfound often blocks JobLink, and captures still need a close look.'),
-    'upwork': ('Limited', 'Upwork often blocks JobLink and does not use standard job-posting fields.'),
+    'wellfound': ('Limited', 'Wellfound often blocks Linc, and captures still need a close look.'),
+    'upwork': ('Limited', 'Upwork often blocks Linc and does not use standard job-posting fields.'),
 }
 
 
@@ -94,11 +94,11 @@ def _review_notes(issues):
         'company_looks_like_page_text': 'Company may be copied from page text.',
         'location_looks_like_page_text': 'Location may include extra page text.',
         'invalid_work_type': 'Work type should be Remote, Hybrid, Onsite, or n/a.',
-        'scrape_error': 'JobLink could not read this page.',
+        'scrape_error': 'Linc could not read this page.',
         'captured_page_review': 'The browser capture may include extra site text.',
         'capture_low_confidence': 'The capture did not have clear labels for these fields.',
         'monster_search_page': 'Monster search pages show many jobs at once. Use the employer/company link from Monster instead.',
-        'low_confidence': 'JobLink is not confident about this row.',
+        'low_confidence': 'Linc is not confident about this row.',
     }
     notes = [labels.get(issue, issue.replace('_', ' ')) for issue in issues]
     return ' '.join(notes)
@@ -201,7 +201,7 @@ def _annotate_result(result, url='', issues=None):
     if not result.get('review_notes') and issues:
         result['review_notes'] = _review_notes(issues)
     if result.get('preferred_job_link'):
-        result['preferred_job_link_note'] = "JobLink found the employer's own posting, which is usually more complete than the repost."
+        result['preferred_job_link_note'] = "Linc found the employer's own posting, which is usually more complete than the repost."
     return result
 
 

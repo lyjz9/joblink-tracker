@@ -7,11 +7,11 @@ from werkzeug.exceptions import HTTPException
 
 
 HTTP_MESSAGES = {
-    400: "JobLink could not read that request.",
+    400: "Linc could not read that request.",
     404: "That page could not be found.",
     405: "That action is not available here.",
     413: "That upload is too large.",
-    429: "JobLink is receiving too many requests. Wait a few minutes and try again.",
+    429: "Linc is receiving too many requests. Wait a few minutes and try again.",
 }
 
 
@@ -19,7 +19,7 @@ def register_error_handlers(app) -> None:
     @app.errorhandler(HTTPException)
     def handle_http_error(error):
         status = error.code or 500
-        message = HTTP_MESSAGES.get(status, "JobLink could not finish that request.")
+        message = HTTP_MESSAGES.get(status, "Linc could not finish that request.")
         return _error_response(message, status)
 
     @app.errorhandler(Exception)
@@ -32,7 +32,7 @@ def register_error_handlers(app) -> None:
                 "error_type": type(error).__name__,
             },
         )
-        return _error_response("Something went wrong while JobLink handled that request.", 500)
+        return _error_response("Something went wrong while Linc handled that request.", 500)
 
 
 def _error_response(message: str, status: int):

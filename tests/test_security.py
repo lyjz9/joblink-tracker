@@ -53,7 +53,7 @@ def test_workbook_validator_rejects_non_zip_content():
 
 
 def test_workbook_validator_accepts_project_template():
-    template = Path(__file__).resolve().parents[1] / "templates" / "joblink_tracker_template.xlsx"
+    template = Path(__file__).resolve().parents[1] / "templates" / "linc_tracker_template.xlsx"
     with template.open("rb") as workbook:
         validate_workbook_upload(
             workbook,
@@ -61,4 +61,3 @@ def test_workbook_validator_accepts_project_template():
             max_uncompressed_bytes=80 * 1024 * 1024,
             max_members=5000,
         )
-

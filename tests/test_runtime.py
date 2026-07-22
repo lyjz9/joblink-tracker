@@ -86,7 +86,7 @@ def test_central_error_response_has_request_id_without_details(tmp_path, capsys)
         assert response.status_code == 500
         assert response.headers["X-Request-ID"] == "request_12345"
         assert response.get_json() == {
-            "error": "Something went wrong while JobLink handled that request.",
+            "error": "Something went wrong while Linc handled that request.",
             "request_id": "request_12345",
         }
         assert b"private technical detail" not in response.data
@@ -153,7 +153,7 @@ def test_missing_browser_error_tells_user_how_to_recover():
     )
 
     assert message == (
-        "JobLink could not start its browser. Restart JobLink and try again. "
+        "Linc could not start its browser. Restart Linc and try again. "
         "If it continues, reinstall the app."
     )
 

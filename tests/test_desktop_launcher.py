@@ -11,7 +11,7 @@ def test_desktop_environment_uses_local_app_data_and_bundled_browser(tmp_path):
 
     data_dir = desktop_launcher.configure_environment(env, frozen=True)
 
-    assert data_dir == tmp_path / "JobLink Tracker"
+    assert data_dir == tmp_path / "Linc"
     assert env["JOBLINK_ENV"] == "local"
     assert env["JOBLINK_CAPTURE_ENABLED"] == "true"
     assert env["JOBLINK_VERIFY_BROWSER_ON_STARTUP"] == "true"
@@ -50,11 +50,11 @@ def test_windowed_build_redirects_missing_output_streams(monkeypatch, tmp_path):
 
 def test_packaging_spec_includes_web_assets_and_project_modules():
     root = Path(__file__).resolve().parents[1]
-    spec = (root / "packaging" / "joblink_tracker.spec").read_text(encoding="utf-8")
+    spec = (root / "packaging" / "linc.spec").read_text(encoding="utf-8")
 
     assert 'collect_all("playwright")' in spec
     assert 'collect_submodules("scraper")' in spec
     assert 'collect_submodules("export")' in spec
     assert '"scraper/templates"' in spec
     assert '"scraper/static"' in spec
-    assert 'name="JobLink Tracker"' in spec
+    assert 'name="Linc"' in spec

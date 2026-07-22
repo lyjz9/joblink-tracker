@@ -42,7 +42,7 @@ def test_append_workbook_rejects_fake_excel_file(client):
 
 
 def test_append_workbook_returns_valid_xlsx(client):
-    template = Path(__file__).resolve().parents[1] / "templates" / "joblink_tracker_template.xlsx"
+    template = Path(__file__).resolve().parents[1] / "templates" / "linc_tracker_template.xlsx"
     jobs = [{
         "date_applied": "07/12/2026",
         "company": "Example Company",

@@ -1,15 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "JobLink Capture",
-  "version": "0.2.2",
-  "description": "Send the job page you have open to the JobLink app on your computer.",
+  "name": "Linc Capture",
+  "version": "0.1.0",
+  "description": "Send the job page you have open to the Linc app on your computer.",
   "permissions": ["activeTab", "scripting", "tabs"],
   "host_permissions": [
     "http://127.0.0.1:5050/*",
     "http://localhost:5050/*"
   ],
   "action": {
-    "default_title": "JobLink Capture",
+    "default_title": "Linc Capture",
     "default_popup": "popup.html"
   }
 }

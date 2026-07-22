@@ -1,6 +1,6 @@
 # Privacy
 
-JobLink is built to work with job links and Excel trackers without keeping a permanent copy of an uploaded workbook.
+Linc is built to work with job links and Excel trackers without keeping a permanent copy of an uploaded workbook.
 
 ## Local mode
 
@@ -20,7 +20,7 @@ Hosted mode is enabled with `JOBLINK_ENV=production`.
 - New Excel exports are created temporarily and returned from memory. They are not left in `exports/`.
 - Results stay in browser storage so a refresh does not erase them. Clearing site data removes that local copy.
 
-JobLink does not need your name, email address, password, payment information, or account credentials to read a public job posting.
+Linc does not need your name, email address, password, payment information, or account credentials to read a public job posting.
 
 ## User responsibility
 

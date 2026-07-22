@@ -9,13 +9,13 @@ Set-Location $ProjectRoot
 & $Python -m pip install -r requirements-desktop.txt
 $env:PLAYWRIGHT_BROWSERS_PATH = "0"
 & $Python -m playwright install chromium --only-shell
-& $Python -m PyInstaller --noconfirm --clean packaging\joblink_tracker.spec
+& $Python -m PyInstaller --noconfirm --clean packaging\linc.spec
 
-$Bundle = Join-Path $ProjectRoot "dist\JobLink Tracker"
-Copy-Item "templates\joblink_tracker_template.xlsx" `
-    (Join-Path $Bundle "Blank JobLink Tracker.xlsx") -Force
+$Bundle = Join-Path $ProjectRoot "dist\Linc"
+Copy-Item "templates\linc_tracker_template.xlsx" `
+    (Join-Path $Bundle "Blank Linc Tracker.xlsx") -Force
 
-$Archive = Join-Path $ProjectRoot "dist\JobLink-Tracker-Windows.zip"
+$Archive = Join-Path $ProjectRoot "dist\Linc-v0.1.0-Windows.zip"
 if (Test-Path $Archive) {
     Remove-Item $Archive -Force
 }

@@ -34,7 +34,7 @@ if not test_urls:
     sys.exit(1)
 
 print("=" * 80)
-print("JobLink scraper check")
+print("Linc scraper check")
 print("=" * 80)
 
 for i, url in enumerate(test_urls, 1):

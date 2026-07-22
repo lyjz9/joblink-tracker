@@ -1,4 +1,4 @@
-"""Parse full-page payloads sent by the local JobLink Capture extension."""
+"""Parse full-page payloads sent by the local Linc Capture extension."""
 
 import json
 import re

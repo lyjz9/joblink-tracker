@@ -49,7 +49,7 @@ def create_job_blueprint(
         try:
             snapshot = manager.submit(urls, date_applied)
         except JobQueueFull:
-            return jsonify({"error": "JobLink is busy with another batch. Wait for it to finish, then try again."}), 503
+            return jsonify({"error": "Linc is busy with another batch. Wait for it to finish, then try again."}), 503
 
         snapshot["poll_url"] = url_for("scrape_jobs.job_status", job_id=snapshot["job_id"])
         response = jsonify(snapshot)

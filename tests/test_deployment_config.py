@@ -54,7 +54,9 @@ def test_desktop_workflow_builds_a_portable_windows_artifact():
     assert 'python-version: "3.12"' in workflow
     assert 'PLAYWRIGHT_BROWSERS_PATH = "0"' in workflow
     assert "playwright install chromium --only-shell" in workflow
-    assert "packaging\\joblink_tracker.spec" in workflow
+    assert "packaging\\linc.spec" in workflow
+    assert "Linc-v0.1.0-Windows.zip" in workflow
+    assert "dist\\Linc\\Blank Linc Tracker.xlsx" in workflow
     assert "actions/upload-artifact@v7" in workflow
 
 

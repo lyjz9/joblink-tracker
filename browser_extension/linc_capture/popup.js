@@ -24,7 +24,7 @@ async function currentTab() {
   }
 
   const current = tab && tab.url ? ` Current tab is ${tab.url}.` : '';
-  throw new Error(`Open the actual job posting, then try JobLink Capture again.${current}`);
+  throw new Error(`Open the actual job posting, then try Linc Capture again.${current}`);
 }
 
 async function readFullJobPage() {
@@ -243,7 +243,7 @@ async function capturePage() {
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(payload.error || 'JobLink could not receive this page.');
+      throw new Error(payload.error || 'Linc could not receive this page.');
     }
 
     const job = payload.job || {};
@@ -251,9 +251,9 @@ async function capturePage() {
     const warning = Number(debug.text_length || 0) < 50
       ? ' Very little page text was visible, so review the result.'
       : '';
-    setStatus(`Captured ${job.job_title || 'this job page'}.${warning} Go back to JobLink and choose Load browser captures.`, 'success');
+    setStatus(`Captured ${job.job_title || 'this job page'}.${warning} Go back to Linc and choose Load browser captures.`, 'success');
   } catch (error) {
-    setStatus(error.message || 'JobLink could not capture this page.', 'error');
+    setStatus(error.message || 'Linc could not capture this page.', 'error');
   } finally {
     captureButton.disabled = false;
   }

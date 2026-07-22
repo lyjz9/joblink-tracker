@@ -33,7 +33,7 @@ executable = EXE(
     analysis.scripts,
     [],
     exclude_binaries=True,
-    name="JobLink Tracker",
+    name="Linc",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -53,5 +53,5 @@ bundle = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="JobLink Tracker",
+    name="Linc",
 )

@@ -468,6 +468,37 @@ def _icims_iframe_result(url):
     return _public_result(data)
 
 
+def _career_site_html_result(url):
+    parsed = urlparse(url)
+    if '/jobs/careers/' not in parsed.path.lower():
+        return None
+
+    try:
+        response = safe_requests_get(
+            url,
+            timeout=20,
+            headers={
+                'User-Agent': (
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+                ),
+            },
+        )
+        if response.status_code != 200:
+            return None
+    except (requests.RequestException, ValueError):
+        return None
+
+    final_url = getattr(response, 'url', '') or url
+    soup = BeautifulSoup(response.text, 'html.parser')
+    result = _public_result(_extract_from_soup(soup, final_url, url))
+    if result.get('company') in {'', 'n/a', None}:
+        return None
+    if result.get('job_title') in {'', 'n/a', None}:
+        return None
+    return result
+
+
 def _clean_value(value):
     value = _normalize_text(value)
     value = value.replace('\u2013', '-').replace('\u2014', '-')
@@ -1911,6 +1942,9 @@ async def scrape_job_with_browser(url, timeout=60000, launch_args=None):
     icims_result = _icims_iframe_result(url)
     if icims_result:
         return icims_result
+    career_site_result = _career_site_html_result(url)
+    if career_site_result:
+        return career_site_result
     fetch_url = _alternate_fetch_url(url) or url
 
     async with async_playwright() as p:

@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 
 from scraper.browser_scraper_v2 import (
     _blocked_page_error,
+    _career_site_html_result,
     _clean_title,
     _extract_from_soup,
     _extract_work_type,
@@ -363,6 +364,43 @@ def test_greenhouse_api_uses_canonical_company_instead_of_board_slug(monkeypatch
     assert result["job_title"] == "Visual Designer Graduate"
     assert result["location"] == "Gibraltar"
     assert result["work_type"] == "Remote"
+
+
+def test_custom_career_page_can_use_direct_html_without_browser(monkeypatch):
+    url = (
+        "https://careers.achievetestprep.com/jobs/careers/424687000052441476/"
+        "Project-Specialist---Remote?source=CareerSite"
+    )
+    html = """
+        <html><head>
+          <title>ACHIEVE TEST PREP - Project Specialist - Remote in Remote</title>
+          <meta property="og:title" content="ACHIEVE TEST PREP - Project Specialist - Remote in Remote">
+          <meta property="og:site_name" content="ACHIEVE TEST PREP">
+        </head><body>
+          <div data-testid="location">Remote</div>
+          <main>This is a fully remote project specialist position.</main>
+        </body></html>
+    """
+
+    class Response:
+        status_code = 200
+        text = html
+
+        def __init__(self):
+            self.url = url
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    result = _career_site_html_result(url)
+
+    assert result["company"] == "Achieve Test Prep"
+    assert result["job_title"] == "Project Specialist"
+    assert result["location"] == "Remote"
+    assert result["work_type"] == "Remote"
+    assert result["salary"] == "n/a"
 
 
 @pytest.mark.parametrize(

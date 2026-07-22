@@ -5,8 +5,10 @@ from bs4 import BeautifulSoup
 
 from scraper.browser_scraper_v2 import (
     _blocked_page_error,
+    _clean_title,
     _extract_from_soup,
     _extract_work_type,
+    _greenhouse_api_result,
     _normalize_work_type,
     _public_result,
 )
@@ -36,6 +38,32 @@ REGRESSION_CASES = (
             "work_type": "Hybrid",
             "salary": "$70,000 - $85,000 per year",
             "source": "LinkedIn",
+        },
+    },
+    {
+        "name": "achieve_test_prep",
+        "url": "https://careers.achievetestprep.com/jobs/careers/424687000052441476/Project-Specialist---Remote?source=CareerSite",
+        "html": """
+            <html><head>
+              <title>ACHIEVE TEST PREP - Project Specialist - Remote in Remote</title>
+              <meta property="og:title" content="ACHIEVE TEST PREP - Project Specialist - Remote in Remote">
+              <meta property="og:site_name" content="ACHIEVE TEST PREP">
+            </head><body>
+              <div data-testid="location">Remote</div>
+              <main>
+                This is a fully remote project specialist role. The specialist keeps
+                projects organized, follows up on action items, prepares status updates,
+                and works with several teams to keep deadlines and records accurate.
+              </main>
+            </body></html>
+        """,
+        "expected": {
+            "company": "Achieve Test Prep",
+            "job_title": "Project Specialist",
+            "location": "Remote",
+            "work_type": "Remote",
+            "salary": "n/a",
+            "source": "Company Website",
         },
     },
     {
@@ -83,6 +111,31 @@ REGRESSION_CASES = (
             "location": "Oak Ridge, TN",
             "work_type": "Onsite",
             "salary": "$20 - $24 per hour",
+            "source": "Greenhouse",
+        },
+    },
+    {
+        "name": "greenhouse_internal_board_slug",
+        "url": "https://job-boards.greenhouse.io/xapo61/jobs/7800947003",
+        "html": """
+            <html><head>
+              <title>Job Application for Visual Designer Graduate (Remote - Work from Anywhere) at Xapo Bank</title>
+            </head><body>
+              <h1>Visual Designer Graduate (Remote - Work from Anywhere)</h1>
+              <div class="location">Gibraltar - Remote</div>
+              <div id="content">
+                This is a full-time, 100% remote position. The graduate visual designer
+                creates marketing assets, motion pieces, and other polished materials
+                while collaborating with design and product teams around the world.
+              </div>
+            </body></html>
+        """,
+        "expected": {
+            "company": "Xapo Bank",
+            "job_title": "Visual Designer Graduate",
+            "location": "Gibraltar",
+            "work_type": "Remote",
+            "salary": "n/a",
             "source": "Greenhouse",
         },
     },
@@ -280,6 +333,57 @@ def test_saved_job_page_fields_do_not_regress(case):
     assert result["job_link"] == case["url"]
     assert result["work_type"] in {"Remote", "Hybrid", "Onsite", "n/a"}
     assert "description" not in result
+
+
+def test_greenhouse_api_uses_canonical_company_instead_of_board_slug(monkeypatch):
+    payload = {
+        "company_name": "Xapo Bank",
+        "title": "Visual Designer Graduate (Remote - Work from Anywhere)",
+        "location": {"name": "Gibraltar - Remote"},
+        "content": "<p>This is a full-time, 100% remote position.</p>",
+    }
+
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return payload
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    result = _greenhouse_api_result(
+        "https://job-boards.greenhouse.io/xapo61/jobs/7800947003"
+    )
+
+    assert result["company"] == "Xapo Bank"
+    assert result["job_title"] == "Visual Designer Graduate"
+    assert result["location"] == "Gibraltar"
+    assert result["work_type"] == "Remote"
+
+
+@pytest.mark.parametrize(
+    ("title", "company", "expected"),
+    (
+        (
+            "ACHIEVE TEST PREP - Project Specialist - Remote in Remote",
+            "Achieve Test Prep",
+            "Project Specialist",
+        ),
+        (
+            "Visual Designer Graduate (Remote - Work from Anywhere)",
+            "Xapo Bank",
+            "Visual Designer Graduate",
+        ),
+        ("Data Analyst - Hybrid", "", "Data Analyst"),
+        ("Remote Sensing Analyst", "", "Remote Sensing Analyst"),
+    ),
+)
+def test_title_cleanup_removes_only_trailing_work_arrangements(title, company, expected):
+    assert _clean_title(title, company) == expected
 
 
 @pytest.mark.parametrize(

@@ -77,6 +77,7 @@ SOURCE_LABELS = {
 }
 
 COMPANY_HOST_OVERRIDES = {
+    'careers.achievetestprep.com': 'Achieve Test Prep',
     'jobs.citi.com': 'Citi',
     'burberrycareers.com': 'Burberry',
     'careers.twosigma.com': 'Two Sigma',
@@ -547,6 +548,14 @@ def _clean_location(value):
     value = re.sub(r'\bKorea,\s*Republic of\b', 'South Korea', value, flags=re.I)
     value = re.sub(r'\bNYC\b', 'New York, NY', value)
     value = re.sub(r'\s+', ' ', value).strip()
+    arrangement_suffix = re.match(
+        r'^(?P<place>.+?)\s+(?:[-|/]\s*)?'
+        r'(?:Remote|Hybrid|On[-\s]?site|In[-\s]?office|In[-\s]?person)\s*$',
+        value,
+        flags=re.I,
+    )
+    if arrangement_suffix:
+        value = _clean_value(arrangement_suffix.group('place'))
     if re.search(r'^(?:anywhere\s+in\s+)?(?:the\s+)?United States$', value, flags=re.I):
         return 'United States'
 
@@ -577,8 +586,11 @@ def _clean_location(value):
     countries = (
         'South Korea', 'United Kingdom', 'United States', 'Canada', 'Mexico',
         'Australia', 'India', 'Japan', 'Singapore', 'Germany', 'France',
-        'Ireland', 'Poland', 'Spain', 'Italy', 'Brazil', 'Netherlands',
+        'Ireland', 'Poland', 'Spain', 'Italy', 'Brazil', 'Netherlands', 'Gibraltar',
     )
+    country_name = next((country for country in countries if country.lower() == value.lower()), '')
+    if country_name:
+        return country_name
     country_pattern = '|'.join(re.escape(country) for country in countries)
     international = re.search(rf'([^|;\n]+?),\s*({country_pattern})\b', value, flags=re.I)
     if international:
@@ -1224,6 +1236,7 @@ def _alternate_fetch_url(url):
 def _company_from_page_title(title):
     title = _clean_value(title)
     patterns = [
+        r'^Job Application for .+\s+at\s+([^|]+?)(?:\s*\|\s*.*)?$',
         r'\bat\s+([^|]+?)\s*\|\s*Parallel\b',
         r'\bat\s+([^|]+?)\s*\|\s*[^|]+$',
     ]
@@ -1543,7 +1556,24 @@ def _clean_title(title, company=''):
     title = re.sub(r'\s*[-|]\s*(Careers|Jobs|LinkedIn|Indeed).*$','', title, flags=re.I)
     title = re.sub(r'\s+\bclone\b$', '', title, flags=re.I)
     if company:
+        title = re.sub(rf'^{re.escape(company)}\s*[-|:]\s*', '', title, flags=re.I)
         title = re.sub(rf'\s*[-|]\s*{re.escape(company)}.*$', '', title, flags=re.I)
+    title = re.sub(r'\s+in\s+Remote\s*$', '', title, flags=re.I)
+    title = re.sub(
+        r'\s*\(\s*(?:(?:100%|Fully)\s+)?'
+        r'(?:Remote|Hybrid|On[-\s]?site|In[-\s]?office|In[-\s]?person)\b[^)]*\)\s*$',
+        '',
+        title,
+        flags=re.I,
+    )
+    title = re.sub(
+        r'\s*[-|]\s*(?:(?:100%|Fully)\s+)?'
+        r'(?:Remote|Hybrid|On[-\s]?site|In[-\s]?office|In[-\s]?person)'
+        r'(?:\s*[-,:/]\s*[^|()]*)?\s*$',
+        '',
+        title,
+        flags=re.I,
+    )
     for acronym in ('AI', 'ML', 'HR', 'IT', 'QA', 'QC', 'SQL', 'API', 'CRM', 'UX', 'UI'):
         title = re.sub(rf'\b{acronym.title()}\b', acronym, title)
     return title.strip()

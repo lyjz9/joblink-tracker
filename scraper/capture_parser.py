@@ -86,6 +86,14 @@ def _parse_captured_page(payload):
         'source': _source_label(platform),
     }
 
+    raw_candidates = payload.get('candidates') if isinstance(payload.get('candidates'), dict) else {}
+    work_type_tags = raw_candidates.get('workTypeTags', [])
+    if not isinstance(work_type_tags, list):
+        work_type_tags = []
+    for value in work_type_tags[:10]:
+        if _merge_capture_value(result, evidence, 'work_type', value, 'page_tag'):
+            break
+
     for key, value in _capture_structured_fields(soup).items():
         _merge_capture_value(result, evidence, key, value, 'structured')
 
@@ -254,6 +262,13 @@ def _capture_candidate_fields(payload, page_title, lines):
     title_job, title_company = _split_capture_title(page_title)
     _add_capture_candidate(fields, 'job_title', title_job)
     _add_capture_candidate(fields, 'company', title_company)
+
+    work_type_tags = candidates.get('workTypeTags', [])
+    if not isinstance(work_type_tags, list):
+        work_type_tags = []
+    for value in work_type_tags[:10]:
+        _add_capture_candidate(fields, 'work_type', value)
+        focused_text.append(f'Work type: {value}')
 
     for pair in candidates.get('labelPairs', [])[:220]:
         if not isinstance(pair, dict):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -479,6 +480,158 @@ def test_linkedin_posting_can_use_direct_html_without_browser(monkeypatch):
     assert result["location"] == "New York, NY"
     assert result["work_type"] == "Hybrid"
     assert result["source"] == "LinkedIn"
+
+
+def test_linkedin_current_preference_chip_replaces_earlier_na():
+    url = "https://www.linkedin.com/jobs/view/4443000000/"
+    html = """
+        <html><head>
+          <title>Example Company hiring Entry Level Analyst in Jersey City, NJ | LinkedIn</title>
+          <script id="__NEXT_DATA__" type="application/json">
+            {"props": {"pageProps": {"workplaceType": "n/a"}}}
+          </script>
+        </head><body>
+          <h1>Entry Level Analyst</h1>
+          <a data-tracking-control-name="public_jobs_topcard-org-name">Example Company</a>
+          <span class="topcard__flavor--bullet">Jersey City, NJ</span>
+          <div class="job-details-fit-level-preferences-and-skills">
+            <button><span>Hybrid</span></button>
+            <button><span>Contract</span></button>
+          </div>
+          <div class="show-more-less-html__markup">
+            This analyst supports client reporting, controls, and process improvements.
+          </div>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["work_type"] == "Hybrid"
+
+
+def test_job_specific_meta_title_beats_signup_heading():
+    url = (
+        "https://careers.kroll.com/en/job/new-york/"
+        "analyst-mail-services-kroll-settlement-administration/21014448"
+    )
+    html = """
+        <html><head>
+          <title>Analyst, Mail Services, Kroll Settlement Administration</title>
+          <meta name="job-title" content="Analyst, Mail Services, Kroll Settlement Administration">
+          <meta property="og:site_name" content="Kroll">
+        </head><body>
+          <h1 class="newsletter-title">SIGN UP</h1>
+          <div data-testid="location">New York, NY</div>
+          <main>
+            The pay range for this role is $22 to $24 per hour.
+            The analyst will support mail services and settlement administration.
+          </main>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "Kroll"
+    assert result["job_title"] == "Analyst, Mail Services, Kroll Settlement Administration"
+    assert result["location"] == "New York, NY"
+
+
+def test_dayforce_uses_the_job_object_instead_of_navigation_labels():
+    url = "https://jobs.dayforcehcm.com/en-US/lexitas/Lexitas/jobs/2560"
+    next_data = {
+        "props": {
+            "pageProps": {
+                "translations": {"all-departments": "All departments"},
+                "dehydratedState": {
+                    "queries": [
+                        {
+                            "state": {
+                                "data": {
+                                    "jobPostingId": 2560,
+                                    "jobTitle": "Data Entry Specialist",
+                                    "hasVirtualLocation": False,
+                                    "jobPostingContent": {
+                                        "jobDescription": (
+                                            "<p>LOCATION: This is a full-time, on-site position "
+                                            "based at our New York office.</p>"
+                                            "<p>PAY RANGE: $22-$23/hr</p>"
+                                        )
+                                    },
+                                    "postingLocations": [
+                                        {
+                                            "formattedAddress": "1235 Broadway, New York, NY 10001, USA",
+                                            "cityName": "New York",
+                                            "stateCode": "NY",
+                                        }
+                                    ],
+                                }
+                            }
+                        }
+                    ]
+                },
+            }
+        }
+    }
+    html = f"""
+        <html><head><title>Job Details | Dayforce Jobs</title></head><body>
+          <script id="__NEXT_DATA__" type="application/json">{json.dumps(next_data)}</script>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "Lexitas"
+    assert result["job_title"] == "Data Entry Specialist"
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Onsite"
+    assert result["salary"] == "$22-$23/hr"
+
+
+def test_workday_prefers_labeled_primary_location_and_salary():
+    url = (
+        "https://citi.wd5.myworkdayjobs.com/en-US/2/job/"
+        "Junior-Market-Operations-Analyst-Program-Fall-Cohort_26978963"
+    )
+    job_posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Junior Market Operations Analyst Program Fall Cohort",
+        "hiringOrganization": {"@type": "Organization", "name": ""},
+        "jobLocation": {
+            "@type": "Place",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "580 CROSSPOINT PARKWAY GETZVILLE",
+                "addressCountry": "United States of America",
+            },
+        },
+        "description": (
+            "This is a hybrid role. Primary Location: Getzville New York United States "
+            "Primary Location Full Time Salary Range: $55,341.00 - $68,270.00 "
+            "The analyst supports daily market operations and transaction processing."
+        ),
+    }
+    html = f"""
+        <html><head>
+          <meta property="og:title" content="Junior Market Operations Analyst Program Fall Cohort">
+          <script type="application/ld+json">{json.dumps(job_posting)}</script>
+        </head><body></body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "Citi"
+    assert result["location"] == "Getzville, NY"
+    assert result["work_type"] == "Hybrid"
+    assert result["salary"] == "$55,341.00 - $68,270.00"
 
 
 @pytest.mark.parametrize(

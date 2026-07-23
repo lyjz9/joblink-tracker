@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from scraper.browser_scraper_v2 import parse_job_with_browser
+from scraper.result_quality import _quality_issues, _review_notes
 
 
 DISPLAY_FIELDS = [
@@ -43,6 +44,7 @@ for i, url in enumerate(test_urls, 1):
     try:
         result = parse_job_with_browser(url)
         success = True
+        issues = _quality_issues(result)
 
         if result.get('error'):
             print(f"  ERROR: {result['error']}")
@@ -53,10 +55,11 @@ for i, url in enumerate(test_urls, 1):
             if value:
                 print(f"  OK {key}: {value}")
 
-        if success:
+        if success and not issues:
             print("\n  Status: Ready")
         else:
-            print("\n  Status: Review - Some fields are missing")
+            note = _review_notes(issues) if issues else "Some fields are missing."
+            print(f"\n  Status: Review - {note}")
 
     except Exception as exc:
         print(f"  Could not scrape: {exc}")

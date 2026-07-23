@@ -49,6 +49,25 @@ def test_missing_company_and_title_are_not_reported_as_matching_text():
     assert "generic_job_title" not in issues
 
 
+def test_linkedin_missing_work_type_is_sent_for_review():
+    result = {
+        "company": "Example Company",
+        "job_title": "Operations Analyst",
+        "job_link": LINKEDIN_URL,
+        "location": "New York, NY",
+        "work_type": "n/a",
+        "salary": "n/a",
+        "source": "LinkedIn",
+    }
+
+    issues = _quality_issues(result)
+    _annotate_result(result, LINKEDIN_URL, issues)
+
+    assert "linkedin_work_type_hidden" in issues
+    assert result["confidence"] == "Medium"
+    assert result["review_details"][0]["action"]
+
+
 def test_scrape_discards_fields_from_redirected_search_page(monkeypatch, tmp_path):
     monkeypatch.setattr(
         app_module,

@@ -14,7 +14,7 @@ RELIABILITY = {
     'breezy': ('Good', 'Breezy usually makes the job details easy to read.'),
     'smartrecruiters': ('Good', 'SmartRecruiters usually provides clean job data.'),
     'company_website': ('Good', 'The company career page is usually the best source.'),
-    'linkedin': ('Okay', 'LinkedIn often has the basics, but salary may be missing.'),
+    'linkedin': ('Okay', 'LinkedIn may hide work type and salary from its public page. A signed-in browser capture can read visible tags.'),
     'indeed': ('Okay', 'Indeed often works, but locations can pick up extra words.'),
     'glassdoor': ('Okay', 'Glassdoor often works, but some pages block Linc.'),
     'ziprecruiter': ('Okay', 'ZipRecruiter can work, but reposts may include extra page text.'),
@@ -75,6 +75,10 @@ def _quality_issues(result):
         issues.append('location_looks_like_page_text')
     if work_type.lower() == 'mix':
         issues.append('invalid_work_type')
+    source = str(result.get('source', '')).strip().lower()
+    job_link = str(result.get('job_link', '')).strip().lower()
+    if _missing(work_type) and (source == 'linkedin' or 'linkedin.com/' in job_link):
+        issues.append('linkedin_work_type_hidden')
     if result.get('confidence') == 'Low':
         issues.append('low_confidence')
     if result.get('error'):
@@ -94,6 +98,7 @@ def _review_notes(issues):
         'company_looks_like_page_text': 'Company may be copied from page text.',
         'location_looks_like_page_text': 'Location may include extra page text.',
         'invalid_work_type': 'Work type should be Remote, Hybrid, Onsite, or n/a.',
+        'linkedin_work_type_hidden': 'LinkedIn hid the work type from its public page.',
         'scrape_error': 'Linc could not read this page.',
         'captured_page_review': 'The browser capture may include extra site text.',
         'capture_low_confidence': 'The capture did not have clear labels for these fields.',
@@ -116,6 +121,7 @@ def _review_details(issues):
         'company_looks_like_page_text': ('Company has extra text', 'Company', 'Keep only the employer name.'),
         'location_looks_like_page_text': ('Location has extra text', 'Location', 'Keep only the city/state/country.'),
         'invalid_work_type': ('Work type invalid', 'Work Type', 'Use Remote, Hybrid, Onsite, or n/a.'),
+        'linkedin_work_type_hidden': ('Work type hidden', 'Work Type', 'Open the signed-in LinkedIn posting and use Linc Capture to read the visible tag.'),
         'scrape_error': ('Page could not be read', 'Link', 'Retry, use browser capture, or fix the fields yourself and choose the checkmark.'),
         'captured_page_review': ('Check this browser capture', 'Captured row', 'Remove any menu, button, or footer text that slipped into the fields.'),
         'capture_low_confidence': ('Capture needs a closer look', 'Captured row', 'Choose one of the suggestions or type the correct value.'),
@@ -167,6 +173,7 @@ def _confidence_for(result, issues):
         'location_looks_like_page_text': 14,
         'location_looks_like_work_type': 14,
         'invalid_work_type': 10,
+        'linkedin_work_type_hidden': 8,
         'captured_page_review': 8,
         'capture_low_confidence': 15,
         'scrape_error': 28,

@@ -89,6 +89,7 @@ COMPANY_HOST_OVERRIDES = {
 
 LINKEDIN_JOB_OVERRIDES = {
     '4418909784': {'work_type': 'Hybrid'},
+    '4443868424': {'work_type': 'Hybrid'},
 }
 
 FIELD_SELECTORS = {
@@ -733,7 +734,7 @@ def _looks_generic_title(value):
     blocked = {
         'access denied', 'humans only', 'www.ziprecruiter.com', 'jooble.org',
         'digitalhire', 'tal healthcare', "let's confirm you are human",
-        'just a moment...', 'job details', 'search jobs', 'jobs',
+        'just a moment...', 'job details', 'search jobs', 'jobs', 'sign up',
     }
     if low in blocked:
         return True
@@ -747,7 +748,7 @@ def _looks_generic_company(value):
     return low in {
         '', 'n/a', 'none', 'job', 'jobs', 'app', 'embed', 'careers',
         'monster', 'wellfound', 'jooble', 'naukri', 'talents', 'useparallel',
-        'ziprecruiter',
+        'ziprecruiter', 'all departments',
     }
 
 
@@ -758,12 +759,12 @@ def _reasonable(field, value):
     if field in ('job_title', 'company', 'location') and len(value) > 140:
         return False
     if field == 'job_title':
-        blocked = ['sign in', 'apply now', 'search jobs', 'job details', 'careers', 'privacy', 'current openings']
+        blocked = ['sign in', 'sign up', 'apply now', 'search jobs', 'job details', 'careers', 'privacy', 'current openings']
         low = value.lower()
         return not _looks_generic_title(value) and not any(term in low for term in blocked) and low != 'jobs' and not low.endswith(' jobs')
     if field == 'company':
         low = value.lower()
-        blocked_exact = {'careers', 'jobs', 'job search', 'apply', 'privacy', 'cookies'}
+        blocked_exact = {'careers', 'jobs', 'job search', 'apply', 'privacy', 'cookies', 'all departments'}
         blocked_phrases = {
             'select how often', 'benefit programs', 'company reserves',
             'this position', 'base salary',
@@ -831,13 +832,99 @@ def _find_json_candidates(soup):
         flat = _flatten_dict_strings(next_data)
         candidates.append({
             'job_title': _pick_flat(flat, ['title', 'jobtitle', 'job_title', 'name']),
-            'company': _pick_flat(flat, ['company', 'companyname', 'organization', 'department']),
+            'company': _pick_flat(flat, ['company', 'companyname', 'organization']),
             'location': _pick_flat(flat, ['location', 'joblocation', 'city']),
             'work_type': _pick_flat(flat, ['workplacetype', 'joblocationtype', 'formattedlocationtype', 'workarrangement']),
             'salary': _pick_flat(flat, ['salary', 'compensation', 'pay']),
             'description': _pick_flat(flat, ['description', 'jobdescription']),
         })
     return candidates
+
+
+def _walk_dicts(value):
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from _walk_dicts(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _walk_dicts(child)
+
+
+def _dayforce_company_from_url(url):
+    parsed = urlparse(url)
+    if 'dayforcehcm.com' not in parsed.netloc.lower():
+        return ''
+    parts = [unquote(part) for part in parsed.path.split('/') if part]
+    if parts and re.fullmatch(r'[a-z]{2}-[A-Z]{2}', parts[0]):
+        parts = parts[1:]
+    if not parts:
+        return ''
+    candidate = parts[0]
+    if candidate.lower() in {'default', 'external', 'jobs', 'job'}:
+        candidate = parts[1] if len(parts) > 1 else ''
+    return _slug_to_name(candidate)
+
+
+def _extract_dayforce_fields(soup, url):
+    if 'dayforcehcm.com' not in urlparse(url).netloc.lower():
+        return {}
+
+    next_data = _parse_next_data(soup)
+    if not next_data:
+        return {}
+
+    match = re.search(r'/jobs/(\d+)', urlparse(url).path, flags=re.I)
+    job_id = match.group(1) if match else ''
+    selected = None
+    fallback = None
+    for candidate in _walk_dicts(next_data):
+        if not candidate.get('jobTitle') or not isinstance(candidate.get('jobPostingContent'), dict):
+            continue
+        fallback = fallback or candidate
+        if job_id and str(candidate.get('jobPostingId') or '') == job_id:
+            selected = candidate
+            break
+    job = selected or fallback
+    if not job:
+        return {}
+
+    content = job.get('jobPostingContent') or {}
+    description_html = content.get('jobDescription') or ''
+    description = _normalize_text(
+        BeautifulSoup(str(description_html), 'html.parser').get_text(' ', strip=True)
+    )
+    fields = {
+        'company': _dayforce_company_from_url(url),
+        'job_title': _clean_title(str(job.get('jobTitle') or '')),
+        'description': description,
+    }
+
+    locations = job.get('postingLocations') or []
+    if isinstance(locations, list):
+        for location in locations:
+            if not isinstance(location, dict):
+                continue
+            city = _clean_value(str(location.get('cityName') or ''))
+            state = _state_abbrev(str(location.get('stateCode') or ''))
+            if city and state:
+                fields['location'] = f'{city}, {state}'
+                break
+            formatted = _clean_location(str(location.get('formattedAddress') or ''))
+            if formatted:
+                fields['location'] = formatted
+                break
+
+    work_type = _extract_work_type(description)
+    if work_type:
+        fields['work_type'] = work_type
+    elif job.get('hasVirtualLocation') and not locations:
+        fields['work_type'] = 'Remote'
+
+    salary = _extract_contextual_salary(description) or _extract_salary(description)
+    if salary:
+        fields['salary'] = salary
+    return {key: value for key, value in fields.items() if value}
 
 
 def _pick_flat(flat, keys):
@@ -1266,6 +1353,8 @@ def _extract_url_hints(url, platform=''):
                 hints['company'] = _slug_to_name(company_match.group(1))
                 title = _title_from_slug(slug[:company_match.start()])
             hints['job_title'] = title
+    elif 'dayforcehcm.com' in host:
+        hints['company'] = _dayforce_company_from_url(url)
     elif 'useparallel.com' in host:
         hints['company'] = ''
     elif 'talents.vaia.com' in host and 'companies' in parts:
@@ -1439,9 +1528,36 @@ def _visible_workday_location(soup):
     return ''
 
 
+def _workday_primary_location(text):
+    match = re.search(
+        r'\bPrimary Location\s*:\s*(.+?)'
+        r'(?=\s+(?:Primary Location Full Time Salary Range|Full Time Salary Range|Salary Range|'
+        r'Job Family Group|Job Family|Time Type)\s*:)',
+        text or '',
+        flags=re.I,
+    )
+    if not match:
+        return ''
+    raw = re.sub(r'[-\s]+$', '', _normalize_text(match.group(1))).strip()
+    for state_name, state in sorted(US_STATE_NAME_TO_ABBR.items(), key=lambda item: len(item[0]), reverse=True):
+        location = re.fullmatch(
+            rf"(?P<city>[A-Za-z][A-Za-z.' -]{{1,80}}?)\s+{re.escape(state_name)}\s+"
+            r'(?:United States(?: of America)?|USA|US)',
+            raw,
+            flags=re.I,
+        )
+        if location:
+            city = _normalize_text(location.group('city'))
+            if city.isupper() or city.islower():
+                city = city.title()
+            return f'{city}, {state}'
+    return _clean_location(raw)
+
+
 def _location_looks_internal(value):
     text = _clean_value(value)
     return bool(re.search(r'\b[A-Z]{2,}\d*\s*[-_][A-Za-z]', text)) or text.lower().startswith('locations ')
+
 
 def _extract_work_type(text):
     low = (text or '').lower().replace('_', '-')
@@ -1485,6 +1601,21 @@ def _extract_labeled_work_type(text):
 
 def _extract_linkedin_work_type(soup, location=''):
     description = _linkedin_description_text(soup)
+    preference_selectors = (
+        '[class*="job-details-fit-level-preferences" i]',
+        '[class*="job-details-preferences" i]',
+        '[data-view-name*="job-details-preferences" i]',
+    )
+    for elem in soup.select(', '.join(preference_selectors)):
+        preference_text = _normalize_text(' '.join([
+            elem.get_text(' ', strip=True),
+            str(elem.get('aria-label') or ''),
+            str(elem.get('title') or ''),
+        ]))
+        work_type = _extract_work_type(preference_text)
+        if work_type:
+            return work_type
+
     metadata_selectors = (
         '.top-card-layout__second-subline',
         '.topcard__flavor-row',
@@ -1661,9 +1792,15 @@ def _extract_from_soup(soup, url, original_url=None):
     platform = _detect_platform(original_url, soup)
     data = _empty_result(original_url, platform)
     url_hints = _extract_url_hints(original_url, platform)
+    host = urlparse(original_url).netloc.lower().replace('www.', '')
 
     for candidate in _find_json_candidates(soup):
         _merge(data, candidate)
+
+    if 'dayforcehcm.com' in host:
+        for key, value in _extract_dayforce_fields(soup, original_url).items():
+            if key in data and value:
+                data[key] = value
 
     for tag in soup(['script', 'style', 'noscript', 'svg']):
         tag.decompose()
@@ -1684,10 +1821,14 @@ def _extract_from_soup(soup, url, original_url=None):
     if not data['description']:
         data['description'] = _best_description(soup)
 
-    meta_title = _get_meta_content(soup, 'property', ['og:title', 'twitter:title']) or _get_meta_content(soup, 'name', ['title'])
+    meta_title = (
+        _get_meta_content(soup, 'name', ['job-title', 'pagetitle'])
+        or _get_meta_content(soup, 'property', ['og:title', 'twitter:title'])
+        or _get_meta_content(soup, 'name', ['title'])
+    )
     meta_site = _get_meta_content(soup, 'property', ['og:site_name'])
     meta_description = _get_meta_content(soup, 'property', ['og:description', 'twitter:description'])
-    if not data['job_title'] and meta_title:
+    if meta_title and (not data['job_title'] or _looks_generic_title(data['job_title'])):
         data['job_title'] = meta_title
     title_tag_text = soup.title.get_text(' ', strip=True) if soup.title else ''
     page_title_company = _company_from_page_title(title_tag_text or meta_title or '')
@@ -1711,7 +1852,6 @@ def _extract_from_soup(soup, url, original_url=None):
         for key in ('company', 'job_title', 'location', 'work_type', 'salary'):
             if zip_fields.get(key):
                 data[key] = zip_fields[key]
-    host = urlparse(original_url).netloc.lower().replace('www.', '')
     if 'simplyhired.com' in host and not blocked_error:
         simplyhired_fields = _extract_simplyhired_fields(soup, full_text, title_tag_text or meta_title or '')
         locked_site_work_type_na = simplyhired_fields.get('work_type') == 'n/a'
@@ -1724,14 +1864,21 @@ def _extract_from_soup(soup, url, original_url=None):
             if breezy_fields.get(key):
                 data[key] = breezy_fields[key]
     if not data['salary']:
-        data['salary'] = _extract_salary(full_text)
+        salary_text = ' '.join([data.get('description', ''), meta_description or '', full_text])
+        data['salary'] = _extract_contextual_salary(salary_text) or _extract_salary(full_text)
     url_location = _extract_location_from_url(original_url)
     taleo_location = _extract_taleo_location(full_text) if 'taleo.net' in urlparse(original_url).netloc.lower() else ''
     amazon_location = _extract_amazon_locations(full_text) if 'amazon.jobs' in urlparse(original_url).netloc.lower() else ''
     if platform == 'workday':
-        visible_location = _visible_workday_location(soup)
-        if visible_location and (not data['location'] or _location_looks_internal(data['location'])):
-            data['location'] = visible_location
+        primary_location = _workday_primary_location(
+            ' '.join([data.get('description', ''), meta_description or '', full_text])
+        )
+        if primary_location:
+            data['location'] = primary_location
+        else:
+            visible_location = _visible_workday_location(soup)
+            if visible_location and (not data['location'] or _location_looks_internal(data['location'])):
+                data['location'] = visible_location
     if taleo_location:
         data['location'] = taleo_location
     elif amazon_location:
@@ -1750,7 +1897,7 @@ def _extract_from_soup(soup, url, original_url=None):
         work_type_source = ' '.join([data.get('location', ''), data.get('description', ''), full_text])
         page_work_type = _extract_work_type(work_type_source)
     locked_na_work_type = _clean_value(data.get('work_type', '')).lower() in {'n/a', 'na'}
-    if page_work_type and not locked_na_work_type and not _normalize_work_type(data.get('work_type', '')):
+    if page_work_type and (platform == 'linkedin' or not locked_na_work_type) and not _normalize_work_type(data.get('work_type', '')):
         data['work_type'] = page_work_type
     if locked_site_work_type_na:
         data['work_type'] = ''

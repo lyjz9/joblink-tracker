@@ -112,6 +112,31 @@ async function readFullJobPage() {
       30,
     );
 
+    const workTypePattern = /^(remote|hybrid|on[-\s]?site|in[-\s]?office|in[-\s]?person)$/i;
+    const workTypeTags = uniqueShort(
+      Array.from(document.querySelectorAll([
+        'main button',
+        'main [role="button"]',
+        'main [class*="job-details-fit-level-preferences" i]',
+        'main [class*="job-details-preferences" i]',
+        'main [class*="workplace" i]',
+        'main [data-testid*="workplace" i]',
+        'main span',
+      ].join(',')))
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          const topLimit = Math.max(window.innerHeight * 1.4, 1100);
+          if (rect.bottom < 0 || rect.top > topLimit) return '';
+          const values = [
+            visibleText(element),
+            cleanText(element.getAttribute('aria-label') || ''),
+            cleanText(element.getAttribute('title') || ''),
+          ];
+          return values.find((value) => workTypePattern.test(value)) || '';
+        }),
+      10,
+    );
+
     const fieldLabels = /(company|client|employer|organization|location|job location|workplace|work type|job type|salary|compensation|pay range|base pay|budget|hourly|fixed-price|fixed price|rate|remote job)/i;
     const labelPairs = [];
     const possibleLabels = Array.from(document.querySelectorAll('dt, th, strong, b, span, div, li'))
@@ -160,6 +185,7 @@ async function readFullJobPage() {
 
     return {
       headings,
+      workTypeTags,
       labelPairs,
       headerBlocks,
       keywordLines: uniqueShort(keywordLines, 80),
@@ -177,6 +203,8 @@ async function readFullJobPage() {
     .slice(0, 12)
     .map((text) => text.slice(0, 100000));
 
+  window.scrollTo(0, 0);
+  await sleep(150);
   clickExpanders();
   await sleep(300);
   addSnapshot('top');
@@ -202,6 +230,9 @@ async function readFullJobPage() {
     }
   }
 
+  window.scrollTo(0, 0);
+  await sleep(100);
+  const candidates = readFieldCandidates();
   window.scrollTo(originalX, originalY);
   await sleep(50);
 
@@ -210,7 +241,7 @@ async function readFullJobPage() {
     title: document.title,
     text: snapshots.map((item) => item.text).join('\n\n').slice(0, 600000),
     snapshots,
-    candidates: readFieldCandidates(),
+    candidates,
     meta: readMeta(),
     jsonld,
     next_data: nextData.slice(0, 400000),

@@ -134,7 +134,7 @@
           <div class="action-group tracker-actions" role="group" aria-label="Tracker options">
             <div class="action-group-heading">
               <strong>Excel tracker</strong>
-              <span class="file-name" id="workbookName">No tracker selected</span>
+              <span class="file-name" id="workbookName" aria-live="polite">No tracker selected</span>
             </div>
             <div class="tracker-buttons">
               <button class="button button-secondary" type="button" id="chooseWorkbookButton">
@@ -143,7 +143,7 @@
               </button>
               <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
                 <i data-lucide="file-plus-2" aria-hidden="true"></i>
-                Update tracker
+                <span id="appendWorkbookLabel">Update tracker</span>
               </button>
               <button class="button button-secondary" type="button" id="downloadButton" disabled>
                 <i data-lucide="download" aria-hidden="true"></i>

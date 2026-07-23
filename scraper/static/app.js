@@ -40,6 +40,7 @@ const elements = {
   workbookName: document.querySelector('#workbookName'),
   duplicateMode: document.querySelector('#duplicateMode'),
   appendWorkbook: document.querySelector('#appendWorkbookButton'),
+  appendWorkbookLabel: document.querySelector('#appendWorkbookLabel'),
   retryAll: document.querySelector('#retryAllButton'),
   loadCaptures: document.querySelector('#loadCapturesButton'),
   progress: document.querySelector('#progress'),
@@ -348,6 +349,11 @@ function render() {
   const hasExportableJobs = state.jobs.some((job) => !job.error);
   elements.download.disabled = !hasExportableJobs;
   elements.appendWorkbook.disabled = state.processing || !hasExportableJobs || !state.workbookFile;
+  if (elements.appendWorkbookLabel) {
+    elements.appendWorkbookLabel.textContent = state.workbookFile
+      ? (canOverwriteWorkbook() ? 'Update original' : 'Download updated copy')
+      : 'Update tracker';
+  }
   elements.retryAll.disabled = state.processing || !state.jobs.some((job) => jobStatus(job) !== 'ready');
   elements.appliedDate.disabled = state.processing;
   elements.clearResults.disabled = state.processing || !someSelected;
@@ -687,15 +693,17 @@ async function appendToWorkbook() {
     const skipped = response.headers.get('X-JobLink-Skipped') || '0';
     const updated = response.headers.get('X-JobLink-Updated') || '0';
     const outputName = filenameFromDisposition(response.headers.get('Content-Disposition')) || updatedWorkbookName(workbookFile.name);
-    const savedToSelected = await saveBlobToSelectedWorkbook(blob);
-    if (!savedToSelected) {
+    const saveResult = await saveBlobToSelectedWorkbook(blob);
+    const savedToSelected = saveResult === 'saved';
+    if (saveResult === 'download') {
       downloadBlob(blob, outputName);
       state.workbookHandle = null;
       state.workbookFile = new File([blob], outputName, { type: blob.type || workbookFile.type });
       elements.workbookFile.value = '';
-      elements.workbookName.textContent = `${outputName} is ready`;
+      elements.workbookName.textContent = `${outputName} downloaded - original unchanged`;
     }
-    showToast(`${added} added${Number(updated) ? `, ${updated} updated` : ''}${Number(skipped) ? `, ${skipped} left unchanged` : ''}${savedToSelected ? ' in your tracker' : ''}`);
+    const destination = savedToSelected ? ' in your original tracker' : ' in the downloaded copy';
+    showToast(`${added} added${Number(updated) ? `, ${updated} updated` : ''}${Number(skipped) ? `, ${skipped} left unchanged` : ''}${destination}`);
   } catch (error) {
     showToast(error.message === 'Failed to fetch' ? 'The connection dropped. Choose Update tracker again.' : error.message);
   } finally {
@@ -730,18 +738,21 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(href);
 }
 
+function canOverwriteWorkbook() {
+  return Boolean(state.workbookHandle?.createWritable);
+}
+
 async function saveBlobToSelectedWorkbook(blob) {
-  if (!state.workbookHandle || !state.workbookHandle.createWritable) return false;
+  if (!canOverwriteWorkbook()) return 'download';
   try {
     const writable = await state.workbookHandle.createWritable();
     await writable.write(blob);
     await writable.close();
     state.workbookFile = await state.workbookHandle.getFile();
-    elements.workbookName.textContent = `${state.workbookFile.name} is saved`;
-    return true;
+    elements.workbookName.textContent = `${state.workbookFile.name} updated`;
+    return 'saved';
   } catch (error) {
-    showToast('Close the tracker in Excel, then try again.');
-    return false;
+    throw new Error('Close the tracker in Excel, then choose Update original again.');
   }
 }
 
@@ -760,7 +771,7 @@ async function chooseWorkbook() {
       });
       state.workbookHandle = handle;
       state.workbookFile = await handle.getFile();
-      elements.workbookName.textContent = `${state.workbookFile.name} selected`;
+      elements.workbookName.textContent = `${state.workbookFile.name} selected - original will be updated`;
       render();
       return;
     } catch (error) {
@@ -994,7 +1005,9 @@ elements.workbookFile.addEventListener('change', () => {
   const file = elements.workbookFile.files[0] || null;
   state.workbookFile = file;
   state.workbookHandle = null;
-  elements.workbookName.textContent = file ? file.name : 'No tracker selected';
+  elements.workbookName.textContent = file
+    ? `${file.name} selected - updated copy will download`
+    : 'No tracker selected';
   render();
 });
 elements.clear.addEventListener('click', () => {

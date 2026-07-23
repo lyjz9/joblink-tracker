@@ -498,6 +498,10 @@ def test_linkedin_current_preference_chip_replaces_earlier_na():
             <button><span>Hybrid</span></button>
             <button><span>Contract</span></button>
           </div>
+          <div class="compensation__salary-range">
+            <h3>Base pay range</h3>
+            <span>$20.00/hr - $25.00/hr</span>
+          </div>
           <div class="show-more-less-html__markup">
             This analyst supports client reporting, controls, and process improvements.
           </div>
@@ -509,6 +513,7 @@ def test_linkedin_current_preference_chip_replaces_earlier_na():
     )
 
     assert result["work_type"] == "Hybrid"
+    assert result["salary"] == "Base pay range $20.00/hr - $25.00/hr"
 
 
 def test_job_specific_meta_title_beats_signup_heading():

@@ -179,7 +179,17 @@ LOCATION_RE = re.compile(
     rf'\b(?:Remote|Hybrid|United States|US|USA|[A-Z][A-Za-z.\'-]+(?:\s+[A-Z][A-Za-z.\'-]+){{0,3}},\s*(?:{US_STATE}|United States|USA|Canada|UK|[A-Z][a-z]+))\b'
 )
 SALARY_RE = re.compile(
-    r'(?:Base pay range\s*)?(?:USD\s*)?\$\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)?(?:\s*(?:-|\u2013|\u2014|to|and)\s*(?:USD\s*)?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\+?\s*(?:k|K)?)?(?:\s*(?:per|/|an?)\s*(?:year|yr|hour|hr|annum|week|wk))?|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\s*(?:-|\u2013|\u2014|to|and)\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\b|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:-|\u2013|\u2014|to|and)\s*\d+(?:,\d{3})*(?:\.\d+)?\s*USD\b',
+    r'(?:Base pay range\s*)?(?:USD\s*)?\$\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)?'
+    r'\s*(?:per\s+|/|an?\s+)(?:year|yr|hour|hr|annum|week|wk)'
+    r'\s*(?:-|\u2013|\u2014|to|and)\s*(?:USD\s*)?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\+?\s*(?:k|K)?'
+    r'\s*(?:per\s+|/|an?\s+)(?:year|yr|hour|hr|annum|week|wk)'
+    r'|(?:Base pay range\s*)?(?:USD\s*)?\$\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)?'
+    r'(?:\s*(?:-|\u2013|\u2014|to|and)\s*(?:USD\s*)?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\+?\s*(?:k|K)?)?'
+    r'(?:\s*(?:per|/|an?)\s*(?:year|yr|hour|hr|annum|week|wk))?'
+    r'|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\s*(?:-|\u2013|\u2014|to|and)\s*'
+    r'\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\b'
+    r'|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:-|\u2013|\u2014|to|and)\s*'
+    r'\d+(?:,\d{3})*(?:\.\d+)?\s*USD\b',
     re.IGNORECASE,
 )
 

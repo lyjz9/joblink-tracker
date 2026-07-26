@@ -10,22 +10,14 @@ const state = {
 
 const STORAGE_KEY = 'joblink.beta.session.v1';
 const FILTERS = ['all', 'ready', 'review', 'error', 'manual'];
-const TRACKING_QUERY_PARAMETERS = new Set([
-  'from',
-  'gh_src',
-  'ref',
-  'refid',
-  'source',
-  'src',
-  'trackingid',
-  'trk',
-  'utm_campaign',
-  'utm_content',
-  'utm_id',
-  'utm_medium',
-  'utm_source',
-  'utm_term',
-]);
+const {
+  linkKey,
+  mergePastedLinks,
+  parseLinksFromText,
+} = window.JobLinkInput;
+const linkPasteHistory = [];
+const linkPasteRedo = [];
+let changingLinksProgrammatically = false;
 
 const elements = {
   links: document.querySelector('#jobLinks'),
@@ -121,40 +113,8 @@ function looksSuspicious(job) {
   return workType === 'mix';
 }
 
-function cleanUrlCandidate(value) {
-  return String(value || '')
-    .replace(/&amp;/gi, '&')
-    .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
-    .trim()
-    .replace(/[.,;:!?\)\]\}\\]+$/g, '');
-}
-
 function parsedLinksFromInput() {
-  const seen = new Set();
-  const urls = [];
-  let invalidCount = 0;
-  const input = elements.links.value
-    .replace(/&amp;/gi, '&')
-    .replace(/[\u200b\u200c\u200d\ufeff]/g, '');
-  const matches = input.match(/https?:\/\/(?:(?!https?:\/\/)[^\s<>"'\[\]])+/gi) || [];
-
-  matches.forEach((value) => {
-    const cleaned = cleanUrlCandidate(value);
-    try {
-      const parsed = new URL(cleaned);
-      if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname || cleaned.includes('\\')) {
-        invalidCount += 1;
-        return;
-      }
-      const key = linkKey(cleaned);
-      if (!key || seen.has(key)) return;
-      seen.add(key);
-      urls.push(cleaned);
-    } catch (error) {
-      invalidCount += 1;
-    }
-  });
-  return { urls, invalidCount };
+  return parseLinksFromText(elements.links.value);
 }
 
 function urlsFromInput() {
@@ -175,6 +135,83 @@ function validateInput() {
   elements.extract.disabled = state.processing || !urls.length || urls.length > 20 || invalidCount > 0;
   elements.clear.disabled = state.processing || !elements.links.value;
   return urls;
+}
+
+function replaceLinksInput(value) {
+  const nextValue = String(value || '');
+  elements.links.focus();
+  changingLinksProgrammatically = true;
+  try {
+    if (typeof elements.links.setRangeText === 'function') {
+      elements.links.setRangeText(nextValue, 0, elements.links.value.length, 'end');
+    } else {
+      elements.links.value = nextValue;
+    }
+  } finally {
+    changingLinksProgrammatically = false;
+  }
+  const end = elements.links.value.length;
+  elements.links.setSelectionRange(end, end);
+}
+
+function rememberLinksPaste(before, after) {
+  if (before === after) return;
+  linkPasteHistory.push({ before, after });
+  if (linkPasteHistory.length > 50) linkPasteHistory.shift();
+  linkPasteRedo.length = 0;
+}
+
+function handleLinksHistoryShortcut(event) {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+  const key = String(event.key || '').toLowerCase();
+  const undo = key === 'z' && !event.shiftKey;
+  const redo = key === 'y' || (key === 'z' && event.shiftKey);
+  if (!undo && !redo) return;
+
+  if (undo) {
+    const entry = linkPasteHistory[linkPasteHistory.length - 1];
+    if (!entry || elements.links.value !== entry.after) return;
+    event.preventDefault();
+    linkPasteHistory.pop();
+    linkPasteRedo.push(entry);
+    replaceLinksInput(entry.before);
+  } else {
+    const entry = linkPasteRedo[linkPasteRedo.length - 1];
+    if (!entry || elements.links.value !== entry.before) return;
+    event.preventDefault();
+    linkPasteRedo.pop();
+    linkPasteHistory.push(entry);
+    replaceLinksInput(entry.after);
+  }
+  validateInput();
+  saveSession();
+}
+
+function handleLinksPaste(event) {
+  const clipboardText = event.clipboardData?.getData('text/plain') || '';
+  const merged = mergePastedLinks(elements.links.value, clipboardText);
+  if (!merged.handled) return;
+
+  event.preventDefault();
+  if (merged.addedCount) {
+    const before = elements.links.value;
+    replaceLinksInput(merged.text);
+    rememberLinksPaste(before, elements.links.value);
+  } else {
+    elements.links.focus();
+    const end = elements.links.value.length;
+    elements.links.setSelectionRange(end, end);
+  }
+  validateInput();
+  saveSession();
+
+  if (merged.invalidCount) {
+    showToast(`${merged.invalidCount} malformed ${merged.invalidCount === 1 ? 'link was' : 'links were'} not added`);
+  } else if (!merged.addedCount && merged.duplicateCount) {
+    showToast(merged.duplicateCount === 1 ? 'That job link is already listed' : 'Those job links are already listed');
+  } else if (merged.duplicateCount) {
+    showToast(`${merged.duplicateCount} duplicate ${merged.duplicateCount === 1 ? 'link was' : 'links were'} not added`);
+  }
 }
 
 function jobStatus(job) {
@@ -203,41 +240,6 @@ function visibleJobs() {
   return state.jobs
     .map((job, index) => ({ job, index }))
     .filter(({ job }) => matchesFilter(job));
-}
-
-function linkKey(value) {
-  const text = cleanUrlCandidate(value);
-  if (!text) return '';
-  try {
-    const parsed = new URL(text);
-    const host = parsed.hostname.toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
-    const path = parsed.pathname.replace(/\/+$/, '') || '/';
-    if (host === 'linkedin.com' || host.endsWith('.linkedin.com')) {
-      const jobId = path.match(/\/jobs\/view\/(?:.*-)?(\d{7,})(?:\/|$)/i);
-      if (jobId) return `linkedin.com/jobs/view/${jobId[1]}`;
-    }
-
-    const queryPairs = [];
-    parsed.searchParams.forEach((item, key) => {
-      const normalizedKey = key.toLowerCase();
-      if (TRACKING_QUERY_PARAMETERS.has(normalizedKey) || normalizedKey.startsWith('utm_')) return;
-      queryPairs.push([key, item]);
-    });
-    queryPairs.sort((left, right) => {
-      const keyOrder = left[0].toLowerCase().localeCompare(right[0].toLowerCase());
-      return keyOrder || left[1].localeCompare(right[1]);
-    });
-
-    if ((host === 'indeed.com' || host.endsWith('.indeed.com')) && path.toLowerCase() === '/viewjob') {
-      const jobKey = queryPairs.find(([key, item]) => key.toLowerCase() === 'jk' && item);
-      if (jobKey) return `indeed.com/viewjob?jk=${jobKey[1].toLowerCase()}`;
-    }
-
-    const query = new URLSearchParams(queryPairs).toString();
-    return `${host}${parsed.port ? `:${parsed.port}` : ''}${path}${query ? `?${query}` : ''}`;
-  } catch (error) {
-    return text.replace(/\/+$/, '').toLowerCase();
-  }
 }
 
 function findJobIndexByLink(url) {
@@ -1075,10 +1077,18 @@ function addManualJob(event) {
   showToast('Job added');
 }
 
-elements.links.addEventListener('input', () => {
+elements.links.addEventListener('input', (event) => {
+  if (
+    !changingLinksProgrammatically
+    && !['historyUndo', 'historyRedo'].includes(event.inputType)
+  ) {
+    linkPasteRedo.length = 0;
+  }
   validateInput();
   saveSession();
 });
+elements.links.addEventListener('paste', handleLinksPaste);
+elements.links.addEventListener('keydown', handleLinksHistoryShortcut);
 elements.extract.addEventListener('click', processLinks);
 if (elements.cancelJob) elements.cancelJob.addEventListener('click', cancelActiveJob);
 elements.download.addEventListener('click', downloadExcel);
@@ -1129,6 +1139,8 @@ elements.workbookFile.addEventListener('change', () => {
 });
 elements.clear.addEventListener('click', () => {
   elements.links.value = '';
+  linkPasteHistory.length = 0;
+  linkPasteRedo.length = 0;
   render();
 });
 elements.appliedDate.addEventListener('change', () => {

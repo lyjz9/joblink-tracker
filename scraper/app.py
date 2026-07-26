@@ -167,8 +167,8 @@ def _scrape_url(
     issue_log=None,
     store_full_urls=False,
 ):
-    if _is_monster_search_url(url):
-        return _monster_guidance_result(url)
+    if _is_job_search_url(url):
+        return _search_page_guidance_result(url)
 
     result = {}
     terminal_error = False
@@ -232,7 +232,28 @@ def _is_monster_search_url(url):
     return 'monster.com' in host and parsed.path.rstrip('/').lower() in {'/jobs/search', '/jobs'}
 
 
-def _monster_guidance_result(url):
+def _is_job_search_url(url):
+    parsed = urlparse(url or '')
+    host = (parsed.hostname or '').lower().removeprefix('www.')
+    path = parsed.path.rstrip('/').lower()
+    if _is_monster_search_url(url):
+        return True
+    if host == 'linkedin.com' or host.endswith('.linkedin.com'):
+        return path in {'/jobs', '/jobs/collections'} or path.startswith('/jobs/search')
+    if host == 'indeed.com' or host.endswith('.indeed.com'):
+        return path == '/jobs' or (path.startswith('/q-') and path.endswith('-jobs.html'))
+    if host == 'glassdoor.com' or host.endswith('.glassdoor.com'):
+        return path.startswith('/job/') and ('-jobs-' in path or 'srch_' in path)
+    if host == 'ziprecruiter.com' or host.endswith('.ziprecruiter.com'):
+        return path in {'/jobs-search', '/jobs/search'}
+    if host == 'simplyhired.com' or host.endswith('.simplyhired.com'):
+        return path in {'/search', '/job-search'}
+    return False
+
+
+def _search_page_guidance_result(url):
+    platform = _detect_platform(url)
+    is_monster = _is_monster_search_url(url)
     result = {
         'date_applied': datetime.now().strftime('%m/%d/%Y'),
         'company': 'n/a',
@@ -243,10 +264,18 @@ def _monster_guidance_result(url):
         'work_type': 'n/a',
         'salary': 'n/a',
         'follow_up': '',
-        'source': 'Monster',
-        'error': "A Monster search page contains many jobs. Open the employer's own posting and use that link instead.",
-        'review_issues': ['monster_search_page'],
-        'review_notes': "Linc cannot turn a page full of Monster results into one accurate row. Use the employer's own job page instead.",
+        'source': _source_label(platform),
+        'error': (
+            "A Monster search page contains many jobs. Open the employer's own posting and use that link instead."
+            if is_monster
+            else 'This link opens a list of jobs. Open one specific posting and paste that link instead.'
+        ),
+        'review_issues': ['monster_search_page' if is_monster else 'job_search_page'],
+        'review_notes': (
+            "Linc cannot turn a page full of Monster results into one accurate row. Use the employer's own job page instead."
+            if is_monster
+            else 'Linc needs one individual job posting per link.'
+        ),
     }
     _annotate_result(result, url, result['review_issues'])
     return result
@@ -392,6 +421,8 @@ def _friendly_error(error, url=''):
     low = str(error or '').lower()
     if 'monster.com' in urlparse(url or '').netloc.lower():
         return "Monster blocks reliable access. Open the employer's own job page from Monster and use that link instead."
+    if any(marker in low for marker in ('job search page', 'list of jobs', 'job list link')):
+        return 'This link opens a list of jobs. Open one specific posting and paste that link instead.'
     if 'browser runtime unavailable' in low:
         return 'Linc could not start its browser. Restart Linc and try again. If it continues, reinstall the app.'
     if any(marker in low for marker in ('http 404', 'http 410', 'unavailable', 'general careers page', 'job search page')):

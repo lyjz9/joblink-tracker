@@ -86,6 +86,22 @@ def test_create_job_deduplicates_equivalent_links(job_api):
     assert response.get_json()["total"] == 1
 
 
+def test_create_job_deduplicates_tracking_variants(job_api):
+    client, _manager = job_api
+    response = client.post(
+        "/api/jobs",
+        json={
+            "urls": [
+                "https://example.com/jobs/one?department=data&utm_source=linkedin",
+                "https://www.example.com/jobs/one/?department=data&source=careers",
+            ]
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.get_json()["total"] == 1
+
+
 @pytest.mark.parametrize(
     ("payload", "message"),
     [

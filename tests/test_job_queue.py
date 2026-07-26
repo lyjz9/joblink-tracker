@@ -97,6 +97,46 @@ def test_queued_job_can_be_cancelled_before_scraping():
         manager.shutdown()
 
 
+def test_cancelled_job_waiting_for_shared_capacity_never_starts_scraping():
+    sync_started = threading.Event()
+    release_sync = threading.Event()
+    scraped = []
+
+    def scrape(url):
+        scraped.append(url)
+        if url.endswith("sync"):
+            sync_started.set()
+            release_sync.wait(timeout=2)
+        return {"job_link": url}
+
+    manager = BackgroundJobManager(
+        scrape,
+        max_workers=1,
+        max_pending_jobs=2,
+        sync_wait_seconds=0,
+    )
+    sync_worker = threading.Thread(
+        target=manager.run_sync,
+        args=("https://example.com/jobs/sync",),
+    )
+    try:
+        sync_worker.start()
+        assert sync_started.wait(timeout=1)
+        background = manager.submit(["https://example.com/jobs/background"])
+        _wait_for(manager, background["job_id"], "running")
+
+        manager.cancel(background["job_id"])
+        release_sync.set()
+
+        snapshot = _wait_for(manager, background["job_id"], "cancelled")
+        assert snapshot["items"][0]["status"] == "cancelled"
+        assert scraped == ["https://example.com/jobs/sync"]
+    finally:
+        release_sync.set()
+        sync_worker.join(timeout=2)
+        manager.shutdown()
+
+
 def test_completed_jobs_expire_after_ttl():
     now = [100.0]
     manager = BackgroundJobManager(

@@ -7,7 +7,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request, url_for
 
 from scraper.job_queue import BackgroundJobManager, JobNotFound, JobQueueFull
-from scraper.security import validate_public_url
+from scraper.security import canonical_url_key, validate_public_url
 
 
 def create_job_blueprint(
@@ -37,7 +37,7 @@ def create_job_blueprint(
             url, error = validate_public_url(raw_url)
             if error:
                 return jsonify({"error": f"Link {index}: {error}"}), 400
-            key = url.rstrip("/").casefold()
+            key = canonical_url_key(url)
             if key not in seen:
                 seen.add(key)
                 urls.append(url)

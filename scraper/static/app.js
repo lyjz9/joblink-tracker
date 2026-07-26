@@ -10,6 +10,22 @@ const state = {
 
 const STORAGE_KEY = 'joblink.beta.session.v1';
 const FILTERS = ['all', 'ready', 'review', 'error', 'manual'];
+const TRACKING_QUERY_PARAMETERS = new Set([
+  'from',
+  'gh_src',
+  'ref',
+  'refid',
+  'source',
+  'src',
+  'trackingid',
+  'trk',
+  'utm_campaign',
+  'utm_content',
+  'utm_id',
+  'utm_medium',
+  'utm_source',
+  'utm_term',
+]);
 
 const elements = {
   links: document.querySelector('#jobLinks'),
@@ -105,29 +121,58 @@ function looksSuspicious(job) {
   return workType === 'mix';
 }
 
-function urlsFromInput() {
+function cleanUrlCandidate(value) {
+  return String(value || '')
+    .replace(/&amp;/gi, '&')
+    .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+    .trim()
+    .replace(/[.,;:!?\)\]\}\\]+$/g, '');
+}
+
+function parsedLinksFromInput() {
   const seen = new Set();
-  const matches = elements.links.value.match(/https?:\/\/[^\s<>"']+/gi) || [];
-  return matches
-    .map((value) => value.replace(/[.,;:!\)\]\}]+$/, ''))
-    .filter((value) => {
-      const key = linkKey(value);
-      if (!key || seen.has(key)) return false;
+  const urls = [];
+  let invalidCount = 0;
+  const input = elements.links.value
+    .replace(/&amp;/gi, '&')
+    .replace(/[\u200b\u200c\u200d\ufeff]/g, '');
+  const matches = input.match(/https?:\/\/(?:(?!https?:\/\/)[^\s<>"'\[\]])+/gi) || [];
+
+  matches.forEach((value) => {
+    const cleaned = cleanUrlCandidate(value);
+    try {
+      const parsed = new URL(cleaned);
+      if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname || cleaned.includes('\\')) {
+        invalidCount += 1;
+        return;
+      }
+      const key = linkKey(cleaned);
+      if (!key || seen.has(key)) return;
       seen.add(key);
-      return true;
-    });
+      urls.push(cleaned);
+    } catch (error) {
+      invalidCount += 1;
+    }
+  });
+  return { urls, invalidCount };
+}
+
+function urlsFromInput() {
+  return parsedLinksFromInput().urls;
 }
 
 function validateInput() {
-  const urls = urlsFromInput();
+  const { urls, invalidCount } = parsedLinksFromInput();
   const hasTextWithoutUrl = elements.links.value.trim() && !urls.length;
   elements.counter.textContent = `${urls.length} / 20`;
-  elements.validation.textContent = hasTextWithoutUrl
+  elements.validation.textContent = invalidCount
+    ? `${invalidCount} pasted ${invalidCount === 1 ? 'link looks' : 'links look'} incomplete or malformed.`
+    : hasTextWithoutUrl
     ? 'I could not find a complete web address.'
     : urls.length > 20
       ? 'Process up to 20 links at a time.'
       : '';
-  elements.extract.disabled = state.processing || !urls.length || urls.length > 20;
+  elements.extract.disabled = state.processing || !urls.length || urls.length > 20 || invalidCount > 0;
   elements.clear.disabled = state.processing || !elements.links.value;
   return urls;
 }
@@ -161,7 +206,38 @@ function visibleJobs() {
 }
 
 function linkKey(value) {
-  return String(value || '').trim().replace(/\/+$/, '').toLowerCase();
+  const text = cleanUrlCandidate(value);
+  if (!text) return '';
+  try {
+    const parsed = new URL(text);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+    const path = parsed.pathname.replace(/\/+$/, '') || '/';
+    if (host === 'linkedin.com' || host.endsWith('.linkedin.com')) {
+      const jobId = path.match(/\/jobs\/view\/(?:.*-)?(\d{7,})(?:\/|$)/i);
+      if (jobId) return `linkedin.com/jobs/view/${jobId[1]}`;
+    }
+
+    const queryPairs = [];
+    parsed.searchParams.forEach((item, key) => {
+      const normalizedKey = key.toLowerCase();
+      if (TRACKING_QUERY_PARAMETERS.has(normalizedKey) || normalizedKey.startsWith('utm_')) return;
+      queryPairs.push([key, item]);
+    });
+    queryPairs.sort((left, right) => {
+      const keyOrder = left[0].toLowerCase().localeCompare(right[0].toLowerCase());
+      return keyOrder || left[1].localeCompare(right[1]);
+    });
+
+    if ((host === 'indeed.com' || host.endsWith('.indeed.com')) && path.toLowerCase() === '/viewjob') {
+      const jobKey = queryPairs.find(([key, item]) => key.toLowerCase() === 'jk' && item);
+      if (jobKey) return `indeed.com/viewjob?jk=${jobKey[1].toLowerCase()}`;
+    }
+
+    const query = new URLSearchParams(queryPairs).toString();
+    return `${host}${parsed.port ? `:${parsed.port}` : ''}${path}${query ? `?${query}` : ''}`;
+  } catch (error) {
+    return text.replace(/\/+$/, '').toLowerCase();
+  }
 }
 
 function findJobIndexByLink(url) {
@@ -410,8 +486,27 @@ async function createScrapeJob(urls, dateApplied) {
 async function readScrapeJob(pollUrl) {
   const response = await fetch(pollUrl, { cache: 'no-store' });
   const payload = await response.json().catch(() => ({ error: 'Linc received a response it could not read.' }));
-  if (!response.ok) throw new Error(payload.error || `Linc could not finish that request (${response.status}).`);
+  if (!response.ok) {
+    const error = new Error(payload.error || `Linc could not finish that request (${response.status}).`);
+    error.status = response.status;
+    throw error;
+  }
   return payload;
+}
+
+async function readScrapeJobWithRetry(pollUrl) {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await readScrapeJob(pollUrl);
+    } catch (error) {
+      lastError = error;
+      const retryable = !error.status || error.status >= 500;
+      if (!retryable || attempt === 2) throw error;
+      await wait(500 * (attempt + 1));
+    }
+  }
+  throw lastError;
 }
 
 function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
@@ -485,7 +580,7 @@ async function processLinks() {
         break;
       }
       await wait(600);
-      snapshot = await readScrapeJob(snapshot.poll_url || `/api/jobs/${snapshot.job_id}`);
+      snapshot = await readScrapeJobWithRetry(snapshot.poll_url || `/api/jobs/${snapshot.job_id}`);
     }
     if (finalStatus === 'completed') {
       showToast(`Finished ${appliedItems.size} ${appliedItems.size === 1 ? 'job' : 'jobs'}${skipped ? `; ${skipped} already existed` : ''}`);
@@ -528,11 +623,17 @@ async function retryJob(index) {
   if (!current || !current.job_link || state.processing) return;
   state.processing = true;
   render();
-  const retried = await scrapeOne(current.job_link);
-  state.jobs[index] = retried;
-  state.processing = false;
-  render();
-  showToast(jobStatus(retried) === 'ready' ? 'Job updated' : 'This job still needs a look');
+  try {
+    const retried = await scrapeOne(current.job_link);
+    retried.selected = Boolean(current.selected);
+    state.jobs[index] = retried;
+    showToast(jobStatus(retried) === 'ready' ? 'Job updated' : 'This job still needs a look');
+  } catch (error) {
+    showToast('Linc lost the connection. The existing row was left unchanged.');
+  } finally {
+    state.processing = false;
+    render();
+  }
 }
 
 async function retryAllErrors() {
@@ -541,13 +642,29 @@ async function retryAllErrors() {
   if (!indexes.length) return;
   state.processing = true;
   render();
-  for (const index of indexes) {
-    state.jobs[index] = await scrapeOne(state.jobs[index].job_link);
+  let connectionFailures = 0;
+  try {
+    for (const index of indexes) {
+      const current = state.jobs[index];
+      if (!current.job_link) continue;
+      try {
+        const retried = await scrapeOne(current.job_link);
+        retried.selected = Boolean(current.selected);
+        state.jobs[index] = retried;
+      } catch (error) {
+        connectionFailures += 1;
+      }
+    }
+  } finally {
+    state.processing = false;
+    render();
   }
-  state.processing = false;
-  render();
   const remaining = state.jobs.filter((job) => jobStatus(job) !== 'ready').length;
-  showToast(remaining ? `${remaining} ${remaining === 1 ? 'row still needs' : 'rows still need'} a look` : 'Everything is ready now');
+  if (connectionFailures) {
+    showToast(`${connectionFailures} ${connectionFailures === 1 ? 'row was' : 'rows were'} left unchanged after a connection problem`);
+  } else {
+    showToast(remaining ? `${remaining} ${remaining === 1 ? 'row still needs' : 'rows still need'} a look` : 'Everything is ready now');
+  }
 }
 
 async function reportJob(index) {

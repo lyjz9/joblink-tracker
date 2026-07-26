@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scraper.security import validate_public_url, validate_workbook_upload
+from scraper.security import canonical_url_key, validate_public_url, validate_workbook_upload
 
 
 def test_public_url_accepts_public_dns(monkeypatch):
@@ -22,6 +22,57 @@ def test_public_url_accepts_public_dns(monkeypatch):
 
     assert error is None
     assert url == "https://example.com/jobs/123"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (
+            "[Job](https://example.com/jobs/123?source=LinkedIn)",
+            "https://example.com/jobs/123?source=LinkedIn",
+        ),
+        (
+            "https://example.com/jobs/123?one=1&amp;two=2",
+            "https://example.com/jobs/123?one=1&two=2",
+        ),
+        (
+            "https://example.com/jobs/123\\",
+            "https://example.com/jobs/123",
+        ),
+        (
+            "\u200bhttps://example.com/jobs/123\u200b",
+            "https://example.com/jobs/123",
+        ),
+    ],
+)
+def test_public_url_cleans_common_copy_paste_wrappers(monkeypatch, value, expected):
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+        ],
+    )
+
+    url, error = validate_public_url(value)
+
+    assert error is None
+    assert url == expected
+
+
+def test_canonical_url_key_ignores_tracking_parameters_and_linkedin_slug():
+    plain = "https://www.linkedin.com/jobs/view/4443868424/"
+    tracked = (
+        "https://linkedin.com/jobs/view/entry-level-analyst-at-example-4443868424"
+        "?utm_source=google_jobs_apply&trk=public_jobs"
+    )
+
+    assert canonical_url_key(plain) == canonical_url_key(tracked)
+    assert canonical_url_key(
+        "https://example.com/jobs/123?department=data&utm_source=linkedin"
+    ) == canonical_url_key(
+        "http://www.example.com/jobs/123/?department=data#apply"
+    )
 
 
 @pytest.mark.parametrize(

@@ -6,13 +6,33 @@ import asyncio
 import ipaddress
 import re
 import socket
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
 from zipfile import BadZipFile, ZipFile
 
 import requests
 
 
-URL_PATTERN = re.compile(r'https?://[^\s<>"\']+', flags=re.I)
+URL_PATTERN = re.compile(
+    r'https?://(?:(?!https?://)[^\s<>"\'\[\]])+',
+    flags=re.I,
+)
+INVISIBLE_URL_CHARACTERS = re.compile(r"[\u200b\u200c\u200d\ufeff]")
+TRACKING_QUERY_PARAMETERS = {
+    "from",
+    "gh_src",
+    "ref",
+    "refid",
+    "source",
+    "src",
+    "trackingid",
+    "trk",
+    "utm_campaign",
+    "utm_content",
+    "utm_id",
+    "utm_medium",
+    "utm_source",
+    "utm_term",
+}
 BLOCKED_HOST_NAMES = {
     "localhost",
     "metadata",
@@ -22,12 +42,61 @@ BLOCKED_HOST_NAMES = {
 REDIRECT_CODES = {301, 302, 303, 307, 308}
 
 
+def _clean_pasted_url(value: object) -> str:
+    raw = re.sub(r"&amp;", "&", str(value or ""), flags=re.I)
+    raw = INVISIBLE_URL_CHARACTERS.sub("", raw)
+    match = URL_PATTERN.search(raw)
+    if match:
+        raw = match.group(0)
+    return raw.strip().rstrip(".,;:!?)]}\\")
+
+
+def canonical_url_key(value: object) -> str:
+    """Return a stable identity for duplicate detection without changing the saved URL."""
+    text = _clean_pasted_url(value)
+    try:
+        parsed = urlparse(text)
+        host = (parsed.hostname or "").casefold().rstrip(".")
+        port = parsed.port
+    except ValueError:
+        return text.rstrip("/").casefold()
+    if not host:
+        return text.rstrip("/").casefold()
+
+    if host.startswith("www."):
+        host = host[4:]
+    path = parsed.path.rstrip("/") or "/"
+
+    if host == "linkedin.com" or host.endswith(".linkedin.com"):
+        match = re.search(r"/jobs/view/(?:.*-)?(\d{7,})(?:/|$)", path, flags=re.I)
+        if match:
+            return f"linkedin.com/jobs/view/{match.group(1)}"
+
+    query_pairs = [
+        (key, item)
+        for key, item in parse_qsl(parsed.query, keep_blank_values=True)
+        if key.casefold() not in TRACKING_QUERY_PARAMETERS
+        and not key.casefold().startswith("utm_")
+    ]
+    query_pairs.sort(key=lambda pair: (pair[0].casefold(), pair[1]))
+
+    if (host == "indeed.com" or host.endswith(".indeed.com")) and path.casefold() == "/viewjob":
+        job_key = next(
+            (item for key, item in query_pairs if key.casefold() == "jk" and item),
+            "",
+        )
+        if job_key:
+            return f"indeed.com/viewjob?jk={job_key.casefold()}"
+
+    default_port = 443 if parsed.scheme.casefold() == "https" else 80
+    port_text = f":{port}" if port and port != default_port else ""
+    query = urlencode(query_pairs, doseq=True)
+    return f"{host}{port_text}{path}{'?' + query if query else ''}"
+
+
 def validate_public_url(value: object) -> tuple[str | None, str | None]:
     """Check a job link before the scraper opens it."""
-    match = URL_PATTERN.search(str(value or ""))
-    if match:
-        value = match.group(0).rstrip(".,;:!)]}")
-    text = str(value or "").strip()
+    text = _clean_pasted_url(value)
     if len(text) > 4096:
         return None, "The job link is too long."
 

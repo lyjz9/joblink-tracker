@@ -117,7 +117,7 @@ def _review_details(issues):
         'location_looks_like_work_type': ('Location looks wrong', 'Location', 'Move Remote/Hybrid/Onsite to Work Type and enter the actual place if listed.'),
         'generic_company': ('Company too generic', 'Company', 'Replace the job-board name with the real employer.'),
         'generic_job_title': ('Title too generic', 'Job title', 'Replace blocked-page text with the real role title.'),
-        'job_search_page': ('Posting unavailable', 'Link', 'Open the link and enter the original job details manually if the posting is still visible.'),
+        'job_search_page': ('Job list link', 'Link', 'Open one specific job posting and paste that link instead.'),
         'company_looks_like_page_text': ('Company has extra text', 'Company', 'Keep only the employer name.'),
         'location_looks_like_page_text': ('Location has extra text', 'Location', 'Keep only the city/state/country.'),
         'invalid_work_type': ('Work type invalid', 'Work Type', 'Use Remote, Hybrid, Onsite, or n/a.'),

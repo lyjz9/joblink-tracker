@@ -182,6 +182,16 @@ class BackgroundJobManager:
         try:
             self._capacity.acquire()
             try:
+                with self._lock:
+                    job = self._jobs.get(job_id)
+                    if job is None:
+                        return
+                    if job["cancel_requested"]:
+                        item = job["items"][index]
+                        item["status"] = "cancelled"
+                        job["updated_at"] = self._clock()
+                        self._finalize_if_settled_locked(job)
+                        return
                 result = self._scrape(url)
             finally:
                 self._capacity.release()

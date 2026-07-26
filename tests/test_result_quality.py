@@ -80,10 +80,27 @@ def test_scrape_discards_fields_from_redirected_search_page(monkeypatch, tmp_pat
         issue_log=tmp_path / "issues.jsonl",
     )
 
-    assert result["error"] == "This posting is unavailable or has expired."
+    assert result["error"] == "This link opens a list of jobs. Open one specific posting and paste that link instead."
     assert result["company"] == "n/a"
     assert result["job_title"] == "n/a"
     assert result["location"] == "n/a"
     assert result["work_type"] == "n/a"
     assert result["salary"] == "n/a"
+    assert "job_search_page" in result["review_issues"]
+
+
+def test_known_job_search_url_is_rejected_before_browser_scraping(monkeypatch, tmp_path):
+    def unexpected_scrape(*_args, **_kwargs):
+        raise AssertionError("Known search pages should not launch the browser scraper.")
+
+    monkeypatch.setattr(app_module, "parse_job_with_browser", unexpected_scrape)
+
+    result = app_module._scrape_url(
+        "https://www.glassdoor.com/Job/new-york-analyst-jobs-SRCH_IL.0,8.htm",
+        issue_log=tmp_path / "issues.jsonl",
+    )
+
+    assert result["company"] == "n/a"
+    assert result["job_title"] == "n/a"
+    assert result["error"] == "This link opens a list of jobs. Open one specific posting and paste that link instead."
     assert "job_search_page" in result["review_issues"]

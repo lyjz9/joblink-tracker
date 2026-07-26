@@ -2111,6 +2111,30 @@ async def _expand_job_details(page):
         pass
 
 
+async def _page_content_when_stable(page, attempts=3):
+    """Read HTML again when a client-side redirect interrupts the first attempt."""
+    last_error = None
+    for attempt in range(max(1, attempts)):
+        try:
+            return await page.content()
+        except Exception as exc:
+            last_error = exc
+            message = str(exc).lower()
+            interrupted = (
+                'execution context was destroyed' in message
+                or 'because of a navigation' in message
+                or 'cannot find context with specified id' in message
+            )
+            if not interrupted or attempt + 1 >= attempts:
+                raise
+            try:
+                await page.wait_for_load_state('domcontentloaded', timeout=5000)
+            except Exception:
+                pass
+            await page.wait_for_timeout(500)
+    raise last_error
+
+
 def _unavailable_redirect(original_url, final_url):
     original = urlparse(original_url)
     final = urlparse(final_url)
@@ -2195,7 +2219,7 @@ async def scrape_job_with_browser(url, timeout=60000, launch_args=None):
                 _apply_url_hints(data, url)
                 data['error'] = 'Job page redirected to a blocked network address.'
                 return _public_result(data)
-            html = await page.content()
+            html = await _page_content_when_stable(page)
             soup = BeautifulSoup(html, 'html.parser')
             return _public_result(_extract_from_soup(soup, page.url or fetch_url, url))
         except Exception as exc:

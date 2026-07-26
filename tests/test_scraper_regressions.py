@@ -17,6 +17,7 @@ from scraper.browser_scraper_v2 import (
     _is_direct_html_candidate,
     _launch_browser,
     _normalize_work_type,
+    _page_content_when_stable,
     _public_result,
 )
 
@@ -679,6 +680,35 @@ def test_browser_launch_uses_installed_edge_when_bundled_chromium_is_missing():
             "args": ["--disable-dev-shm-usage"],
         },
     ]
+
+
+def test_page_content_retries_when_navigation_interrupts_the_first_read():
+    class Page:
+        def __init__(self):
+            self.content_calls = 0
+            self.load_waits = 0
+
+        async def content(self):
+            self.content_calls += 1
+            if self.content_calls == 1:
+                raise RuntimeError(
+                    "Page.evaluate: Execution context was destroyed, most likely because of a navigation"
+                )
+            return "<html><h1>Operations Analyst</h1></html>"
+
+        async def wait_for_load_state(self, *_args, **_kwargs):
+            self.load_waits += 1
+
+        async def wait_for_timeout(self, *_args, **_kwargs):
+            return None
+
+    page = Page()
+
+    html = asyncio.run(_page_content_when_stable(page))
+
+    assert html == "<html><h1>Operations Analyst</h1></html>"
+    assert page.content_calls == 2
+    assert page.load_waits == 1
 
 
 @pytest.mark.parametrize(

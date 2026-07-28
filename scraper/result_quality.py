@@ -3,6 +3,10 @@
 import re
 
 from scraper.browser_scraper_v2 import _detect_platform
+from scraper.field_normalization import (
+    normalize_location_display,
+    normalize_salary_display,
+)
 
 
 RELIABILITY = {
@@ -229,6 +233,10 @@ def _public_scrape_result(result):
     clean = {}
     for key in public_keys:
         value = result.get(key, '')
+        if key == 'location':
+            value = normalize_location_display(value)
+        elif key == 'salary':
+            value = normalize_salary_display(value)
         if key in defaults and not value:
             value = defaults[key]
         if value:

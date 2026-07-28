@@ -16,6 +16,10 @@ import requests
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
+from .field_normalization import (
+    normalize_location_display,
+    normalize_salary_display,
+)
 from .security import (
     install_playwright_network_guard,
     safe_requests_get,
@@ -628,6 +632,7 @@ def _clean_location(value):
     value = re.sub(r'\bKorea,\s*Republic of\b', 'South Korea', value, flags=re.I)
     value = re.sub(r'\bNYC\b', 'New York, NY', value)
     value = re.sub(r'\s+', ' ', value).strip()
+    value = normalize_location_display(value)
     arrangement_suffix = re.match(
         r'^(?P<place>.+?)\s+(?:[-|/]\s*)?'
         r'(?:Remote|Hybrid|On[-\s]?site|In[-\s]?office|In[-\s]?person)\s*$',
@@ -953,7 +958,7 @@ def _pick_flat(flat, keys):
 
 def _extract_salary(text):
     match = SALARY_RE.search(text or '')
-    return _clean_value(match.group(0)) if match else ''
+    return normalize_salary_display(_clean_value(match.group(0))) if match else ''
 
 
 def _extract_contextual_salary(text):
@@ -967,7 +972,7 @@ def _extract_contextual_salary(text):
         start, end = match.span()
         context = text[max(0, start - 120):min(len(text), end + 160)].lower()
         if any(term in context for term in salary_terms) and not any(term in context for term in blocked_terms):
-            return _clean_value(match.group(0))
+            return normalize_salary_display(_clean_value(match.group(0)))
     return ''
 
 
@@ -1974,6 +1979,10 @@ def _public_result(data):
     result = {}
     for key in public_keys:
         value = data.get(key, '')
+        if key == 'location':
+            value = normalize_location_display(value)
+        elif key == 'salary':
+            value = normalize_salary_display(value)
         if key in defaults and not value:
             value = defaults[key]
         if value:

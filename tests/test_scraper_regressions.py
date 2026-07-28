@@ -514,7 +514,7 @@ def test_linkedin_current_preference_chip_replaces_earlier_na():
     )
 
     assert result["work_type"] == "Hybrid"
-    assert result["salary"] == "Base pay range $20.00/hr - $25.00/hr"
+    assert result["salary"] == "$20.00/hr - $25.00/hr"
 
 
 def test_job_specific_meta_title_beats_signup_heading():

@@ -33,6 +33,17 @@ def test_location_display_normalization(value, expected):
         ("Pay: $24 - $28 per hour", "$24 - $28 per hour"),
         ("USD $20.00/hr - $25.00/hr", "USD $20.00/hr - $25.00/hr"),
         ("Base pay is competitive", ""),
+        ("20-20", "20"),
+        ("$20/hour - $20/hour", "$20/hour"),
+        ("$20 - $20 per hour", "$20 per hour"),
+        ("Base pay range $20 - $20 per hour", "$20 per hour"),
+        ("$20.00/hr - $20/hr", "$20.00/hr"),
+        ("$70,000 - $70,000 per year", "$70,000 per year"),
+        ("20K - 20K", "20K"),
+        ("USD $20/hour - USD $20/hour", "USD $20/hour"),
+        ("$20/hour - $25/hour", "$20/hour - $25/hour"),
+        ("$20/hour - $20/year", "$20/hour - $20/year"),
+        ("USD $20/hour - CAD $20/hour", "USD $20/hour - CAD $20/hour"),
     ),
 )
 def test_salary_display_normalization(value, expected):

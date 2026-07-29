@@ -6,6 +6,8 @@ const state = {
   workbookFile: null,
   workbookHandle: null,
   filter: 'all',
+  salaryMode: 'original',
+  salaryHoursPerWeek: 40,
 };
 
 const STORAGE_KEY = 'joblink.beta.session.v1';
@@ -15,6 +17,12 @@ const {
   mergePastedLinks,
   parseLinksFromText,
 } = window.JobLinkInput;
+const {
+  convertSalary,
+  jobWithSalaryDisplay,
+  normalizeHoursPerWeek,
+  normalizeSalaryMode,
+} = window.JobSalaryDisplay;
 const linkPasteHistory = [];
 const linkPasteRedo = [];
 let changingLinksProgrammatically = false;
@@ -64,6 +72,9 @@ const elements = {
   error: document.querySelector('#errorCount'),
   manual: document.querySelector('#manualCount'),
   emptyTitle: document.querySelector('#emptyTitle'),
+  salaryHoursPerWeek: document.querySelector('#salaryHoursPerWeek'),
+  salaryColumnHeading: document.querySelector('#salaryColumnHeading'),
+  salaryModeButtons: Array.from(document.querySelectorAll('.salary-mode-button')),
   toast: document.querySelector('#toast'),
   health: document.querySelector('#healthStatus'),
   feedbackButton: document.querySelector('#feedbackButton'),
@@ -263,6 +274,8 @@ function saveSession() {
       links: elements.links.value,
       appliedDate: elements.appliedDate.value,
       duplicateMode: elements.duplicateMode?.value || 'skip',
+      salaryMode: state.salaryMode,
+      salaryHoursPerWeek: state.salaryHoursPerWeek,
     }));
   } catch (error) {
     // Browser storage can be disabled; the app still works without persistence.
@@ -281,6 +294,8 @@ function restoreSession() {
     if (typeof saved.links === 'string') elements.links.value = saved.links;
     if (typeof saved.appliedDate === 'string' && saved.appliedDate) elements.appliedDate.value = saved.appliedDate;
     if (saved.duplicateMode && elements.duplicateMode) elements.duplicateMode.value = saved.duplicateMode;
+    state.salaryMode = normalizeSalaryMode(saved.salaryMode);
+    state.salaryHoursPerWeek = normalizeHoursPerWeek(saved.salaryHoursPerWeek);
   } catch (error) {
     localStorage.removeItem(STORAGE_KEY);
   }
@@ -341,6 +356,36 @@ function editableCell(job, key) {
   return `<div class="editable${muted}" contenteditable="true" data-key="${key}" spellcheck="false">${escapeHtml(value)}</div>${fieldOptions(job, key)}`;
 }
 
+function salaryCell(job) {
+  const original = job.salary || 'n/a';
+  if (state.salaryMode === 'original') return editableCell(job, 'salary');
+
+  const converted = convertSalary(
+    original,
+    state.salaryMode,
+    state.salaryHoursPerWeek,
+  );
+  const classes = ['salary-display-value'];
+  if (converted.estimated) classes.push('salary-estimate');
+  if (!converted.convertible) classes.push('salary-unconverted');
+  if (String(converted.value).toLowerCase() === 'n/a') classes.push('muted-value');
+
+  const tooltip = converted.convertible
+    ? converted.estimated
+      ? `Estimated from ${original} using ${converted.hoursPerWeek} hours/week and ${converted.weeksPerYear} weeks/year.`
+      : `Original: ${original}`
+    : `Shown as posted because this salary cannot be converted safely. Original: ${original}`;
+  return `<div class="${classes.join(' ')}" title="${escapeHtml(tooltip)}">${escapeHtml(converted.value)}</div>`;
+}
+
+function refreshSalaryCells() {
+  elements.body.querySelectorAll('tr[data-index]').forEach((row) => {
+    const salary = row.querySelector('[data-field="salary"]');
+    const job = state.jobs[Number(row.dataset.index)];
+    if (salary && job) salary.innerHTML = salaryCell(job);
+  });
+}
+
 function reliabilityBadge(job) {
   const level = String(job.source_reliability_label || job.source_reliability?.level || '').toLowerCase();
   if (!level) return '';
@@ -393,7 +438,7 @@ function render() {
         <td>${editableCell(job, 'job_title')}</td>
         <td>${editableCell(job, 'location')}</td>
         <td>${editableCell(job, 'work_type')}</td>
-        <td>${editableCell(job, 'salary')}</td>
+        <td data-field="salary">${salaryCell(job)}</td>
         <td>${sourceCell(job)}</td>
         <td>
           <div class="row-actions">
@@ -454,6 +499,21 @@ function render() {
     tab.classList.toggle('is-active', active);
     tab.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
+  elements.salaryModeButtons.forEach((button) => {
+    const active = button.dataset.salaryMode === state.salaryMode;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  if (elements.salaryHoursPerWeek) {
+    elements.salaryHoursPerWeek.value = state.salaryHoursPerWeek;
+  }
+  if (elements.salaryColumnHeading) {
+    elements.salaryColumnHeading.textContent = {
+      original: 'Salary',
+      hourly: 'Salary (hourly)',
+      yearly: 'Salary (yearly)',
+    }[state.salaryMode];
+  }
   validateInput();
   refreshIcons();
   saveSession();
@@ -837,7 +897,15 @@ function exportableJobs() {
     .filter((job) => !job.error)
     .map((job) => {
       const { selected, ...cleanJob } = job;
-      return { ...cleanJob, date_applied: appliedDate || cleanJob.date_applied };
+      const displayedJob = jobWithSalaryDisplay(
+        cleanJob,
+        state.salaryMode,
+        state.salaryHoursPerWeek,
+      );
+      return {
+        ...displayedJob,
+        date_applied: appliedDate || displayedJob.date_applied,
+      };
     });
 }
 
@@ -1122,6 +1190,23 @@ elements.filterTabs.forEach((tab) => {
     render();
   });
 });
+elements.salaryModeButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    state.salaryMode = normalizeSalaryMode(button.dataset.salaryMode);
+    render();
+  });
+});
+if (elements.salaryHoursPerWeek) {
+  elements.salaryHoursPerWeek.addEventListener('input', () => {
+    state.salaryHoursPerWeek = normalizeHoursPerWeek(elements.salaryHoursPerWeek.value);
+    refreshSalaryCells();
+    saveSession();
+  });
+  elements.salaryHoursPerWeek.addEventListener('change', () => {
+    state.salaryHoursPerWeek = normalizeHoursPerWeek(elements.salaryHoursPerWeek.value);
+    render();
+  });
+}
 elements.retryAll.addEventListener('click', retryAllErrors);
 elements.loadCaptures.addEventListener('click', loadCaptures);
 elements.clearResults.addEventListener('click', () => {

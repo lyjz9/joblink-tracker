@@ -399,6 +399,79 @@ textarea::placeholder { color: #968b8f; }
 .filter-tab:hover { background: #f7ebe6; }
 .filter-tab.is-active { color: #762e1d; background: #f6cbbb; }
 
+.salary-controls {
+  grid-column: 1 / -1;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+
+.salary-controls > strong {
+  color: #51474b;
+  font-size: 12px;
+}
+
+.salary-mode-control {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(66px, 1fr));
+  padding: 2px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .86);
+  border: 1px solid #d9c4bc;
+  border-radius: 7px;
+}
+
+.salary-mode-button {
+  min-height: 28px;
+  padding: 0 9px;
+  color: #6b5954;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.salary-mode-button:hover { background: #f7ebe6; }
+.salary-mode-button.is-active { color: #762e1d; background: #f6cbbb; }
+
+.salary-hours-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.salary-hours-field input {
+  width: 68px;
+  height: 32px;
+  padding: 0 7px;
+  color: var(--ink);
+  background: #ffffff;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.salary-hours-field input:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px rgba(201, 87, 59, .14);
+}
+
+.salary-conversion-info {
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  color: #796c70;
+}
+
+.salary-conversion-info svg { width: 15px; height: 15px; }
+
 .toolbar-actions {
   display: grid;
   grid-template-columns: minmax(470px, 1.15fr) minmax(440px, 1fr);
@@ -633,6 +706,9 @@ th:nth-child(9) { width: 118px; }
 .editable { border-radius: 3px; outline: none; overflow-wrap: anywhere; }
 .editable:focus { background: #ffffff; box-shadow: 0 0 0 2px rgba(201, 87, 59, .22); }
 .muted-value { color: #9a8f93; }
+.salary-display-value { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.salary-estimate { color: #713b2e; font-weight: 700; }
+.salary-unconverted { color: #746b6e; }
 
 .status-stack { display: grid; gap: 5px; align-content: start; }
 .status-row { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
@@ -844,6 +920,8 @@ th:nth-child(9) { width: 118px; }
   }
   .filter-tab { min-width: 0; padding: 0 5px; font-size: 11px; }
   .summary { gap: 7px 11px; }
+  .salary-controls > strong { width: 100%; }
+  .salary-mode-control { flex: 1 1 210px; }
   .duplicate-field { grid-template-columns: 1fr; }
   .tracker-buttons { grid-template-columns: 1fr; }
   .action-buttons .button,

@@ -101,6 +101,27 @@
             <button class="filter-tab" type="button" data-filter="error">Error</button>
             <button class="filter-tab" type="button" data-filter="manual">Manual</button>
           </div>
+          <div class="salary-controls">
+            <strong>Salary format</strong>
+            <div class="salary-mode-control" role="group" aria-label="Salary format">
+              <button class="salary-mode-button is-active" type="button" data-salary-mode="original" aria-pressed="true">Original</button>
+              <button class="salary-mode-button" type="button" data-salary-mode="hourly" aria-pressed="false">Hourly</button>
+              <button class="salary-mode-button" type="button" data-salary-mode="yearly" aria-pressed="false">Yearly</button>
+            </div>
+            <label class="salary-hours-field" for="salaryHoursPerWeek">
+              <span>Hours/week</span>
+              <input id="salaryHoursPerWeek" type="number" min="1" max="80" step="0.25" value="40" inputmode="decimal">
+            </label>
+            <span
+              class="salary-conversion-info"
+              id="salaryConversionInfo"
+              role="img"
+              aria-label="Converted salaries use the selected hours per week and 52 weeks per year. The selected format is also used for Excel."
+              title="Converted salaries use the selected hours per week and 52 weeks per year. The original is preserved, and Excel uses the selected format."
+            >
+              <i data-lucide="info" aria-hidden="true"></i>
+            </span>
+          </div>
         </div>
         <div class="toolbar-actions">
           <div class="action-group result-actions" role="group" aria-label="Result actions">
@@ -226,7 +247,7 @@
               <th scope="col">Job title</th>
               <th scope="col">Location</th>
               <th scope="col">Work type</th>
-              <th scope="col">Salary</th>
+              <th scope="col" id="salaryColumnHeading">Salary</th>
               <th scope="col">Source</th>
               <th scope="col" class="actions-column"><span class="sr-only">Actions</span></th>
             </tr>
@@ -281,6 +302,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
   <script src="../static/link_input.js"></script>
+  <script src="../static/salary_conversion.js"></script>
   <script src="../static/app.js"></script>
 </body>
 </html>

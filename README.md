@@ -234,6 +234,7 @@ Developers who already have the project environment can still double-click `Open
 
 - The browser opens at `http://127.0.0.1:5050`.
 - Choose the date applied, paste up to 20 job links, select `Get job details`, fix anything that looks wrong, and save the results to Excel.
+- Use `Original`, `Hourly`, or `Yearly` above the results table. Adjust `Hours/week` for part-time roles; Linc keeps the scraped salary and uses the selected format when saving to Excel.
 - `Clear links` only clears the pasted links. Use row checkboxes, `Clear selected`, or a row remove button to remove results.
 - To add results to an existing tracker, select `Choose tracker`, pick an `.xlsx` or `.xlsm` file, then select `Update tracker`. Close the workbook in Excel first so the app can save the updated file cleanly.
 - Rows marked `Review` explain what looks wrong. Retry the row or correct the fields yourself.

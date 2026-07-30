@@ -1,4 +1,4 @@
-# Linc Development Handoff
+# Job Tracker Project Development Handoff
 
 Last updated: 2026-07-30
 
@@ -9,8 +9,10 @@ anything here later becomes stale.
 ## Snapshot
 
 - Repository: `https://github.com/lyjz9/joblink-tracker`
-- Product name: **Linc**
-- Current product label: **Linc Beta v0.1.0**
+- Permanent product name: **Undecided**
+- Current repository label: `Linc`, but the user has explicitly rejected it as
+  the final product name.
+- Current version target: **v0.1.0 beta**
 - Current branch: `main`
 - Application baseline before this handoff:
   `686b646` (`Polish salary display controls`)
@@ -20,6 +22,18 @@ anything here later becomes stale.
 - No Git tag exists locally yet.
 - The only local ZIP under `dist/` is an obsolete pre-rename build named
   `JobLink-Tracker-Windows.zip`. Do not publish it.
+
+Use neutral wording such as "the app", "the project", or "the job tracker"
+until the user chooses a final name. Do not introduce `Unknown` or another
+temporary public name. Do not expand the current `Linc` branding into new
+user-facing text.
+
+The repository still contains `Linc` in UI text, filenames, local-data paths,
+the Chrome extension, packaging, and documentation. Those references are
+technical facts, not approval of that name. Do not perform a blind replacement.
+A final rename must be coordinated across all naming surfaces and include
+compatibility decisions for saved browser sessions, environment variables,
+desktop data paths, workbook filenames, and release artifacts.
 
 The user wants every completed change committed and pushed to GitHub. Keep each
 commit focused, explain what changed in plain language, and do not include
@@ -36,13 +50,14 @@ The last development task was salary presentation. It is complete and pushed:
 - The selected format is used when writing Excel rows.
 - Converted and original salaries now use the same table typography.
 
-There are no unfinished source edits from that task. The next concrete task is
-to build and validate a fresh Windows release candidate from current `main`.
+There are no unfinished source edits from that task. Before building the public
+release candidate, the user needs to choose the final product name and approve a
+coordinated rename.
 
 ## What We Are Building
 
-Linc is a local-first job application tracker for people who do not want to
-copy the same information from job postings into Excel by hand.
+The project is a local-first job application tracker for people who do not want
+to copy the same information from job postings into Excel by hand.
 
 The main workflow is:
 
@@ -64,8 +79,8 @@ configuration remains in the repository for future use, but it is not the
 current release path.
 
 Do not add accounts, authentication, a cloud database, or paid infrastructure
-unless the user explicitly changes this direction. Linc currently does not need
-any personal account data.
+unless the user explicitly changes this direction. The project currently does
+not need any personal account data.
 
 ## Product Rules That Must Not Regress
 
@@ -195,7 +210,7 @@ editing in every browser.
 - Optional Chrome capture extension for a page the user can already view.
 
 Browser capture does not bypass security. It reads the page visible in the
-user's own Chrome session and sends selected content to the local Linc server.
+user's own Chrome session and sends selected content to the local app server.
 Capture remains local-only by default and still requires human review.
 
 ### Frontend
@@ -241,11 +256,12 @@ is moved to shared storage such as Redis.
 - One-click Windows launcher at `127.0.0.1:5050`.
 - Existing-instance and port-conflict handling.
 - Tkinter control window with Open and Stop actions.
-- Local desktop logs under `%LOCALAPPDATA%\Linc\logs`.
+- Local desktop logs currently under `%LOCALAPPDATA%\Linc\logs`; decide whether
+  to migrate or retain this path during the final rename.
 - PyInstaller spec that bundles Flask assets, project modules, Playwright, and
   Chromium.
-- Manual GitHub Actions workflow intended to create
-  `Linc-v0.1.0-Windows.zip`.
+- Manual GitHub Actions workflow currently configured to create
+  `Linc-v0.1.0-Windows.zip`; rename that artifact before release.
 - Blank Excel template under `templates/linc_tracker_template.xlsx`.
 - Setup, beta-test, privacy, deployment, background-job, limitation, desktop,
   usage, and troubleshooting documentation.
@@ -324,7 +340,8 @@ behavior change must be traced through all of them.
 
 - Source Flask server: `http://127.0.0.1:5000`
 - Windows desktop launcher: `http://127.0.0.1:5050`
-- Chrome capture extension: sends only to the local Linc server on `5050`
+- Chrome capture extension: currently sends only to the local app server on
+  `5050`
 - Hosted container: uses `PORT`, with the current container default documented
   separately
 
@@ -399,22 +416,36 @@ node tests\frontend_salary_conversion.test.cjs
 ## Where Work Is Currently Blocked
 
 There is no hard application-code blocker. The core local beta runs and the
-automated baseline passes. The unfinished work is release validation and
-real-world extraction quality.
+automated baseline passes. The immediate product blocker is the final name;
+release validation and real-world extraction quality come next.
 
-### 1. The current desktop release package is not verified
+### 1. The final product name is undecided
+
+The user no longer wants the name `Linc`. Do not publish another release under
+that name and do not invent a replacement. Ask the user to choose or approve the
+final name first.
+
+Once the name is chosen, prepare a coordinated rename inventory before editing.
+At minimum, inspect UI copy, README and docs, desktop launcher, app-data path,
+feedback version text, Chrome extension, VBS launcher, PyInstaller spec, build
+script, GitHub Actions workflow, artifact and ZIP names, workbook template,
+static documentation, local-storage compatibility, and tests. The repository
+name and `JOBLINK_` environment-variable prefix should remain unchanged unless
+the user explicitly wants those internal compatibility identifiers renamed.
+
+### 2. The current desktop release package is not verified
 
 The existing `dist/JobLink-Tracker-Windows.zip` is old, uses obsolete branding,
-and predates many fixes. It must not be uploaded as Linc.
+and predates many fixes. It must not be uploaded as the current app.
 
-A fresh package needs to be built from current `main`, extracted into a clean
-folder, and tested using every step in `docs/desktop_beta.md`. The status of a
-fresh GitHub Actions artifact was not verified during this handoff.
+A fresh package needs to be built after the approved rename, extracted into a
+clean folder, and tested using every step in `docs/desktop_beta.md`. The status
+of a fresh GitHub Actions artifact was not verified during this handoff.
 
 There is also no local `v0.1.0` Git tag yet. Do not create a release or tag until
 the newly built portable app passes the desktop checklist.
 
-### 2. Some websites will continue to block scraping
+### 3. Some websites will continue to block scraping
 
 Monster, Upwork, Wellfound, login-only pages, Cloudflare pages, CAPTCHAs, and
 private APIs cannot be made universally reliable without violating product and
@@ -423,13 +454,14 @@ security boundaries.
 The supported recovery path is:
 
 1. Prefer the employer's own career page.
-2. Use Linc Capture when the user can see the page in Chrome.
+2. Use the current local capture extension when the user can see the page in
+   Chrome.
 3. Use manual entry or edit/approve the row.
 4. Explain the limitation clearly.
 
 Do not describe this as a temporary bug that can always be bypassed.
 
-### 3. Ready rows can still contain plausible but wrong fields
+### 4. Ready rows can still contain plausible but wrong fields
 
 Quality scoring is heuristic. A wrong company, location, work type, or salary
 can sometimes look syntactically valid and escape review flags.
@@ -438,29 +470,45 @@ The correct improvement loop is to reproduce a repeatable pattern with saved
 synthetic HTML, write a focused regression test, and make the narrowest parser
 change that fixes it without changing already passing platform cases.
 
-### 4. Free cross-platform packaging is incomplete
+### 5. Free cross-platform packaging is incomplete
 
 The chosen no-subscription release is Windows-only. macOS and Linux currently
 run from source. Do not promise packaged macOS/Linux builds yet.
 
 ## Recommended Next Plan
 
+### Phase 0: Choose and apply the final name
+
+1. Ask the user for the exact final product name, capitalization, and preferred
+   release filename.
+2. Show the user the coordinated rename scope before changing compatibility
+   identifiers.
+3. Rename user-facing surfaces consistently.
+4. Preserve or migrate existing browser sessions and desktop data rather than
+   silently making them disappear.
+5. Update tests and documentation.
+6. Commit and push the rename as a focused change.
+
+Do not use `Linc`, `JobLink Tracker`, or `Unknown` as the final name unless the
+user explicitly selects it.
+
 ### Phase 1: Produce a real release candidate
 
 1. Confirm `main` is clean and current.
 2. Run all Python and frontend helper tests.
-3. Trigger **Build Linc Windows beta** in GitHub Actions or build locally with:
+3. Confirm the GitHub Actions workflow and packaging files use the approved
+   name, then trigger the Windows beta build or build locally with:
 
    ```powershell
    .\scripts\build_desktop.ps1 -Python py
    ```
 
-4. Confirm the output is named `Linc-v0.1.0-Windows.zip`.
+4. Confirm the ZIP and executable use the approved name.
 5. Extract it into a brand-new folder.
 6. Complete the release checklist in `docs/desktop_beta.md`.
 7. Test a current company career page, a supported ATS, and one limited site.
 8. Test new workbook export and existing `.xlsx` and `.xlsm` updates.
-9. Confirm closing Linc releases port `5050`, then start it again.
+9. Confirm closing the app releases port `5050`, then start it again.
 10. Only after those checks, create tag `v0.1.0` and a human release note.
 
 ### Phase 2: Run a small private beta
@@ -511,8 +559,13 @@ After the packaged release and private beta are stable:
 ### Repository and Git
 
 - Do not trust an old conversation summary over current files.
-- Do not rename Linc back to JobLink Tracker or to the old temporary
-  `Unknown` placeholder.
+- Do not treat `Linc` as the approved final name.
+- Do not revive `JobLink Tracker`, `Unknown`, or invent another temporary
+  public name.
+- Do not begin a repository-wide rename before the user supplies the exact
+  final name and approves compatibility decisions.
+- Do not blindly rename internal identifiers such as `JOBLINK_`, the repository
+  URL, saved-session keys, or existing data paths.
 - Do not work from the stale `local` branch by accident.
 - Do not merge the stale `local` branch into `main` just to make branches look
   synchronized.
@@ -591,9 +644,11 @@ After the packaged release and private beta are stable:
 1. Read this file and `README.md`.
 2. Run `git status --short --branch`.
 3. Read the latest relevant commits.
-4. Inspect the exact module responsible for the new request.
-5. Preserve all product rules above.
-6. Add focused regression coverage before changing shared scraper behavior.
-7. Run the relevant tests, then the full suite.
-8. Verify the user-visible workflow in the local app.
-9. Review the diff, commit, and push only the intended files.
+4. If the next task involves branding or release work, ask for the final name
+   before editing.
+5. Inspect the exact module responsible for the new request.
+6. Preserve all product rules above.
+7. Add focused regression coverage before changing shared scraper behavior.
+8. Run the relevant tests, then the full suite.
+9. Verify the user-visible workflow in the local app.
+10. Review the diff, commit, and push only the intended files.

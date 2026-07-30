@@ -706,9 +706,14 @@ th:nth-child(9) { width: 118px; }
 .editable { border-radius: 3px; outline: none; overflow-wrap: anywhere; }
 .editable:focus { background: #ffffff; box-shadow: 0 0 0 2px rgba(201, 87, 59, .22); }
 .muted-value { color: #9a8f93; }
-.salary-display-value { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.salary-estimate { color: #713b2e; font-weight: 700; }
-.salary-unconverted { color: #746b6e; }
+.salary-display-value {
+  color: inherit;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
 
 .status-stack { display: grid; gap: 5px; align-content: start; }
 .status-row { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }

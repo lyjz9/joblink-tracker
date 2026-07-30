@@ -72,7 +72,9 @@ const elements = {
   error: document.querySelector('#errorCount'),
   manual: document.querySelector('#manualCount'),
   emptyTitle: document.querySelector('#emptyTitle'),
+  salaryHoursField: document.querySelector('#salaryHoursField'),
   salaryHoursPerWeek: document.querySelector('#salaryHoursPerWeek'),
+  salaryConversionInfo: document.querySelector('#salaryConversionInfo'),
   salaryColumnHeading: document.querySelector('#salaryColumnHeading'),
   salaryModeButtons: Array.from(document.querySelectorAll('.salary-mode-button')),
   toast: document.querySelector('#toast'),
@@ -506,6 +508,13 @@ function render() {
   });
   if (elements.salaryHoursPerWeek) {
     elements.salaryHoursPerWeek.value = state.salaryHoursPerWeek;
+  }
+  const showSalaryEstimateSettings = state.salaryMode !== 'original';
+  if (elements.salaryHoursField) {
+    elements.salaryHoursField.hidden = !showSalaryEstimateSettings;
+  }
+  if (elements.salaryConversionInfo) {
+    elements.salaryConversionInfo.hidden = !showSalaryEstimateSettings;
   }
   if (elements.salaryColumnHeading) {
     elements.salaryColumnHeading.textContent = {

@@ -62,9 +62,11 @@ Scraping and workbook updates happen on the tester's computer. Diagnostic files 
 %LOCALAPPDATA%\Linc\logs
 ```
 
-Linc opens uploaded workbooks temporarily and returns the updated copy through the local browser. Results stay in that browser's local storage until its site data is cleared.
+Searchable job History is stored separately in `%LOCALAPPDATA%\Linc\history.sqlite3`.
 
-The app does not install a Windows service, edit the registry, or create an online account. Delete the extracted folder to remove the app; delete the local log folder separately if you no longer need it.
+Linc opens uploaded workbooks temporarily and returns the updated copy through the local browser. The current workspace stays in its browser tab, while completed scrapes and manual additions remain in History until the tester deletes them in the app.
+
+The app does not install a Windows service, edit the registry, or create an online account. Delete the extracted folder to remove the app; delete `%LOCALAPPDATA%\Linc` separately if you also want to remove local logs and History.
 
 ## Beta Limitations
 

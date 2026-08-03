@@ -6,6 +6,7 @@ import hmac
 import io
 import json
 import os
+import sqlite3
 import tempfile
 import time
 from datetime import datetime
@@ -43,6 +44,7 @@ from scraper.result_quality import (
 from scraper.capture_parser import _capture_payload_has_content, _parse_captured_page
 from scraper.job_queue import ScrapeCapacityFull
 from scraper.job_routes import create_job_blueprint
+from scraper.history import HistoryStore, create_history_blueprint
 
 
 web = Blueprint('web', __name__)
@@ -55,6 +57,21 @@ def create_app(environment=None, config_overrides=None):
         flask_app.config.update(config_overrides)
     _validate_production_config(flask_app)
     configure_logging(flask_app)
+
+    history_store = None
+    if flask_app.config['HISTORY_ENABLED']:
+        configured_history_path = str(flask_app.config.get('HISTORY_DB_PATH') or '').strip()
+        history_path = (
+            Path(configured_history_path)
+            if configured_history_path
+            else Path(flask_app.config['LOG_DIR']) / 'history.sqlite3'
+        )
+        try:
+            history_store = HistoryStore(history_path)
+        except (OSError, sqlite3.Error):
+            flask_app.logger.exception('Local history could not be opened')
+            flask_app.config['HISTORY_ENABLED'] = False
+    flask_app.extensions['joblink_history'] = history_store
 
     if flask_app.config['TRUST_PROXY_HOPS']:
         trusted_hops = flask_app.config['TRUST_PROXY_HOPS']
@@ -88,6 +105,11 @@ def create_app(environment=None, config_overrides=None):
         rate_limited=_rate_limited,
         create_rate_limit=flask_app.config['RATE_LIMIT_JOB_CREATE'],
     ))
+    if history_store is not None:
+        flask_app.register_blueprint(create_history_blueprint(
+            history_store,
+            max_items=flask_app.config['MAX_EXPORT_JOBS'],
+        ))
     register_request_logging(flask_app)
     register_error_handlers(flask_app)
     if flask_app.config['REGISTER_ATEXIT']:
@@ -461,7 +483,10 @@ def _capture_response(payload, status=200):
 
 @web.route('/')
 def index():
-    return render_template('index.html')
+    return render_template(
+        'index.html',
+        history_enabled=current_app.config['HISTORY_ENABLED'],
+    )
 
 
 @web.after_app_request

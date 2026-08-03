@@ -8,6 +8,17 @@ const state = {
   filter: 'all',
   salaryMode: 'original',
   salaryHoursPerWeek: 40,
+  view: 'workspace',
+  historyEntries: [],
+  historyFilter: 'all',
+  historyQuery: '',
+  historyTotal: 0,
+  historyAllCount: 0,
+  historyLoaded: false,
+  historyLoading: false,
+  historyRequest: 0,
+  historySaveWarned: false,
+  historyError: '',
 };
 
 const STORAGE_KEY = 'joblink.beta.session.v1';
@@ -26,6 +37,7 @@ const {
 const linkPasteHistory = [];
 const linkPasteRedo = [];
 let changingLinksProgrammatically = false;
+let historySearchTimer = null;
 
 const elements = {
   links: document.querySelector('#jobLinks'),
@@ -88,6 +100,24 @@ const elements = {
   feedbackClose: document.querySelector('#feedbackCloseButton'),
   feedbackCancel: document.querySelector('#feedbackCancelButton'),
   filterTabs: Array.from(document.querySelectorAll('.filter-tab')),
+  workspaceView: document.querySelector('#workspaceView'),
+  historyView: document.querySelector('#historyView'),
+  workspaceViewButton: document.querySelector('#workspaceViewButton'),
+  historyViewButton: document.querySelector('#historyViewButton'),
+  historyNavCount: document.querySelector('#historyNavCount'),
+  historySummary: document.querySelector('#historySummary'),
+  historySearch: document.querySelector('#historySearch'),
+  historyStatusFilter: document.querySelector('#historyStatusFilter'),
+  historyBody: document.querySelector('#historyBody'),
+  historyTable: document.querySelector('#historyTableWrap'),
+  historyEmpty: document.querySelector('#historyEmptyState'),
+  historyEmptyTitle: document.querySelector('#historyEmptyTitle'),
+  historyEmptyText: document.querySelector('#historyEmptyText'),
+  selectAllHistory: document.querySelector('#selectAllHistory'),
+  restoreHistory: document.querySelector('#restoreHistoryButton'),
+  exportHistory: document.querySelector('#exportHistoryButton'),
+  deleteHistory: document.querySelector('#deleteHistoryButton'),
+  clearHistory: document.querySelector('#clearHistoryButton'),
 };
 
 function icon(name) {
@@ -306,7 +336,7 @@ function restoreSession() {
 }
 
 function badge(status) {
-  const labels = { ready: 'Ready', review: 'Review', error: 'Error' };
+  const labels = { ready: 'Ready', review: 'Review', error: 'Error', manual: 'Manual' };
   return `<span class="badge badge-${status}">${labels[status]}</span>`;
 }
 
@@ -530,6 +560,283 @@ function render() {
   saveSession();
 }
 
+function historyStatusForJob(job) {
+  const status = jobStatus(job);
+  if (status === 'error' || status === 'review') return status;
+  return isManualJob(job) ? 'manual' : 'ready';
+}
+
+function formatHistoryDate(value) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Saved';
+  return parsed.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function renderHistory() {
+  if (!elements.historyBody) return;
+  const entries = state.historyEntries;
+  const selectedCount = entries.filter((entry) => entry.selected).length;
+  const allSelected = Boolean(entries.length) && selectedCount === entries.length;
+
+  elements.historyBody.innerHTML = entries.map((entry) => {
+    const job = entry.job || {};
+    const jobLink = String(job.job_link || '');
+    const savedDate = formatHistoryDate(entry.updated_at);
+    return `
+      <tr data-history-id="${entry.id}">
+        <td class="select-cell">
+          <input class="select-history-row" type="checkbox" aria-label="Select history row" ${entry.selected ? 'checked' : ''}>
+        </td>
+        <td><span class="history-date" title="${escapeHtml(entry.updated_at || '')}">${escapeHtml(savedDate)}</span></td>
+        <td>${badge(entry.status || 'review')}</td>
+        <td><div class="history-cell-main"><strong>${escapeHtml(job.company || 'n/a')}</strong></div></td>
+        <td><div class="history-cell-main"><strong>${escapeHtml(job.job_title || 'n/a')}</strong></div></td>
+        <td><span class="history-date">${escapeHtml(job.date_applied || 'n/a')}</span></td>
+        <td>${escapeHtml(job.location || 'n/a')}</td>
+        <td>${escapeHtml(job.work_type || 'n/a')}</td>
+        <td>${escapeHtml(job.salary || 'n/a')}</td>
+        <td><div class="history-cell-main"><strong>${escapeHtml(job.source || 'n/a')}</strong></div></td>
+        <td>
+          ${jobLink ? `<a class="icon-button" href="${escapeHtml(jobLink)}" target="_blank" rel="noopener noreferrer" title="Open job posting" aria-label="Open job posting">${icon('external-link')}</a>` : ''}
+        </td>
+      </tr>`;
+  }).join('');
+
+  if (state.historyLoading && !state.historyLoaded) {
+    elements.historySummary.textContent = 'Loading saved jobs';
+  } else if (state.historyTotal === state.historyAllCount) {
+    elements.historySummary.textContent = `${state.historyAllCount} saved ${state.historyAllCount === 1 ? 'job' : 'jobs'}`;
+  } else {
+    elements.historySummary.textContent = `${state.historyTotal} matching · ${state.historyAllCount} saved`;
+  }
+  if (elements.historyNavCount) elements.historyNavCount.textContent = state.historyAllCount;
+
+  elements.historyTable.hidden = !entries.length;
+  elements.historyEmpty.hidden = Boolean(entries.length);
+  if (state.historyLoading) {
+    elements.historyEmptyTitle.textContent = 'Loading history';
+    elements.historyEmptyText.textContent = 'Reading the jobs saved on this computer.';
+  } else if (state.historyError) {
+    elements.historyEmptyTitle.textContent = 'History could not load';
+    elements.historyEmptyText.textContent = state.historyError;
+  } else if (state.historyAllCount) {
+    elements.historyEmptyTitle.textContent = 'No matching jobs';
+    elements.historyEmptyText.textContent = 'Try a different search or status.';
+  } else {
+    elements.historyEmptyTitle.textContent = 'No saved jobs yet';
+    elements.historyEmptyText.textContent = 'Finished scrapes and manual additions will appear here.';
+  }
+
+  if (elements.selectAllHistory) {
+    elements.selectAllHistory.checked = allSelected;
+    elements.selectAllHistory.indeterminate = selectedCount > 0 && !allSelected;
+    elements.selectAllHistory.disabled = state.historyLoading || !entries.length;
+  }
+  elements.restoreHistory.disabled = state.historyLoading || !selectedCount;
+  elements.deleteHistory.disabled = state.historyLoading || !selectedCount;
+  elements.exportHistory.disabled = state.historyLoading || !entries.some((entry) => !entry.job?.error);
+  elements.clearHistory.disabled = state.historyLoading || !state.historyAllCount;
+  elements.restoreHistory.innerHTML = `${icon('undo-2')} Restore selected${selectedCount ? ` (${selectedCount})` : ''}`;
+  elements.deleteHistory.innerHTML = `${icon('trash-2')} Delete selected${selectedCount ? ` (${selectedCount})` : ''}`;
+  refreshIcons();
+}
+
+async function loadHistory({ silent = false, preserveSelection = false } = {}) {
+  if (!elements.historyBody) return;
+  const requestId = state.historyRequest + 1;
+  state.historyRequest = requestId;
+  const selectedIds = preserveSelection
+    ? new Set(state.historyEntries.filter((entry) => entry.selected).map((entry) => entry.id))
+    : new Set();
+  state.historyLoading = true;
+  state.historyError = '';
+  renderHistory();
+  const parameters = new URLSearchParams({
+    status: state.historyFilter,
+    limit: '1000',
+  });
+  if (state.historyQuery) parameters.set('q', state.historyQuery);
+  try {
+    const response = await fetch(`/api/history?${parameters.toString()}`, { cache: 'no-store' });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'History could not be loaded.');
+    if (requestId !== state.historyRequest) return;
+    state.historyEntries = (payload.items || []).map((entry) => ({
+      ...entry,
+      selected: selectedIds.has(entry.id),
+    }));
+    state.historyTotal = Number(payload.total) || 0;
+    state.historyAllCount = Number(payload.all_count) || 0;
+    state.historyLoaded = true;
+  } catch (error) {
+    if (requestId !== state.historyRequest) return;
+    state.historyError = error.message || 'Try opening History again.';
+    if (!silent) showToast(state.historyError);
+  } finally {
+    if (requestId === state.historyRequest) {
+      state.historyLoading = false;
+      renderHistory();
+    }
+  }
+}
+
+async function saveJobsToHistory(jobs) {
+  if (!elements.historyBody || !Array.isArray(jobs) || !jobs.length) return;
+  const items = jobs
+    .filter((job) => job && (job.job_link || (job.company && job.job_title)))
+    .map((job) => {
+      const { selected, _historyId, ...cleanJob } = job;
+      return { job: cleanJob, status: historyStatusForJob(job) };
+    });
+  if (!items.length) return;
+  try {
+    for (let start = 0; start < items.length; start += 100) {
+      const response = await fetch('/api/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: items.slice(start, start + 100) }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Local history could not be saved.');
+      state.historyAllCount = Number(payload.all_count) || state.historyAllCount;
+    }
+    state.historyLoaded = false;
+    state.historySaveWarned = false;
+    if (state.view === 'history') {
+      await loadHistory({ silent: true, preserveSelection: true });
+    } else {
+      renderHistory();
+    }
+  } catch (error) {
+    if (!state.historySaveWarned) {
+      state.historySaveWarned = true;
+      showToast('The job is ready, but local history could not be saved');
+    }
+  }
+}
+
+function switchView(view) {
+  const nextView = view === 'history' && elements.historyView ? 'history' : 'workspace';
+  state.view = nextView;
+  elements.workspaceView.hidden = nextView !== 'workspace';
+  if (elements.historyView) elements.historyView.hidden = nextView !== 'history';
+  [elements.workspaceViewButton, elements.historyViewButton].forEach((button) => {
+    if (!button) return;
+    const active = button.dataset.view === nextView;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  if (nextView === 'history') void loadHistory({ preserveSelection: true });
+  refreshIcons();
+}
+
+function setAllHistorySelected(selected) {
+  state.historyEntries.forEach((entry) => { entry.selected = selected; });
+  renderHistory();
+}
+
+function restoreSelectedHistory() {
+  const entries = state.historyEntries.filter((entry) => entry.selected);
+  if (!entries.length) return;
+  let added = 0;
+  let updated = 0;
+  let skipped = 0;
+  entries.slice().reverse().forEach((entry) => {
+    const job = { ...(entry.job || {}), selected: false, _historyId: entry.id };
+    const existingIndex = job.job_link
+      ? findJobIndexByLink(job.job_link)
+      : state.jobs.findIndex((item) => item._historyId === entry.id);
+    if (existingIndex >= 0) {
+      if (elements.duplicateMode?.value === 'update') {
+        state.jobs[existingIndex] = job;
+        updated += 1;
+      } else {
+        skipped += 1;
+      }
+    } else {
+      state.jobs.push(job);
+      added += 1;
+    }
+  });
+  state.filter = 'all';
+  render();
+  switchView('workspace');
+  showToast(`${added} restored${updated ? `, ${updated} updated` : ''}${skipped ? `, ${skipped} already here` : ''}`);
+}
+
+async function downloadHistory() {
+  const jobs = state.historyEntries
+    .map((entry) => entry.job || {})
+    .filter((job) => !job.error)
+    .map((job) => jobWithSalaryDisplay(job, state.salaryMode, state.salaryHoursPerWeek));
+  if (!jobs.length) return;
+  elements.exportHistory.disabled = true;
+  try {
+    const response = await fetch('/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jobs),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || 'The history file could not be created.');
+    }
+    await downloadResponse(response, 'job_history_export.xlsx');
+    showToast('Your history Excel file is ready');
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    renderHistory();
+  }
+}
+
+async function deleteSelectedHistory() {
+  const ids = state.historyEntries.filter((entry) => entry.selected).map((entry) => entry.id);
+  if (!ids.length) return;
+  elements.deleteHistory.disabled = true;
+  try {
+    const response = await fetch('/api/history', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'Those history rows could not be deleted.');
+    await loadHistory({ silent: true });
+    showToast(`${payload.deleted || 0} ${Number(payload.deleted) === 1 ? 'job' : 'jobs'} deleted from history`);
+  } catch (error) {
+    showToast(error.message);
+    renderHistory();
+  }
+}
+
+async function clearAllHistory() {
+  if (!state.historyAllCount) return;
+  const confirmed = window.confirm(
+    `Delete all ${state.historyAllCount} saved jobs from this computer? Your current results will stay.`,
+  );
+  if (!confirmed) return;
+  elements.clearHistory.disabled = true;
+  try {
+    const response = await fetch('/api/history', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'History could not be cleared.');
+    await loadHistory({ silent: true });
+    showToast('History cleared');
+  } catch (error) {
+    showToast(error.message);
+    renderHistory();
+  }
+}
+
 async function scrapeOne(url) {
   const response = await fetch('/scrape', {
     method: 'POST',
@@ -583,7 +890,7 @@ async function readScrapeJobWithRetry(pollUrl) {
 }
 
 function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
-  let changed = false;
+  const changedJobs = [];
   (snapshot.items || []).forEach((item, index) => {
     if (!['completed', 'failed'].includes(item.status) || appliedItems.has(index)) return;
     const target = plan[index];
@@ -601,9 +908,9 @@ function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
       state.jobs.push(result);
     }
     appliedItems.add(index);
-    changed = true;
+    changedJobs.push(result);
   });
-  return changed;
+  return changedJobs;
 }
 
 async function processLinks() {
@@ -642,12 +949,15 @@ async function processLinks() {
     state.activeJobId = snapshot.job_id;
     elements.cancelJob.hidden = false;
     while (true) {
-      const changed = applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied);
+      const changedJobs = applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied);
       const settled = (snapshot.items || []).filter((item) => !['queued', 'running'].includes(item.status)).length;
       const processed = skipped + settled;
       elements.progressBar.style.width = `${Math.round((processed / urls.length) * 100)}%`;
       elements.progressText.textContent = `${processed} of ${urls.length}`;
-      if (changed) render();
+      if (changedJobs.length) {
+        render();
+        await saveJobsToHistory(changedJobs);
+      }
       if (['completed', 'cancelled'].includes(snapshot.status)) {
         finalStatus = snapshot.status;
         break;
@@ -700,6 +1010,7 @@ async function retryJob(index) {
     const retried = await scrapeOne(current.job_link);
     retried.selected = Boolean(current.selected);
     state.jobs[index] = retried;
+    await saveJobsToHistory([retried]);
     showToast(jobStatus(retried) === 'ready' ? 'Job updated' : 'This job still needs a look');
   } catch (error) {
     showToast('Linc lost the connection. The existing row was left unchanged.');
@@ -716,6 +1027,7 @@ async function retryAllErrors() {
   state.processing = true;
   render();
   let connectionFailures = 0;
+  const updatedJobs = [];
   try {
     for (const index of indexes) {
       const current = state.jobs[index];
@@ -724,11 +1036,13 @@ async function retryAllErrors() {
         const retried = await scrapeOne(current.job_link);
         retried.selected = Boolean(current.selected);
         state.jobs[index] = retried;
+        updatedJobs.push(retried);
       } catch (error) {
         connectionFailures += 1;
       }
     }
   } finally {
+    await saveJobsToHistory(updatedJobs);
     state.processing = false;
     render();
   }
@@ -796,6 +1110,7 @@ async function loadCaptures() {
     const captures = Array.isArray(payload.jobs) ? payload.jobs : [];
     let added = 0;
     let updated = 0;
+    const historyJobs = [];
     const appliedDate = selectedAppliedDate();
 
     captures.slice().reverse().forEach((job) => {
@@ -812,9 +1127,11 @@ async function loadCaptures() {
         state.jobs.push(incoming);
         added += 1;
       }
+      historyJobs.push(incoming);
     });
 
     render();
+    await saveJobsToHistory(historyJobs);
     if (added || updated) {
       showToast(`${added} added${updated ? ` and ${updated} updated` : ''}`);
     } else {
@@ -1078,6 +1395,7 @@ function useEditedRow(index) {
   job.confidence = 'Manual';
   job.confidence_score = 100;
   render();
+  void saveJobsToHistory([job]);
   showToast('Your edits are ready for the tracker');
 }
 
@@ -1153,6 +1471,7 @@ function addManualJob(event) {
   resetManualForm();
   toggleManualPanel(false);
   render();
+  void saveJobsToHistory([job]);
   showToast('Job added');
 }
 
@@ -1243,6 +1562,7 @@ elements.appliedDate.addEventListener('change', () => {
   const appliedDate = selectedAppliedDate();
   if (appliedDate) state.jobs.forEach((job) => { job.date_applied = appliedDate; });
   render();
+  void saveJobsToHistory(state.jobs);
 });
 elements.body.addEventListener('click', (event) => {
   const option = event.target.closest('.option-chip');
@@ -1254,6 +1574,7 @@ elements.body.addEventListener('click', (event) => {
     delete job.review_notes;
     delete job.review_details;
     render();
+    void saveJobsToHistory([job]);
     return;
   }
   const retry = event.target.closest('.retry-row');
@@ -1295,6 +1616,55 @@ elements.body.addEventListener('input', (event) => {
   delete job.review_details;
   saveSession();
 });
+elements.body.addEventListener('focusout', (event) => {
+  const editable = event.target.closest('.editable');
+  if (!editable) return;
+  const row = editable.closest('tr');
+  const job = state.jobs[Number(row.dataset.index)];
+  if (job) void saveJobsToHistory([job]);
+});
+
+if (elements.workspaceViewButton) {
+  elements.workspaceViewButton.addEventListener('click', () => switchView('workspace'));
+}
+if (elements.historyViewButton) {
+  elements.historyViewButton.addEventListener('click', () => switchView('history'));
+}
+if (elements.historySearch) {
+  elements.historySearch.addEventListener('input', () => {
+    window.clearTimeout(historySearchTimer);
+    historySearchTimer = window.setTimeout(() => {
+      state.historyQuery = elements.historySearch.value.trim();
+      void loadHistory();
+    }, 250);
+  });
+}
+if (elements.historyStatusFilter) {
+  elements.historyStatusFilter.addEventListener('change', () => {
+    state.historyFilter = elements.historyStatusFilter.value;
+    void loadHistory();
+  });
+}
+if (elements.selectAllHistory) {
+  elements.selectAllHistory.addEventListener('change', () => {
+    setAllHistorySelected(elements.selectAllHistory.checked);
+  });
+}
+if (elements.restoreHistory) elements.restoreHistory.addEventListener('click', restoreSelectedHistory);
+if (elements.exportHistory) elements.exportHistory.addEventListener('click', downloadHistory);
+if (elements.deleteHistory) elements.deleteHistory.addEventListener('click', deleteSelectedHistory);
+if (elements.clearHistory) elements.clearHistory.addEventListener('click', clearAllHistory);
+if (elements.historyBody) {
+  elements.historyBody.addEventListener('change', (event) => {
+    const checkbox = event.target.closest('.select-history-row');
+    if (!checkbox) return;
+    const row = checkbox.closest('tr');
+    const id = Number(row.dataset.historyId);
+    const entry = state.historyEntries.find((item) => item.id === id);
+    if (entry) entry.selected = checkbox.checked;
+    renderHistory();
+  });
+}
 
 fetch('/health')
   .then((response) => { if (response.ok) elements.health.classList.add('is-online'); })
@@ -1303,3 +1673,5 @@ fetch('/health')
 elements.appliedDate.value = todayIso();
 restoreSession();
 render();
+renderHistory();
+void loadHistory({ silent: true });

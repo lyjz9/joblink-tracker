@@ -18,6 +18,18 @@
         <span>Local beta</span>
       </div>
     </div>
+    {% if history_enabled %}
+    <nav class="view-tabs" aria-label="App views">
+      <button class="view-tab is-active" type="button" id="workspaceViewButton" data-view="workspace" aria-selected="true">
+        <i data-lucide="layout-list" aria-hidden="true"></i>
+        Workspace
+      </button>
+      <button class="view-tab" type="button" id="historyViewButton" data-view="history" aria-selected="false">
+        <i data-lucide="history" aria-hidden="true"></i>
+        History <span id="historyNavCount">0</span>
+      </button>
+    </nav>
+    {% endif %}
     <div class="header-actions">
       <button class="feedback-button" type="button" id="feedbackButton">
         <i data-lucide="message-circle" aria-hidden="true"></i>
@@ -28,6 +40,7 @@
   </header>
 
   <main>
+    <div id="workspaceView">
     <section class="input-band" aria-labelledby="inputTitle">
       <div class="band-content">
       <div class="section-heading">
@@ -257,11 +270,93 @@
       </div>
       </div>
     </section>
+    </div>
+
+    {% if history_enabled %}
+    <section class="history-band" id="historyView" aria-labelledby="historyTitle" hidden>
+      <div class="band-content">
+        <div class="history-heading">
+          <div>
+            <h1 id="historyTitle">History</h1>
+            <span id="historySummary">0 saved jobs</span>
+          </div>
+          <span class="history-privacy">
+            <i data-lucide="lock-keyhole" aria-hidden="true"></i>
+            Saved only on this computer
+          </span>
+        </div>
+
+        <div class="history-controls">
+          <label class="history-search" for="historySearch">
+            <i data-lucide="search" aria-hidden="true"></i>
+            <span class="sr-only">Search history</span>
+            <input id="historySearch" type="search" placeholder="Search company, title, location, or link" autocomplete="off">
+          </label>
+          <label class="history-filter" for="historyStatusFilter">
+            <span>Status</span>
+            <select id="historyStatusFilter">
+              <option value="all">All</option>
+              <option value="ready">Ready</option>
+              <option value="review">Review</option>
+              <option value="error">Error</option>
+              <option value="manual">Manual</option>
+            </select>
+          </label>
+          <div class="history-actions" role="group" aria-label="History actions">
+            <button class="button button-primary" type="button" id="restoreHistoryButton" disabled>
+              <i data-lucide="undo-2" aria-hidden="true"></i>
+              Restore selected
+            </button>
+            <button class="button button-secondary" type="button" id="exportHistoryButton" disabled>
+              <i data-lucide="download" aria-hidden="true"></i>
+              Download visible
+            </button>
+            <button class="button button-danger" type="button" id="deleteHistoryButton" disabled>
+              <i data-lucide="trash-2" aria-hidden="true"></i>
+              Delete selected
+            </button>
+            <button class="button button-quiet" type="button" id="clearHistoryButton" disabled>
+              Clear history
+            </button>
+          </div>
+        </div>
+
+        <div class="empty-state history-empty" id="historyEmptyState">
+          <img src="../static/empty-jobs.svg" alt="" width="180" height="120">
+          <strong id="historyEmptyTitle">No saved jobs yet</strong>
+          <span id="historyEmptyText">Finished scrapes and manual additions will appear here.</span>
+        </div>
+
+        <div class="table-wrap history-table-wrap" id="historyTableWrap" hidden>
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th scope="col" class="select-column">
+                  <input id="selectAllHistory" type="checkbox" aria-label="Select all visible history rows">
+                </th>
+                <th scope="col">Saved</th>
+                <th scope="col">Status</th>
+                <th scope="col">Company</th>
+                <th scope="col">Job title</th>
+                <th scope="col">Applied</th>
+                <th scope="col">Location</th>
+                <th scope="col">Work type</th>
+                <th scope="col">Salary</th>
+                <th scope="col">Source</th>
+                <th scope="col" class="actions-column"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    {% endif %}
   </main>
 
   <footer class="app-footer">
     <span>Linc Beta v0.1.0</span>
-    <span>This beta runs on your computer. Links, results, and tracker files stay in this local session.</span>
+    <span>Your current workspace stays in this tab. History is saved only on this computer.</span>
   </footer>
 
   <section class="feedback-panel" id="feedbackPanel" aria-labelledby="feedbackTitle" hidden>

@@ -6,6 +6,10 @@ Linc is built to work with job links and Excel trackers without keeping a perman
 
 The local beta runs on your computer. Browser captures, feedback, and reported extraction problems are written to the local `logs/` folder, which Git ignores.
 
+The current workspace stays in that browser tab and survives a refresh. Closing the tab clears it. Completed scrapes and manual additions are also saved in the local History view so you can find or restore them later. History stores the tracker fields you can see in the app, not full job descriptions, captured page text, or uploaded workbooks. You can delete selected entries or clear all History from the app.
+
+The Windows desktop build keeps History in `%LOCALAPPDATA%\Linc\history.sqlite3`. A source installation stores it beside the configured log directory unless `JOBLINK_HISTORY_DB_PATH` is set.
+
 Local diagnostic logs may include full job-posting URLs because the exact link helps reproduce site-specific scraper problems.
 
 ## Hosted mode
@@ -18,7 +22,7 @@ Hosted mode is enabled with `JOBLINK_ENV=production`.
 - A reported problem includes only a limited set of job fields. Full links stay redacted unless the operator turns on `JOBLINK_STORE_FULL_URLS` and clearly discloses it.
 - Uploaded `.xlsx` and `.xlsm` files are handled in a temporary directory, returned as a download, and removed before the response finishes.
 - New Excel exports are created temporarily and returned from memory. They are not left in `exports/`.
-- Results stay in browser storage so a refresh does not erase them. Clearing site data removes that local copy.
+- The current workspace stays only in the browser tab. Local SQLite History is off by default in hosted mode.
 
 Linc does not need your name, email address, password, payment information, or account credentials to read a public job posting.
 

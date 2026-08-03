@@ -16,6 +16,7 @@ def test_desktop_environment_uses_local_app_data_and_bundled_browser(tmp_path):
     assert env["JOBLINK_CAPTURE_ENABLED"] == "true"
     assert env["JOBLINK_VERIFY_BROWSER_ON_STARTUP"] == "true"
     assert env["JOBLINK_LOG_DIR"] == str(data_dir / "logs")
+    assert env["JOBLINK_HISTORY_DB_PATH"] == str(data_dir / "history.sqlite3")
     assert env["PLAYWRIGHT_BROWSERS_PATH"] == "0"
 
 

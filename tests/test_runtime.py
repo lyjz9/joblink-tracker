@@ -50,9 +50,25 @@ def test_production_uses_secure_privacy_defaults(tmp_path):
     try:
         assert app.config["IS_PRODUCTION"] is True
         assert app.config["CAPTURE_ENABLED"] is False
+        assert app.config["HISTORY_ENABLED"] is False
         assert app.config["STORE_FULL_URLS"] is False
         assert app.config["SESSION_COOKIE_SECURE"] is True
         assert app.config["JSON_LOGS"] is True
+    finally:
+        app_module.shutdown_app(app)
+
+
+def test_production_does_not_expose_local_history_routes(tmp_path):
+    app = app_module.create_app("production", {
+        "LOG_DIR": tmp_path,
+        "SECRET_KEY": "x" * 32,
+        "VERIFY_BROWSER_ON_STARTUP": False,
+        "REGISTER_ATEXIT": False,
+    })
+    try:
+        with app.test_client() as client:
+            assert client.get("/api/history").status_code == 404
+            assert b'id="historyView"' not in client.get("/").data
     finally:
         app_module.shutdown_app(app)
 

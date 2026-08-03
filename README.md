@@ -35,6 +35,7 @@ Linc handles the repetitive part and leaves the judgment to you. Nothing goes in
 - Pull company, job title, location, salary, and work type from job posting links.
 - Save results in an Excel-friendly application tracker format.
 - Work through up to 20 links in the background while showing progress and letting you cancel.
+- Keep a searchable job history on your computer and restore earlier results when you need them.
 - Explain why a row needs review instead of quietly guessing.
 - Save problem rows locally so scraper issues can be investigated later.
 

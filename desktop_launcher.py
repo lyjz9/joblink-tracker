@@ -38,6 +38,7 @@ def configure_environment(environ=None, frozen=None) -> Path:
     env.setdefault("JOBLINK_CAPTURE_ENABLED", "true")
     env.setdefault("JOBLINK_VERIFY_BROWSER_ON_STARTUP", "true")
     env.setdefault("JOBLINK_LOG_DIR", str(data_dir / "logs"))
+    env.setdefault("JOBLINK_HISTORY_DB_PATH", str(data_dir / "history.sqlite3"))
     env.setdefault("JOBLINK_SCRAPE_WORKERS", "2")
     env.setdefault("JOBLINK_MAX_PENDING_JOBS", "20")
     if is_frozen:

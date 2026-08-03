@@ -64,6 +64,8 @@ class JobLinkConfig:
     )
 
     CAPTURE_ENABLED = _bool_env("JOBLINK_CAPTURE_ENABLED", not IS_PRODUCTION)
+    HISTORY_ENABLED = _bool_env("JOBLINK_HISTORY_ENABLED", not IS_PRODUCTION)
+    HISTORY_DB_PATH = os.getenv("JOBLINK_HISTORY_DB_PATH", "").strip()
     EXPOSE_ISSUES = _bool_env("JOBLINK_EXPOSE_ISSUES", False)
     STORE_FULL_URLS = _bool_env("JOBLINK_STORE_FULL_URLS", not IS_PRODUCTION)
     ADMIN_TOKEN = os.getenv("JOBLINK_ADMIN_TOKEN", "").strip()
@@ -88,6 +90,7 @@ class LocalConfig(JobLinkConfig):
     APP_ENV = "local"
     IS_PRODUCTION = False
     CAPTURE_ENABLED = _bool_env("JOBLINK_CAPTURE_ENABLED", True)
+    HISTORY_ENABLED = _bool_env("JOBLINK_HISTORY_ENABLED", True)
     STORE_FULL_URLS = _bool_env("JOBLINK_STORE_FULL_URLS", True)
     JSON_LOGS = _bool_env("JOBLINK_JSON_LOGS", False)
     VERIFY_BROWSER_ON_STARTUP = _bool_env("JOBLINK_VERIFY_BROWSER_ON_STARTUP", False)
@@ -111,6 +114,7 @@ class ProductionConfig(JobLinkConfig):
     APP_ENV = "production"
     IS_PRODUCTION = True
     CAPTURE_ENABLED = _bool_env("JOBLINK_CAPTURE_ENABLED", False)
+    HISTORY_ENABLED = _bool_env("JOBLINK_HISTORY_ENABLED", False)
     STORE_FULL_URLS = _bool_env("JOBLINK_STORE_FULL_URLS", False)
     JSON_LOGS = _bool_env("JOBLINK_JSON_LOGS", True)
     VERIFY_BROWSER_ON_STARTUP = _bool_env("JOBLINK_VERIFY_BROWSER_ON_STARTUP", True)

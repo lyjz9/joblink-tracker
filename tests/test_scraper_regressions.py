@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from scraper.browser_scraper_v2 import (
     _blocked_page_error,
     _clean_title,
+    _detect_platform,
     _direct_html_result,
     _extract_from_soup,
     _extract_work_type,
@@ -17,8 +18,10 @@ from scraper.browser_scraper_v2 import (
     _is_direct_html_candidate,
     _launch_browser,
     _normalize_work_type,
+    _oracle_candidate_experience_result,
     _page_content_when_stable,
     _public_result,
+    _visible_page_text,
 )
 
 
@@ -373,6 +376,56 @@ def test_greenhouse_api_uses_canonical_company_instead_of_board_slug(monkeypatch
     assert result["work_type"] == "Remote"
 
 
+def test_oracle_candidate_experience_api_returns_official_job_fields(monkeypatch):
+    url = "https://careers.americanexpress.com/en/sites/CX_1/job/26011162"
+    page_html = """
+        <html><head>
+          <base href="/en/sites/CX_1"
+                data-apibaseurl="https://example.oraclecloud.com"
+                data-sitenumber="CX_1">
+          <meta property="og:site_name" content="American Express">
+        </head></html>
+    """
+    payload = {
+        "items": [{
+            "Title": "Financial Analyst &amp; Risk Management",
+            "PrimaryLocation": "New York, NY, United States",
+            "WorkplaceType": "Hybrid",
+            "requisitionFlexFields": [{
+                "Prompt": "Salary Range",
+                "Value": "$65500 - $102500 annually + bonus + benefits",
+            }],
+        }]
+    }
+
+    class PageResponse:
+        status_code = 200
+        text = page_html
+
+    class ApiResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return payload
+
+    def fake_get(request_url, **_kwargs):
+        if "recruitingCEJobRequisitionDetails" in request_url:
+            return ApiResponse()
+        return PageResponse()
+
+    monkeypatch.setattr("scraper.browser_scraper_v2.safe_requests_get", fake_get)
+
+    result = _oracle_candidate_experience_result(url)
+
+    assert result["company"] == "American Express"
+    assert result["job_title"] == "Financial Analyst & Risk Management"
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Hybrid"
+    assert result["salary"] == "$65500 - $102500 annually"
+    assert result["source"] == "Company Website"
+
+
 def test_custom_career_page_can_use_direct_html_without_browser(monkeypatch):
     url = (
         "https://careers.achievetestprep.com/jobs/careers/424687000052441476/"
@@ -408,6 +461,57 @@ def test_custom_career_page_can_use_direct_html_without_browser(monkeypatch):
     assert result["location"] == "Remote"
     assert result["work_type"] == "Remote"
     assert result["salary"] == "n/a"
+
+
+def test_generic_amex_shell_falls_through_to_the_rendered_page(monkeypatch):
+    url = "https://careers.americanexpress.com/en/sites/CX_1/job/26011162"
+    html = """
+        <html><head><meta property="og:site_name" content="American Express"></head><body>
+          <h1>Work Summary</h1>
+          <div data-qa="location">United States, NY</div>
+          <main>Flexible working models include hybrid, onsite, and virtual roles.</main>
+        </body></html>
+    """
+
+    class Response:
+        status_code = 200
+        text = html
+
+        def __init__(self):
+            self.url = url
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    assert _direct_html_result(url) is None
+
+
+def test_broad_lockton_schema_falls_through_to_the_rendered_page(monkeypatch):
+    url = "https://careers.lockton.com/jobid/26019t"
+    html = """
+        <html><body>
+          <h1>Risk Analyst</h1>
+          <div data-qa="company">Lockton</div>
+          <div data-qa="location">United States</div>
+          <main>This hybrid position supports client service teams.</main>
+        </body></html>
+    """
+
+    class Response:
+        status_code = 200
+        text = html
+
+        def __init__(self):
+            self.url = url
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    assert _direct_html_result(url) is None
 
 
 def test_indeed_posting_can_use_direct_html_without_browser(monkeypatch):
@@ -640,6 +744,259 @@ def test_workday_prefers_labeled_primary_location_and_salary():
     assert result["salary"] == "$55,341.00 - $68,270.00"
 
 
+def test_expired_posting_is_not_mistaken_for_an_inactivity_dialog():
+    url = "https://careers.americanexpress.com/en/sites/CX_1/job/26011162"
+    html = """
+        <html><head><title>Are You Still With Us?</title></head><body>
+          <main>
+            <h1>Are You Still With Us?</h1>
+            <p>This job is no longer available. You may also view all jobs.</p>
+            <div>Hybrid jobs in New York</div>
+          </main>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "American Express"
+    assert result["job_title"] == "n/a"
+    assert result["location"] == "n/a"
+    assert result["work_type"] == "n/a"
+    assert result["salary"] == "n/a"
+    assert result["error"] == "This job posting is no longer available."
+
+
+def test_rendered_amex_page_uses_title_location_and_annual_salary():
+    url = "https://careers.americanexpress.com/en/sites/CX_1/job/26011162"
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Financial Analyst - Risk Management",
+        "hiringOrganization": {
+            "@type": "Organization",
+            "name": "American Express",
+        },
+        "jobLocation": {
+            "@type": "Place",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "United States",
+                "addressRegion": "NY",
+            },
+        },
+    }
+    html = f"""
+        <html><head><title>Financial Analyst - Risk Management | American Express</title>
+          <script type="application/ld+json">{json.dumps(posting)}</script>
+        </head><body>
+          <h1>Financial Analyst - Risk Management</h1>
+          <div>New York, NY, United States (Hybrid)</div>
+          <main>
+            <h2>Job Info</h2>
+            <div>Salary Range</div><div>$65500 - $102500 annually + bonus + benefits</div>
+          </main>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Hybrid"
+    assert result["salary"] == "$65500 - $102500 annually"
+
+
+def test_explicit_base_salary_beats_total_compensation_range():
+    url = "https://apply.workable.com/rokt/j/C5584DAA91/"
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Accounts Receivable Analyst",
+        "hiringOrganization": {"@type": "Organization", "name": "Rokt"},
+        "jobLocation": {
+            "@type": "Place",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "New York",
+                "addressRegion": "NY",
+                "addressCountry": "US",
+            },
+        },
+        "description": (
+            "Target total compensation ranges from $105,000 - $136,000, "
+            "including a fixed annual salary of $100,000 - $125,000, "
+            "an employee equity grant, and benefits. Teams work in the office "
+            "a minimum of four days per week."
+        ),
+    }
+    html = f"""
+        <html><head>
+          <script type="application/ld+json">{json.dumps(posting)}</script>
+        </head><body><main><div>On-site</div></main></body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["salary"] == "$100,000 - $125,000"
+    assert result["work_type"] == "Onsite"
+
+
+def test_visible_ashby_location_type_overrides_conflicting_structured_data():
+    url = "https://jobs.ashbyhq.com/duet/42c869dd-4ece-41ae-aa3a-7b6708e0f70f"
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Operations Analyst",
+        "hiringOrganization": {"@type": "Organization", "name": "Duet"},
+        "jobLocationType": "TELECOMMUTE",
+        "jobLocation": {
+            "@type": "Place",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "New York",
+                "addressRegion": "NY",
+                "addressCountry": "US",
+            },
+        },
+    }
+    html = f"""
+        <html><head>
+          <script type="application/ld+json">{json.dumps(posting)}</script>
+        </head><body>
+          <h2>Location Type</h2><p>Hybrid</p>
+          <main>This role is hybrid out of New York City.</main>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["work_type"] == "Hybrid"
+
+
+def test_explicit_hybrid_role_statement_overrides_remote_schema():
+    url = "https://jobs.ashbyhq.com/duet/42c869dd-4ece-41ae-aa3a-7b6708e0f70f"
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Customer Strategy & Operations Associate",
+        "hiringOrganization": {"@type": "Organization", "name": "Duet"},
+        "jobLocationType": "TELECOMMUTE",
+        "description": "This role is hybrid out of NYC and works closely with customers.",
+    }
+    html = f"""
+        <html><head>
+          <script type="application/ld+json">{json.dumps(posting)}</script>
+        </head><body><main>Customer operations and strategy responsibilities.</main></body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["work_type"] == "Hybrid"
+
+
+def test_workday_cleans_internal_fields_and_reads_plain_us_compensation():
+    url = (
+        "https://newrez.wd1.myworkdayjobs.com/en-US/NRZ/job/"
+        "Associate-Growth---Commercial-Strategy-Analyst_R9801"
+    )
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Associate Growth &amp; Commercial Strategy Analyst",
+        "hiringOrganization": {
+            "@type": "Organization",
+            "name": "LE2201 Newrez LLC - Corporate",
+        },
+        "jobLocation": {
+            "@type": "Place",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "NY - New York - 817 Broadway",
+                "addressCountry": "United States",
+            },
+        },
+        "description": (
+            "A good faith estimate of the compensation is: 60,800.00 - 99,960.00. "
+            "Compensation may also include incentives and benefits."
+        ),
+    }
+    html = f"""
+        <html><head>
+          <script type="application/ld+json">{json.dumps(posting)}</script>
+        </head><body></body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "Newrez"
+    assert result["job_title"] == "Associate Growth & Commercial Strategy Analyst"
+    assert result["location"] == "New York, NY"
+    assert result["salary"] == "$60,800.00 - $99,960.00"
+    assert result["work_type"] == "n/a"
+
+
+def test_visible_lockton_location_and_workplace_override_broad_schema():
+    url = "https://careers.lockton.com/jobid/26019t"
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Risk Analyst | Lockton Careers",
+        "hiringOrganization": {"@type": "Organization", "name": "Lockton"},
+        "jobLocation": {
+            "@type": "Place",
+            "address": {"@type": "PostalAddress", "addressCountry": "United States"},
+        },
+    }
+    html = f"""
+        <html><head><title>Risk Analyst | Lockton Careers</title>
+          <script type="application/ld+json">{json.dumps(posting)}</script>
+        </head><body>
+          <main>
+            <h1>Risk Analyst</h1>
+            <img alt="Location Icon"><p>New York City, New York, United States of America</p>
+            <h5>Salary</h5><p>$70,000-$73,000</p>
+            <h5>Workplace</h5><p>Hybrid</p>
+          </main>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["location"] == "New York City, NY"
+    assert result["work_type"] == "Hybrid"
+    assert result["salary"] == "$70,000-$73,000"
+
+
+def test_jobvite_domain_is_not_misidentified_from_page_copy():
+    url = "https://jobs.jobvite.com/careers/everyday-health-consumer/job/oWqdAfwT"
+    html = """
+        <html><body>
+          <h1>Strategic Operations Associate</h1>
+          <div data-qa="company">Everyday Health - Consumer</div>
+          <div data-qa="location">New York, NY</div>
+          <main>Leverage reporting tools while working in this remote role.</main>
+        </body></html>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+
+    assert _detect_platform(url, soup) == "jobvite"
+    result = _public_result(_extract_from_soup(soup, url))
+    assert result["source"] == "Jobvite"
+
+
 @pytest.mark.parametrize(
     "url",
     (
@@ -709,6 +1066,22 @@ def test_page_content_retries_when_navigation_interrupts_the_first_read():
     assert html == "<html><h1>Operations Analyst</h1></html>"
     assert page.content_calls == 2
     assert page.load_waits == 1
+
+
+def test_visible_page_text_reads_rendered_component_content():
+    class Body:
+        async def inner_text(self, **_kwargs):
+            return "Salary Range\n$65,500 - $102,500 annually"
+
+    class Page:
+        @staticmethod
+        def locator(selector):
+            assert selector == "body"
+            return Body()
+
+    text = asyncio.run(_visible_page_text(Page()))
+
+    assert text == "Salary Range $65,500 - $102,500 annually"
 
 
 @pytest.mark.parametrize(

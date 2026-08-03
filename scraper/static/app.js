@@ -270,7 +270,7 @@ function duplicateResultChoice(url) {
 
 function saveSession() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
       jobs: state.jobs.map(({ selected, ...job }) => job),
       filter: state.filter,
       links: elements.links.value,
@@ -286,7 +286,9 @@ function saveSession() {
 
 function restoreSession() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    // Remove workspaces saved by older versions so a newly opened app starts clean.
+    localStorage.removeItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const saved = JSON.parse(raw);
     if (Array.isArray(saved.jobs)) {
@@ -299,7 +301,7 @@ function restoreSession() {
     state.salaryMode = normalizeSalaryMode(saved.salaryMode);
     state.salaryHoursPerWeek = normalizeHoursPerWeek(saved.salaryHoursPerWeek);
   } catch (error) {
-    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
   }
 }
 

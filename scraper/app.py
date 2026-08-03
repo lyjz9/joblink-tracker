@@ -180,7 +180,8 @@ def _scrape_url(
         )
         error = str(result.get('error', '')).lower()
         terminal_error = any(marker in error for marker in (
-            'http 404', 'http 410', 'unavailable', 'redirected to a general careers page',
+            'http 404', 'http 410', 'unavailable', 'no longer available', 'expired',
+            'redirected to a general careers page',
             'blocked automated access', 'access denied', 'captcha',
         ))
         if not result.get('error') or terminal_error:

@@ -561,7 +561,86 @@ change that fixes it without changing already passing platform cases.
 The chosen no-subscription release is Windows-only. macOS and Linux currently
 run from source. Do not promise packaged macOS/Linux builds yet.
 
+## Recurring Issues And How To Avoid Them
+
+- **Expired, redirected, or search-result links:** Many test postings disappear
+  or redirect to a board search page. Validate that the final page is one
+  individual job before extracting fields. Keep synthetic regression fixtures
+  because a live URL is not a durable test.
+- **Bot protection and verification pages:** Monster, Upwork, Wellfound,
+  Cloudflare, CAPTCHA, and login walls repeatedly block automation. Do not try
+  to bypass them. Prefer the employer's career page, local browser capture, or
+  manual entry, and return a clear limited-site error.
+- **Details hidden behind rendering, expansion, or frames:** Some pages expose
+  salary, work type, or location only after JavaScript renders, `Read more` is
+  opened, or an embedded frame loads. Browser extraction must inspect the
+  rendered job detail and supported frames before falling back to page shells.
+- **Visible fields conflict with structured data:** JSON-LD and embedded job
+  objects can be stale, broad, or for a different listing. Prefer explicit,
+  labeled fields for the current visible job, but preserve structured data as
+  fallback evidence. Add a focused precedence test for each repeatable case.
+- **A plausible field can still be wrong:** Company, location, work type, and
+  salary can look valid enough to receive Ready status while belonging to
+  navigation, another listing, or compensation copy. Review field provenance,
+  improve field-specific quality rules, and prioritize confidently wrong Ready
+  rows over already-marked missing fields.
+- **Work type is often over-inferred:** Generic remote-work language, a remote
+  location, or a company policy is not enough. Require an explicit current-job
+  signal such as a labeled workplace field, LinkedIn preference chip, or clear
+  role statement. Conflicts become `n/a`, not a guess.
+- **Salary text varies heavily:** Pages mix base pay, total compensation,
+  bonuses, equal ranges, hourly/yearly periods, and unrelated numbers. Prefer
+  explicit base salary, strip labels only when the amount remains clear,
+  collapse equal ranges, preserve the pay period, and use `n/a` when missing.
+- **One-site fixes can regress another platform:** Never solve a posting with a
+  broad regex or its current job ID. Save a minimal fixture, add the narrowest
+  platform or evidence-priority rule, run the focused regression, and then run
+  all tests.
+- **Two URLs for the same job can expose different fields:** Do not combine a
+  job-board URL and employer URL into one result automatically. Scrape each link
+  independently, preserve its original URL, and prefer the employer page as a
+  user recovery option when the board is incomplete.
+- **Excel overwrite behavior depends on the browser:** File System Access can
+  update the selected original; other browsers must download an updated copy.
+  Never claim universal in-place editing, recreate the workbook, or silently
+  replace the user's original link or macros.
+- **Workbook formatting can look like used rows:** Do not append after
+  formatting-only space. Find the first real empty application row, preserve
+  nearby styles, extend table ranges, and test both `.xlsx` and `.xlsm`.
+- **The running Flask app can serve stale templates:** After backend or template
+  changes, restart the process on port `5050` before browser QA. A normal page
+  refresh is not always enough when Jinja caching is active.
+- **Workspace and History have different lifetimes:** Workspace is per tab;
+  SQLite History is durable. `Clear links`, removing a result, and deleting a
+  History row are separate actions. Browser QA must delete only its uniquely
+  named test rows and must never clear unrelated user History.
+- **Too many visible controls make the app hard to scan:** Keep the empty view
+  focused on links, date, and the primary action. Preserve progressive Results,
+  `Other ways to add`, contextual selection actions, and the header Tracker
+  panel instead of exposing every feature at once.
+- **Development setup is not the tester experience:** A `.venv`, Playwright
+  installation, and terminal are acceptable for contributors, not beta users.
+  The release path remains a portable Windows ZIP that needs no paid service or
+  Python installation.
+- **Brand and Git state drift easily:** The final name is still undecided,
+  `local` is stale, and every completed change must be committed and pushed to
+  `main`. Check the branch, worktree, staged diff, and remote after each task.
+
 ## Recommended Next Plan
+
+### Immediate order
+
+1. Choose the final product name and approve the coordinated rename scope.
+2. Perform true mobile visual QA of the simplified Workspace, History, Tracker,
+   and Feedback panels.
+3. Exercise the native workbook picker from the header before scraping, then
+   verify original `.xlsx` and `.xlsm` updates plus downloaded-copy fallback.
+4. Build a fresh Windows ZIP and run the clean-folder desktop checklist.
+5. Test current links across employer sites, LinkedIn, Indeed, and several ATS
+   platforms; fix repeatable false Ready patterns with fixtures.
+6. Run the small private beta, review intentionally submitted feedback, and
+   repeat the focused regression loop.
+7. Create `v0.1.0` only after the packaged beta and workbook workflows pass.
 
 ### Phase 0: Choose and apply the final name
 

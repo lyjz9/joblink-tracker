@@ -23,7 +23,7 @@ def test_secondary_add_methods_use_one_disclosure():
     assert template.index('id="manualPanel"') < template.index('class="results-band"')
 
 
-def test_result_and_tracker_controls_start_hidden():
+def test_result_controls_start_hidden_and_tracker_stays_available():
     template = (ROOT / "scraper" / "templates" / "index.html").read_text(encoding="utf-8")
 
     for element_id in (
@@ -32,13 +32,17 @@ def test_result_and_tracker_controls_start_hidden():
         "salaryControls",
         "resultsCommandRow",
         "selectionActions",
-        "trackerBar",
     ):
         assert f'id="{element_id}"' in template
         assert "hidden" in _opening_tag(template, element_id)
 
-    assert 'id="trackerSettings"' in template
+    assert 'id="trackerButton"' in template
+    assert "hidden" in _opening_tag(template, "trackerPanel")
+    assert 'id="chooseWorkbookButton"' in template
+    assert 'id="appendWorkbookButton"' in template
+    assert 'id="downloadButton"' in template
     assert 'id="duplicateMode"' in template
+    assert 'id="trackerBar"' not in template
 
 
 def test_render_progressively_reveals_workspace_controls():
@@ -49,5 +53,6 @@ def test_render_progressively_reveals_workspace_controls():
     assert "elements.salaryControls.hidden = !hasJobs" in source
     assert "elements.resultsCommandRow.hidden = !hasJobs" in source
     assert "elements.selectionActions.hidden = !someSelected" in source
-    assert "elements.trackerBar.hidden = !hasJobs" in source
     assert "elements.retryAll.hidden = !hasFlaggedJobs" in source
+    assert "function toggleTrackerPanel" in source
+    assert "elements.trackerResultCount.textContent" in source

@@ -31,7 +31,11 @@
     </nav>
     {% endif %}
     <div class="header-actions">
-      <button class="feedback-button" type="button" id="feedbackButton">
+      <button class="header-tool-button tracker-button" type="button" id="trackerButton" aria-expanded="false" aria-controls="trackerPanel">
+        <i data-lucide="file-spreadsheet" aria-hidden="true"></i>
+        Tracker
+      </button>
+      <button class="header-tool-button feedback-button" type="button" id="feedbackButton" aria-expanded="false" aria-controls="feedbackPanel">
         <i data-lucide="message-circle" aria-hidden="true"></i>
         Feedback
       </button>
@@ -245,44 +249,6 @@
         </table>
       </div>
 
-      <div class="tracker-bar" id="trackerBar" aria-label="Excel tracker actions" hidden>
-        <div class="tracker-identity">
-          <i data-lucide="file-spreadsheet" aria-hidden="true"></i>
-          <div>
-            <strong>Excel tracker</strong>
-            <span class="file-name" id="workbookName" aria-live="polite">No tracker selected</span>
-          </div>
-        </div>
-        <div class="tracker-buttons">
-          <button class="button button-secondary" type="button" id="chooseWorkbookButton">
-            <i data-lucide="upload" aria-hidden="true"></i>
-            Choose tracker
-          </button>
-          <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
-            <i data-lucide="file-plus-2" aria-hidden="true"></i>
-            <span id="appendWorkbookLabel">Update tracker</span>
-          </button>
-          <button class="button button-secondary" type="button" id="downloadButton" disabled>
-            <i data-lucide="download" aria-hidden="true"></i>
-            Download Excel
-          </button>
-        </div>
-        <input id="workbookFile" class="sr-only" type="file" accept=".xlsx,.xlsm" aria-label="Choose tracker workbook">
-        <details class="tracker-settings" id="trackerSettings">
-          <summary class="icon-button" title="Duplicate settings" aria-label="Duplicate settings">
-            <i data-lucide="settings-2" aria-hidden="true"></i>
-          </summary>
-          <div class="tracker-settings-popover">
-            <label class="duplicate-field" for="duplicateMode">
-              <span>When a link repeats</span>
-              <select id="duplicateMode">
-                <option value="skip">Keep the existing row</option>
-                <option value="update">Replace with new details</option>
-              </select>
-            </label>
-          </div>
-        </details>
-      </div>
       </div>
     </section>
     </div>
@@ -373,6 +339,46 @@
     <span>Linc Beta v0.1.0</span>
     <span>Your current workspace stays in this tab. History is saved only on this computer.</span>
   </footer>
+
+  <section class="tracker-panel" id="trackerPanel" aria-labelledby="trackerPanelTitle" hidden>
+    <div class="tracker-panel-heading">
+      <div>
+        <h2 id="trackerPanelTitle">Excel tracker</h2>
+        <span id="trackerResultCount">0 rows ready</span>
+      </div>
+      <button class="icon-button" type="button" id="trackerCloseButton" aria-label="Close tracker">
+        <i data-lucide="x" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="tracker-file-row">
+      <div>
+        <span>Workbook</span>
+        <strong class="file-name" id="workbookName" aria-live="polite">No tracker selected</strong>
+      </div>
+      <button class="button button-secondary" type="button" id="chooseWorkbookButton">
+        <i data-lucide="upload" aria-hidden="true"></i>
+        Choose tracker
+      </button>
+    </div>
+    <div class="tracker-panel-actions">
+      <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
+        <i data-lucide="file-plus-2" aria-hidden="true"></i>
+        <span id="appendWorkbookLabel">Update tracker</span>
+      </button>
+      <button class="button button-secondary" type="button" id="downloadButton" disabled>
+        <i data-lucide="download" aria-hidden="true"></i>
+        Download Excel
+      </button>
+    </div>
+    <label class="duplicate-field" for="duplicateMode">
+      <span>When a link repeats</span>
+      <select id="duplicateMode">
+        <option value="skip">Keep the existing row</option>
+        <option value="update">Replace with new details</option>
+      </select>
+    </label>
+    <input id="workbookFile" class="sr-only" type="file" accept=".xlsx,.xlsm" aria-label="Choose tracker workbook">
+  </section>
 
   <section class="feedback-panel" id="feedbackPanel" aria-labelledby="feedbackTitle" hidden>
     <form id="feedbackForm">

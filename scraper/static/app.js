@@ -54,7 +54,6 @@ const elements = {
   salaryControls: document.querySelector('#salaryControls'),
   resultsCommandRow: document.querySelector('#resultsCommandRow'),
   selectionActions: document.querySelector('#selectionActions'),
-  trackerBar: document.querySelector('#trackerBar'),
   selectAll: document.querySelector('#selectAllRows'),
   selectAllButton: document.querySelector('#selectAllButton'),
   manualAdd: document.querySelector('#manualAddButton'),
@@ -74,7 +73,10 @@ const elements = {
   workbookFile: document.querySelector('#workbookFile'),
   workbookName: document.querySelector('#workbookName'),
   duplicateMode: document.querySelector('#duplicateMode'),
-  trackerSettings: document.querySelector('#trackerSettings'),
+  trackerButton: document.querySelector('#trackerButton'),
+  trackerPanel: document.querySelector('#trackerPanel'),
+  trackerClose: document.querySelector('#trackerCloseButton'),
+  trackerResultCount: document.querySelector('#trackerResultCount'),
   appendWorkbook: document.querySelector('#appendWorkbookButton'),
   appendWorkbookLabel: document.querySelector('#appendWorkbookLabel'),
   retryAll: document.querySelector('#retryAllButton'),
@@ -512,7 +514,6 @@ function render() {
   if (elements.salaryControls) elements.salaryControls.hidden = !hasJobs;
   if (elements.resultsCommandRow) elements.resultsCommandRow.hidden = !hasJobs;
   if (elements.selectionActions) elements.selectionActions.hidden = !someSelected;
-  if (elements.trackerBar) elements.trackerBar.hidden = !hasJobs;
   elements.table.hidden = !rows.length;
   elements.empty.hidden = Boolean(rows.length);
   if (elements.emptyTitle) {
@@ -525,7 +526,15 @@ function render() {
       ? 'Choose another status to see the rest of your results.'
       : 'Paste job links above to get started.';
   }
-  const hasExportableJobs = state.jobs.some((job) => !job.error);
+  const exportableCount = state.jobs.filter((job) => !job.error).length;
+  const hasExportableJobs = exportableCount > 0;
+  if (elements.trackerResultCount) {
+    elements.trackerResultCount.textContent = `${exportableCount} ${exportableCount === 1 ? 'row' : 'rows'} ready`;
+  }
+  if (elements.trackerButton) {
+    elements.trackerButton.classList.toggle('has-file', Boolean(state.workbookFile));
+    elements.trackerButton.title = state.workbookFile?.name || 'Excel tracker';
+  }
   elements.download.disabled = !hasExportableJobs;
   elements.appendWorkbook.disabled = state.processing || !hasExportableJobs || !state.workbookFile;
   if (elements.appendWorkbookLabel) {
@@ -743,6 +752,8 @@ async function saveJobsToHistory(jobs) {
 }
 
 function switchView(view) {
+  toggleTrackerPanel(false);
+  toggleFeedbackPanel(false);
   const nextView = view === 'history' && elements.historyView ? 'history' : 'workspace';
   state.view = nextView;
   elements.workspaceView.hidden = nextView !== 'workspace';
@@ -1339,9 +1350,25 @@ function showToast(message) {
   showToast.timeout = setTimeout(() => elements.toast.classList.remove('is-visible'), 2600);
 }
 
+function toggleTrackerPanel(show = elements.trackerPanel.hidden) {
+  if (!elements.trackerPanel) return;
+  if (show && elements.feedbackPanel) {
+    elements.feedbackPanel.hidden = true;
+    elements.feedbackButton?.setAttribute('aria-expanded', 'false');
+  }
+  elements.trackerPanel.hidden = !show;
+  elements.trackerButton?.setAttribute('aria-expanded', show ? 'true' : 'false');
+  if (show) elements.chooseWorkbook.focus();
+}
+
 function toggleFeedbackPanel(show = elements.feedbackPanel.hidden) {
   if (!elements.feedbackPanel) return;
+  if (show && elements.trackerPanel) {
+    elements.trackerPanel.hidden = true;
+    elements.trackerButton?.setAttribute('aria-expanded', 'false');
+  }
   elements.feedbackPanel.hidden = !show;
+  elements.feedbackButton?.setAttribute('aria-expanded', show ? 'true' : 'false');
   if (show) {
     elements.feedbackValidation.textContent = '';
     elements.feedbackMessage.focus();
@@ -1517,10 +1544,12 @@ elements.download.addEventListener('click', downloadExcel);
 elements.appendWorkbook.addEventListener('click', appendToWorkbook);
 elements.chooseWorkbook.addEventListener('click', chooseWorkbook);
 if (elements.reportSelected) elements.reportSelected.addEventListener('click', reportSelectedJobs);
-if (elements.duplicateMode) {
-  elements.duplicateMode.addEventListener('change', () => {
-    saveSession();
-    if (elements.trackerSettings) elements.trackerSettings.open = false;
+if (elements.duplicateMode) elements.duplicateMode.addEventListener('change', saveSession);
+if (elements.trackerButton) elements.trackerButton.addEventListener('click', () => toggleTrackerPanel());
+if (elements.trackerClose) {
+  elements.trackerClose.addEventListener('click', () => {
+    toggleTrackerPanel(false);
+    elements.trackerButton?.focus();
   });
 }
 if (elements.feedbackButton) elements.feedbackButton.addEventListener('click', () => toggleFeedbackPanel());
@@ -1697,6 +1726,15 @@ if (elements.historyBody) {
     renderHistory();
   });
 }
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  const trackerWasOpen = elements.trackerPanel && !elements.trackerPanel.hidden;
+  const feedbackWasOpen = elements.feedbackPanel && !elements.feedbackPanel.hidden;
+  toggleTrackerPanel(false);
+  toggleFeedbackPanel(false);
+  if (trackerWasOpen) elements.trackerButton?.focus();
+  else if (feedbackWasOpen) elements.feedbackButton?.focus();
+});
 
 fetch('/health')
   .then((response) => { if (response.ok) elements.health.classList.add('is-online'); })

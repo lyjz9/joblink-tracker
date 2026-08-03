@@ -54,7 +54,7 @@
         </button>
       </div>
       <label class="sr-only" for="jobLinks">Job links, one per line</label>
-      <textarea id="jobLinks" rows="6" spellcheck="false" placeholder="https://company.com/careers/job-id&#10;https://www.linkedin.com/jobs/view/job-id"></textarea>
+      <textarea id="jobLinks" rows="4" spellcheck="false" placeholder="https://company.com/careers/job-id&#10;https://www.linkedin.com/jobs/view/job-id"></textarea>
       <div class="input-actions">
         <div class="input-controls">
           <label class="date-field" for="appliedDate">
@@ -63,27 +63,34 @@
           </label>
           <div class="validation-message" id="validationMessage" role="status"></div>
         </div>
-        <button class="button button-primary" type="button" id="extractButton" disabled>
-          <i data-lucide="sparkles" aria-hidden="true"></i>
-          Get job details
-        </button>
-      </div>
-      <div class="beta-note">
-        <i data-lucide="info" aria-hidden="true"></i>
-        Company career pages and ATS links usually work best. Monster, Upwork, Wellfound, and some protected sites may block Linc; use the employer's career page or add the job yourself when that happens.
-      </div>
-      <div class="capture-panel" aria-labelledby="captureTitle">
-        <div>
-          <h2 id="captureTitle">Can you open a page that Linc cannot?</h2>
-          <p>Install the Chrome extension from <b>browser_extension/linc_capture</b>. Open the posting yourself, choose <b>Linc Capture</b> in Chrome, then come back here and load the capture.</p>
-        </div>
-        <div class="capture-actions">
-          <button class="button button-secondary" type="button" id="loadCapturesButton">
-            <i data-lucide="inbox" aria-hidden="true"></i>
-            Load browser captures
+        <div class="input-primary-actions">
+          <details class="add-menu" id="otherAddMenu">
+            <summary class="button button-secondary">
+              <i data-lucide="plus" aria-hidden="true"></i>
+              Other ways to add
+              <i class="menu-chevron" data-lucide="chevron-down" aria-hidden="true"></i>
+            </summary>
+            <div class="add-menu-popover" role="group" aria-label="Other ways to add jobs">
+              <button class="add-menu-action" type="button" id="manualAddButton">
+                <i data-lucide="square-pen" aria-hidden="true"></i>
+                <span><strong>Add manually</strong><small>Enter the job fields yourself</small></span>
+              </button>
+              <button class="add-menu-action" type="button" id="loadCapturesButton">
+                <i data-lucide="scan-text" aria-hidden="true"></i>
+                <span><strong>Load browser capture</strong><small>Use a capture from the Chrome extension</small></span>
+              </button>
+            </div>
+          </details>
+          <button class="button button-primary" type="button" id="extractButton" disabled>
+            <i data-lucide="sparkles" aria-hidden="true"></i>
+            Get job details
           </button>
         </div>
       </div>
+      <details class="site-note">
+        <summary><i data-lucide="info" aria-hidden="true"></i> Site compatibility</summary>
+        <p>Company career pages and ATS links usually work best. Monster, Upwork, Wellfound, and some protected sites may block scraping; use the employer's career page or add the job manually when that happens.</p>
+      </details>
       <div class="progress" id="progress" aria-live="polite" hidden>
         <div class="progress-track"><span id="progressBar"></span></div>
         <span id="progressText">Getting ready</span>
@@ -92,111 +99,12 @@
           Cancel
         </button>
       </div>
-      </div>
-    </section>
-
-    <section class="results-band" aria-labelledby="resultsTitle">
-      <div class="band-content">
-      <div class="results-toolbar">
-        <div class="results-heading">
-          <h2 id="resultsTitle">Results</h2>
-          <div class="summary" aria-live="polite">
-            <span><b id="totalCount">0</b> total</span>
-            <span class="summary-ready"><b id="readyCount">0</b> ready</span>
-            <span class="summary-review"><b id="reviewCount">0</b> review</span>
-            <span class="summary-error"><b id="errorCount">0</b> errors</span>
-            <span><b id="manualCount">0</b> manual</span>
-          </div>
-          <div class="filter-tabs" aria-label="Filter results">
-            <button class="filter-tab is-active" type="button" data-filter="all">All</button>
-            <button class="filter-tab" type="button" data-filter="ready">Ready</button>
-            <button class="filter-tab" type="button" data-filter="review">Review</button>
-            <button class="filter-tab" type="button" data-filter="error">Error</button>
-            <button class="filter-tab" type="button" data-filter="manual">Manual</button>
-          </div>
-          <div class="salary-controls">
-            <strong>Show salary as</strong>
-            <div class="salary-mode-control" role="group" aria-label="Salary format">
-              <button class="salary-mode-button is-active" type="button" data-salary-mode="original" aria-pressed="true">Original</button>
-              <button class="salary-mode-button" type="button" data-salary-mode="hourly" aria-pressed="false">Hourly</button>
-              <button class="salary-mode-button" type="button" data-salary-mode="yearly" aria-pressed="false">Yearly</button>
-            </div>
-            <label class="salary-hours-field" id="salaryHoursField" for="salaryHoursPerWeek">
-              <span>Hours/week</span>
-              <input id="salaryHoursPerWeek" type="number" min="1" max="80" step="0.25" value="40" inputmode="decimal">
-            </label>
-            <span
-              class="salary-conversion-info"
-              id="salaryConversionInfo"
-              role="img"
-              aria-label="Converted salaries use the selected hours per week and 52 weeks per year. The selected format is also used for Excel."
-              title="Converted salaries use the selected hours per week and 52 weeks per year. The original is preserved, and Excel uses the selected format."
-            >
-              <i data-lucide="info" aria-hidden="true"></i>
-            </span>
-          </div>
-        </div>
-        <div class="toolbar-actions">
-          <div class="action-group result-actions" role="group" aria-label="Result actions">
-            <div class="action-group-heading">
-              <strong>Table actions</strong>
-              <span id="selectionCount">0 selected</span>
-            </div>
-            <div class="action-buttons">
-              <button class="button button-secondary" type="button" id="manualAddButton">
-                <i data-lucide="plus-circle" aria-hidden="true"></i>
-                Manual add
-              </button>
-              <button class="button button-tool" type="button" id="selectAllButton" disabled>
-                <i data-lucide="check-square" aria-hidden="true"></i>
-                Select all
-              </button>
-              <button class="button button-tool" type="button" id="retryAllButton" disabled>
-                <i data-lucide="rotate-cw" aria-hidden="true"></i>
-                Retry flagged
-              </button>
-              <button class="button button-danger" type="button" id="clearResultsButton" disabled>
-                <i data-lucide="trash-2" aria-hidden="true"></i>
-                Remove selected
-              </button>
-              <button class="button button-tool" type="button" id="reportSelectedButton" disabled>
-                <i data-lucide="flag" aria-hidden="true"></i>
-                Report selected
-              </button>
-            </div>
-          </div>
-          <div class="action-group tracker-actions" role="group" aria-label="Tracker options">
-            <div class="action-group-heading">
-              <strong>Excel tracker</strong>
-              <span class="file-name" id="workbookName" aria-live="polite">No tracker selected</span>
-            </div>
-            <div class="tracker-buttons">
-              <button class="button button-secondary" type="button" id="chooseWorkbookButton">
-                <i data-lucide="upload" aria-hidden="true"></i>
-                Choose tracker
-              </button>
-              <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
-                <i data-lucide="file-plus-2" aria-hidden="true"></i>
-                <span id="appendWorkbookLabel">Update tracker</span>
-              </button>
-              <button class="button button-secondary" type="button" id="downloadButton" disabled>
-                <i data-lucide="download" aria-hidden="true"></i>
-                Download new Excel
-              </button>
-            </div>
-            <input id="workbookFile" class="sr-only" type="file" accept=".xlsx,.xlsm" aria-label="Choose tracker workbook">
-            <label class="duplicate-field" for="duplicateMode">
-              <span>When a link repeats</span>
-              <select id="duplicateMode">
-                <option value="skip">Keep the existing row</option>
-                <option value="update">Replace with new details</option>
-              </select>
-            </label>
-          </div>
-        </div>
-      </div>
 
       <form class="manual-panel" id="manualPanel" hidden>
+        <div class="manual-heading">
+          <strong>Add a job manually</strong>
+          <span>Use the same fields that appear in your tracker.</span>
+        </div>
         <div class="manual-grid">
           <label>
             <span>Company</span>
@@ -241,11 +149,79 @@
           </button>
         </div>
       </form>
+      </div>
+    </section>
+
+    <section class="results-band" aria-labelledby="resultsTitle">
+      <div class="band-content">
+      <div class="results-toolbar">
+        <div class="results-heading">
+          <h2 id="resultsTitle">Results</h2>
+          <div class="summary" id="resultsSummary" aria-live="polite" hidden>
+            <span><b id="totalCount">0</b> total</span>
+            <span class="summary-ready"><b id="readyCount">0</b> ready</span>
+            <span class="summary-review"><b id="reviewCount">0</b> review</span>
+            <span class="summary-error"><b id="errorCount">0</b> errors</span>
+            <span><b id="manualCount">0</b> manual</span>
+          </div>
+          <div class="filter-tabs" id="resultFilters" aria-label="Filter results" hidden>
+            <button class="filter-tab is-active" type="button" data-filter="all">All</button>
+            <button class="filter-tab" type="button" data-filter="ready">Ready</button>
+            <button class="filter-tab" type="button" data-filter="review">Review</button>
+            <button class="filter-tab" type="button" data-filter="error">Error</button>
+            <button class="filter-tab" type="button" data-filter="manual">Manual</button>
+          </div>
+          <div class="salary-controls" id="salaryControls" hidden>
+            <strong>Show salary as</strong>
+            <div class="salary-mode-control" role="group" aria-label="Salary format">
+              <button class="salary-mode-button is-active" type="button" data-salary-mode="original" aria-pressed="true">Original</button>
+              <button class="salary-mode-button" type="button" data-salary-mode="hourly" aria-pressed="false">Hourly</button>
+              <button class="salary-mode-button" type="button" data-salary-mode="yearly" aria-pressed="false">Yearly</button>
+            </div>
+            <label class="salary-hours-field" id="salaryHoursField" for="salaryHoursPerWeek">
+              <span>Hours/week</span>
+              <input id="salaryHoursPerWeek" type="number" min="1" max="80" step="0.25" value="40" inputmode="decimal">
+            </label>
+            <span
+              class="salary-conversion-info"
+              id="salaryConversionInfo"
+              role="img"
+              aria-label="Converted salaries use the selected hours per week and 52 weeks per year. The selected format is also used for Excel."
+              title="Converted salaries use the selected hours per week and 52 weeks per year. The original is preserved, and Excel uses the selected format."
+            >
+              <i data-lucide="info" aria-hidden="true"></i>
+            </span>
+          </div>
+        </div>
+        <div class="results-command-row" id="resultsCommandRow" hidden>
+          <div class="table-tools" role="group" aria-label="Result tools">
+            <button class="button button-tool" type="button" id="selectAllButton" disabled>
+              <i data-lucide="check-square" aria-hidden="true"></i>
+              Select all
+            </button>
+            <button class="button button-tool" type="button" id="retryAllButton" disabled hidden>
+              <i data-lucide="rotate-cw" aria-hidden="true"></i>
+              Retry flagged
+            </button>
+          </div>
+          <div class="selection-actions" id="selectionActions" role="group" aria-label="Selected result actions" hidden>
+            <strong id="selectionCount">0 selected</strong>
+            <button class="button button-tool" type="button" id="reportSelectedButton" disabled>
+              <i data-lucide="flag" aria-hidden="true"></i>
+              Report
+            </button>
+            <button class="button button-danger" type="button" id="clearResultsButton" disabled>
+              <i data-lucide="trash-2" aria-hidden="true"></i>
+              Remove
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div class="empty-state" id="emptyState">
-        <img src="../static/empty-jobs.svg" alt="" width="180" height="120">
+        <img src="../static/empty-jobs.svg" alt="" width="132" height="88">
         <strong id="emptyTitle">No jobs yet</strong>
-        <span>Paste a few links above, load a browser capture, or add a job yourself.</span>
+        <span id="emptyText">Paste job links above to get started.</span>
       </div>
 
       <div class="table-wrap" id="tableWrap" hidden>
@@ -267,6 +243,45 @@
           </thead>
           <tbody id="resultsBody"></tbody>
         </table>
+      </div>
+
+      <div class="tracker-bar" id="trackerBar" aria-label="Excel tracker actions" hidden>
+        <div class="tracker-identity">
+          <i data-lucide="file-spreadsheet" aria-hidden="true"></i>
+          <div>
+            <strong>Excel tracker</strong>
+            <span class="file-name" id="workbookName" aria-live="polite">No tracker selected</span>
+          </div>
+        </div>
+        <div class="tracker-buttons">
+          <button class="button button-secondary" type="button" id="chooseWorkbookButton">
+            <i data-lucide="upload" aria-hidden="true"></i>
+            Choose tracker
+          </button>
+          <button class="button button-primary" type="button" id="appendWorkbookButton" disabled>
+            <i data-lucide="file-plus-2" aria-hidden="true"></i>
+            <span id="appendWorkbookLabel">Update tracker</span>
+          </button>
+          <button class="button button-secondary" type="button" id="downloadButton" disabled>
+            <i data-lucide="download" aria-hidden="true"></i>
+            Download Excel
+          </button>
+        </div>
+        <input id="workbookFile" class="sr-only" type="file" accept=".xlsx,.xlsm" aria-label="Choose tracker workbook">
+        <details class="tracker-settings" id="trackerSettings">
+          <summary class="icon-button" title="Duplicate settings" aria-label="Duplicate settings">
+            <i data-lucide="settings-2" aria-hidden="true"></i>
+          </summary>
+          <div class="tracker-settings-popover">
+            <label class="duplicate-field" for="duplicateMode">
+              <span>When a link repeats</span>
+              <select id="duplicateMode">
+                <option value="skip">Keep the existing row</option>
+                <option value="update">Replace with new details</option>
+              </select>
+            </label>
+          </div>
+        </details>
       </div>
       </div>
     </section>

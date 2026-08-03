@@ -49,9 +49,16 @@ const elements = {
   clearResults: document.querySelector('#clearResultsButton'),
   reportSelected: document.querySelector('#reportSelectedButton'),
   selectionCount: document.querySelector('#selectionCount'),
+  resultsSummary: document.querySelector('#resultsSummary'),
+  resultFilters: document.querySelector('#resultFilters'),
+  salaryControls: document.querySelector('#salaryControls'),
+  resultsCommandRow: document.querySelector('#resultsCommandRow'),
+  selectionActions: document.querySelector('#selectionActions'),
+  trackerBar: document.querySelector('#trackerBar'),
   selectAll: document.querySelector('#selectAllRows'),
   selectAllButton: document.querySelector('#selectAllButton'),
   manualAdd: document.querySelector('#manualAddButton'),
+  otherAddMenu: document.querySelector('#otherAddMenu'),
   manualPanel: document.querySelector('#manualPanel'),
   manualCancel: document.querySelector('#manualCancelButton'),
   manualValidation: document.querySelector('#manualValidation'),
@@ -67,6 +74,7 @@ const elements = {
   workbookFile: document.querySelector('#workbookFile'),
   workbookName: document.querySelector('#workbookName'),
   duplicateMode: document.querySelector('#duplicateMode'),
+  trackerSettings: document.querySelector('#trackerSettings'),
   appendWorkbook: document.querySelector('#appendWorkbookButton'),
   appendWorkbookLabel: document.querySelector('#appendWorkbookLabel'),
   retryAll: document.querySelector('#retryAllButton'),
@@ -84,6 +92,7 @@ const elements = {
   error: document.querySelector('#errorCount'),
   manual: document.querySelector('#manualCount'),
   emptyTitle: document.querySelector('#emptyTitle'),
+  emptyText: document.querySelector('#emptyText'),
   salaryHoursField: document.querySelector('#salaryHoursField'),
   salaryHoursPerWeek: document.querySelector('#salaryHoursPerWeek'),
   salaryConversionInfo: document.querySelector('#salaryConversionInfo'),
@@ -451,6 +460,7 @@ function render() {
   const selectedVisibleCount = rows.filter(({ job }) => job.selected).length;
   const allSelected = Boolean(rows.length) && selectedVisibleCount === rows.length;
   const someSelected = selectedCount > 0;
+  const hasJobs = state.jobs.length > 0;
 
   elements.body.innerHTML = rows.map(({ job, index }) => {
     const status = jobStatus(job);
@@ -496,12 +506,24 @@ function render() {
   elements.review.textContent = counts.review;
   elements.error.textContent = counts.error;
   if (elements.manual) elements.manual.textContent = counts.manual;
+  const hasFlaggedJobs = counts.review + counts.error > 0;
+  if (elements.resultsSummary) elements.resultsSummary.hidden = !hasJobs;
+  if (elements.resultFilters) elements.resultFilters.hidden = !hasJobs;
+  if (elements.salaryControls) elements.salaryControls.hidden = !hasJobs;
+  if (elements.resultsCommandRow) elements.resultsCommandRow.hidden = !hasJobs;
+  if (elements.selectionActions) elements.selectionActions.hidden = !someSelected;
+  if (elements.trackerBar) elements.trackerBar.hidden = !hasJobs;
   elements.table.hidden = !rows.length;
   elements.empty.hidden = Boolean(rows.length);
   if (elements.emptyTitle) {
     elements.emptyTitle.textContent = state.jobs.length
       ? 'No jobs in this view'
       : 'No jobs yet';
+  }
+  if (elements.emptyText) {
+    elements.emptyText.textContent = state.jobs.length
+      ? 'Choose another status to see the rest of your results.'
+      : 'Paste job links above to get started.';
   }
   const hasExportableJobs = state.jobs.some((job) => !job.error);
   elements.download.disabled = !hasExportableJobs;
@@ -511,11 +533,12 @@ function render() {
       ? (canOverwriteWorkbook() ? 'Update original' : 'Download updated copy')
       : 'Update tracker';
   }
-  elements.retryAll.disabled = state.processing || !state.jobs.some((job) => jobStatus(job) !== 'ready');
+  elements.retryAll.hidden = !hasFlaggedJobs;
+  elements.retryAll.disabled = state.processing || !hasFlaggedJobs;
   elements.appliedDate.disabled = state.processing;
   elements.clearResults.disabled = state.processing || !someSelected;
   if (elements.reportSelected) elements.reportSelected.disabled = state.processing || !someSelected;
-  elements.clearResults.innerHTML = `${icon('trash-2')} Remove selected${selectedCount ? ` (${selectedCount})` : ''}`;
+  elements.clearResults.innerHTML = `${icon('trash-2')} Remove${selectedCount ? ` (${selectedCount})` : ''}`;
   if (elements.selectionCount) {
     elements.selectionCount.textContent = `${selectedCount} selected`;
   }
@@ -1409,6 +1432,7 @@ async function currentWorkbookFile() {
 }
 
 function toggleManualPanel(show = elements.manualPanel.hidden) {
+  if (elements.otherAddMenu) elements.otherAddMenu.open = false;
   elements.manualPanel.hidden = !show;
   if (show) {
     elements.manualValidation.textContent = '';
@@ -1493,7 +1517,12 @@ elements.download.addEventListener('click', downloadExcel);
 elements.appendWorkbook.addEventListener('click', appendToWorkbook);
 elements.chooseWorkbook.addEventListener('click', chooseWorkbook);
 if (elements.reportSelected) elements.reportSelected.addEventListener('click', reportSelectedJobs);
-if (elements.duplicateMode) elements.duplicateMode.addEventListener('change', saveSession);
+if (elements.duplicateMode) {
+  elements.duplicateMode.addEventListener('change', () => {
+    saveSession();
+    if (elements.trackerSettings) elements.trackerSettings.open = false;
+  });
+}
 if (elements.feedbackButton) elements.feedbackButton.addEventListener('click', () => toggleFeedbackPanel());
 if (elements.feedbackClose) elements.feedbackClose.addEventListener('click', () => toggleFeedbackPanel(false));
 if (elements.feedbackCancel) elements.feedbackCancel.addEventListener('click', () => toggleFeedbackPanel(false));
@@ -1538,7 +1567,10 @@ if (elements.salaryHoursPerWeek) {
   });
 }
 elements.retryAll.addEventListener('click', retryAllErrors);
-elements.loadCaptures.addEventListener('click', loadCaptures);
+elements.loadCaptures.addEventListener('click', () => {
+  if (elements.otherAddMenu) elements.otherAddMenu.open = false;
+  void loadCaptures();
+});
 elements.clearResults.addEventListener('click', () => {
   state.jobs = state.jobs.filter((job) => !job.selected);
   render();

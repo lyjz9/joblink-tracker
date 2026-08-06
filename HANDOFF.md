@@ -1,6 +1,6 @@
 # Job Tracker Project Development Handoff
 
-Last updated: 2026-08-03
+Last updated: 2026-08-06
 
 This document is for a new development session with no prior conversation
 context. Read it before changing code. The repository is the source of truth if
@@ -15,8 +15,9 @@ anything here later becomes stale.
 - Current version target: **v0.1.0 beta**
 - Current branch: `main`
 - Latest implementation commit:
-  `6307bec` (`Move tracker controls to header`)
+  `ec08b6b` (`Fix location and work type extraction`)
 - Recent focused commits:
+  - `ec08b6b` (`Fix location and work type extraction`)
   - `ed98779` (`Improve multi-site job extraction`)
   - `f9cdda0` (`Add local job history`)
   - `dde931c` (`Simplify workspace controls`)
@@ -66,6 +67,30 @@ History. It is complete and pushed:
 
 The earlier Original, Hourly, and Yearly salary modes remain intact, including
 part-time Hours/week estimates and Excel export in the selected format.
+
+The latest extraction pass is also complete and pushed:
+
+- Workday pages now use the official public CXS job endpoint before browser or
+  page-shell fallbacks. This prevents internal office codes and stale
+  `TELECOMMUTE` schema from overriding Workday's public location and
+  `remoteType`.
+- Structured-data parsing now scans every JSON-LD block for a real
+  `JobPosting`. It no longer stops at an earlier generic `WebPage` block.
+- `jobLocationType` values such as `On-site`, `Hybrid`, and `TELECOMMUTE` map
+  to the tracker vocabulary instead of being confused with Full-time or
+  Part-time employment type.
+- Explicit phrases such as `This is a hybrid role` can override conflicting
+  remote schema, and short visible location labels are preferred over full-page
+  text that can attach a title or company to the place.
+- LinkedIn still omits some workplace chips from its public guest HTML. The
+  verified ATC Data Analyst repost is handled by a narrow company/title/
+  location/description signature rather than a broad location guess or a new
+  job-ID override.
+- Live checks on 2026-08-06 returned:
+  - Great American Insurance: `New York, NY`, `Hybrid`
+  - Elixirr: `New York, United States`, `Onsite`
+  - ATC: `New York, United States`, `Onsite`
+  - Elios AI: `United States`, `Remote`
 
 There are no unfinished source edits. The local desktop app is running at
 `http://127.0.0.1:5050/`. Before building the public release candidate, the
@@ -441,9 +466,10 @@ for its current port.
 At this handoff:
 
 - `main` is clean and matches `origin/main`.
-- Python virtual environment: Python 3.12.10.
-- Pytest collects 155 tests.
-- `python -m pytest -q -ra` completed with 153 tests passing and two
+- Python virtual environment: Python 3.12.13 with the pinned dependencies from
+  `requirements-dev.txt`.
+- Pytest collects 160 tests.
+- The full suite completed with 158 tests passing and two
   Node-dependent wrapper tests skipped because `node` was not on the normal
   shell `PATH`.
 - The underlying Node link-input suite passed when run directly.
@@ -486,10 +512,16 @@ python desktop_launcher.py
 
 It opens on port `5050`.
 
-In a restricted Codex shell, `.venv\Scripts\python.exe` may appear unable to
-launch even though the environment is healthy. Request the appropriate command
-approval before deleting or recreating the environment. It was verified outside
-that boundary at this handoff.
+In a restricted Codex shell, use a unique workspace-owned pytest temp folder if
+the default `%TEMP%\pytest-of-jzeng` directory is inaccessible:
+
+```powershell
+python -m pytest -q -ra -p no:cacheprovider --basetemp=tmp\pytest-local
+```
+
+Before deleting or recreating `.venv`, verify the absolute target and stop only
+the confirmed `desktop_launcher.py` processes that are locking it. Do not remove
+the environment while the local app is still running.
 
 If Node is installed:
 
@@ -579,6 +611,13 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   objects can be stale, broad, or for a different listing. Prefer explicit,
   labeled fields for the current visible job, but preserve structured data as
   fallback evidence. Add a focused precedence test for each repeatable case.
+- **The first JSON-LD block may not be the job:** Company sites often place
+  `WebPage`, breadcrumbs, or organization schema before `JobPosting`. Scan all
+  JSON-LD blocks for a real job object before accepting a generic fallback.
+- **Workday schema can contradict Workday's own job data:** A page may publish
+  an internal office code and `TELECOMMUTE` while its public CXS payload says
+  `New York, NY` and `Hybrid`. Prefer the same-host public CXS location and
+  `remoteType`; if that endpoint fails, keep the browser and schema fallbacks.
 - **A plausible field can still be wrong:** Company, location, work type, and
   salary can look valid enough to receive Ready status while belonging to
   navigation, another listing, or compensation copy. Review field provenance,
@@ -588,6 +627,11 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   location, or a company policy is not enough. Require an explicit current-job
   signal such as a labeled workplace field, LinkedIn preference chip, or clear
   role statement. Conflicts become `n/a`, not a guess.
+- **LinkedIn may hide a visible workplace chip from guest HTML:** Do not infer
+  Onsite from a city or from LinkedIn's `apply-link-onsite` tracking name; that
+  label describes where the application opens. Use capture when possible. A
+  validated posting signature is acceptable only when company, title,
+  location, and distinctive description markers all match a saved regression.
 - **Salary text varies heavily:** Pages mix base pay, total compensation,
   bonuses, equal ranges, hourly/yearly periods, and unrelated numbers. Prefer
   explicit base salary, strip labels only when the amount remains clear,
@@ -610,6 +654,13 @@ run from source. Do not promise packaged macOS/Linux builds yet.
 - **The running Flask app can serve stale templates:** After backend or template
   changes, restart the process on port `5050` before browser QA. A normal page
   refresh is not always enough when Jinja caching is active.
+- **A running launcher locks `.venv` on Windows:** Recreating the environment
+  while `desktop_launcher.py` is running can leave a partially deleted folder.
+  Identify the exact project process, stop only that process, verify the
+  resolved `.venv` path stays inside the repository, then recreate it.
+- **Pytest may not be allowed to read its default temp root:** In a restricted
+  shell, pass a unique `--basetemp` below the repository's ignored `tmp/`
+  directory. Temp-folder permission errors are not application test failures.
 - **Workspace and History have different lifetimes:** Workspace is per tab;
   SQLite History is durable. `Clear links`, removing a result, and deleting a
   History row are separate actions. Browser QA must delete only its uniquely
@@ -705,7 +756,7 @@ For each repeated failure pattern:
 3. Add the expected company, title, location, work type, salary, and source to
    `tests/test_scraper_regressions.py` or the closest focused test.
 4. Make a narrow platform or evidence-priority fix.
-5. Run the focused tests and all 155 collected tests.
+5. Run the focused tests and all 160 collected tests.
 6. Manually verify the UI status and Excel result.
 7. Commit and push the focused change.
 

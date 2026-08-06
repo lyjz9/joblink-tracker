@@ -15,8 +15,9 @@ anything here later becomes stale.
 - Current version target: **v0.1.0 beta**
 - Current branch: `main`
 - Latest implementation commit:
-  `ec08b6b` (`Fix location and work type extraction`)
+  `cf625f0` (`Default unspecified work type to onsite`)
 - Recent focused commits:
+  - `cf625f0` (`Default unspecified work type to onsite`)
   - `ec08b6b` (`Fix location and work type extraction`)
   - `ed98779` (`Improve multi-site job extraction`)
   - `f9cdda0` (`Add local job history`)
@@ -86,6 +87,10 @@ The latest extraction pass is also complete and pushed:
   verified ATC Data Analyst repost is handled by a narrow company/title/
   location/description signature rather than a broad location guess or a new
   job-ID override.
+- A complete, successful job row now defaults to `Onsite` when no work type is
+  available. Explicit `Remote`, `Hybrid`, or `Onsite` evidence still wins.
+  Errors, expired/search pages, and rows missing company, title, or location
+  remain `n/a`.
 - Live checks on 2026-08-06 returned:
   - Great American Insurance: `New York, NY`, `Hybrid`
   - Elixirr: `New York, United States`, `Onsite`
@@ -154,8 +159,10 @@ removed those fields.
 - `work_type` must be exactly `Remote`, `Hybrid`, `Onsite`, or `n/a`.
 - Never output `Mix`.
 - Do not infer work type merely because a location is remote-friendly or
-  because the job description contains generic remote-work language. Use an
-  explicit posting signal; otherwise use `n/a`.
+  because the job description contains generic remote-work language. Explicit
+  current-job evidence determines `Remote`, `Hybrid`, or `Onsite`. If a
+  successfully identified job has no work-type evidence, default it to
+  `Onsite`. Keep `n/a` for errors and incomplete rows.
 - Missing salary must be `n/a`.
 - Remove labels such as `Base pay range:` when a clean salary amount remains.
 - Collapse equal ranges such as `$20 - $20 per hour` to `$20 per hour`.
@@ -623,15 +630,19 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   navigation, another listing, or compensation copy. Review field provenance,
   improve field-specific quality rules, and prioritize confidently wrong Ready
   rows over already-marked missing fields.
-- **Work type is often over-inferred:** Generic remote-work language, a remote
-  location, or a company policy is not enough. Require an explicit current-job
-  signal such as a labeled workplace field, LinkedIn preference chip, or clear
-  role statement. Conflicts become `n/a`, not a guess.
-- **LinkedIn may hide a visible workplace chip from guest HTML:** Do not infer
-  Onsite from a city or from LinkedIn's `apply-link-onsite` tracking name; that
-  label describes where the application opens. Use capture when possible. A
-  validated posting signature is acceptable only when company, title,
-  location, and distinctive description markers all match a saved regression.
+- **Work type is often over-inferred:** Generic remote-work language or a
+  company policy is not enough to label a job `Remote` or `Hybrid`. Prefer a
+  labeled workplace field, LinkedIn preference chip, or clear role statement.
+  When none exists on an otherwise complete successful job, the current
+  product rule intentionally defaults to `Onsite`; errors and incomplete rows
+  remain `n/a`.
+- **LinkedIn may hide a visible workplace chip from guest HTML:** A city is not
+  explicit proof of `Onsite`, and LinkedIn's `apply-link-onsite` tracking name
+  only describes where the application opens. The final complete-row fallback
+  may still produce `Onsite` under the current product rule. Use capture when
+  possible to replace that assumption with the visible chip. A validated
+  posting signature is acceptable only when company, title, location, and
+  distinctive description markers all match a saved regression.
 - **Salary text varies heavily:** Pages mix base pay, total compensation,
   bonuses, equal ranges, hourly/yearly periods, and unrelated numbers. Prefer
   explicit base salary, strip labels only when the amount remains clear,
@@ -756,7 +767,7 @@ For each repeated failure pattern:
 3. Add the expected company, title, location, work type, salary, and source to
    `tests/test_scraper_regressions.py` or the closest focused test.
 4. Make a narrow platform or evidence-priority fix.
-5. Run the focused tests and all 160 collected tests.
+5. Run the focused tests and the full suite (currently 172 collected tests).
 6. Manually verify the UI status and Excel result.
 7. Commit and push the focused change.
 
@@ -801,7 +812,9 @@ After the packaged release and private beta are stable:
 - Do not fix one posting by hardcoding its current job ID.
 - Do not add broad cleanup that silently breaks another ATS.
 - Do not rely only on a live posting; it can expire or change.
-- Do not guess missing company, location, work type, or salary.
+- Do not guess missing company, location, or salary. Work type is the one
+  deliberate exception: a complete successful job defaults to `Onsite` when
+  the posting provides no work-type evidence.
 - Do not treat a job-search page as one job posting.
 - Do not remove the static HTML fallback merely because Playwright is primary.
 - Do not weaken URL, redirect, DNS, or Playwright network validation to make a
@@ -813,7 +826,8 @@ After the packaged release and private beta are stable:
 - Do not remove a Review flag simply to make the table look successful.
 - Do not assume a high confidence score means the row is factually correct.
 - Do not change only backend review rules or only frontend fallback rules.
-- Do not output a work type unless the evidence is explicit.
+- Do not label a job `Remote` or `Hybrid` without current-job evidence. Use the
+  deliberate `Onsite` fallback only for complete successful rows.
 - Do not reintroduce `Mix`.
 
 ### Frontend

@@ -22,6 +22,7 @@ from scraper.browser_scraper_v2 import (
     _page_content_when_stable,
     _public_result,
     _visible_page_text,
+    _workday_api_result,
 )
 
 
@@ -742,6 +743,171 @@ def test_workday_prefers_labeled_primary_location_and_salary():
     assert result["location"] == "Getzville, NY"
     assert result["work_type"] == "Hybrid"
     assert result["salary"] == "$55,341.00 - $68,270.00"
+
+
+def test_workday_api_uses_public_location_and_remote_type(monkeypatch):
+    url = (
+        "https://gaig.wd1.myworkdayjobs.com/en-US/GAIG_External/job/"
+        "Associate-Business-Analyst_R9349"
+    )
+    payload = {
+        "jobPostingInfo": {
+            "title": "Associate Business Analyst",
+            "jobDescription": (
+                "<p>This is a hybrid role that combines in-office and remote work.</p>"
+                "<p><b>Salary Range:</b> $70,000.00 - $70,000.00</p>"
+            ),
+            "location": "New York, NY (USA)",
+            "remoteType": "Hybrid",
+            "jobRequisitionLocation": {"descriptor": "NY10- 28 Liberty St"},
+        },
+        "hiringOrganization": {
+            "name": "GAIC Great American Insurance Company",
+        },
+    }
+    requested_urls = []
+
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return payload
+
+    def fake_get(request_url, **_kwargs):
+        requested_urls.append(request_url)
+        return Response()
+
+    monkeypatch.setattr("scraper.browser_scraper_v2.safe_requests_get", fake_get)
+
+    result = _workday_api_result(url)
+
+    assert requested_urls == [
+        "https://gaig.wd1.myworkdayjobs.com/wday/cxs/gaig/GAIG_External/job/"
+        "Associate-Business-Analyst_R9349"
+    ]
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Hybrid"
+    assert result["salary"] == "$70,000.00"
+
+
+def test_workday_explicit_hybrid_statement_overrides_remote_schema():
+    url = (
+        "https://gaig.wd1.myworkdayjobs.com/en-US/GAIG_External/job/"
+        "Associate-Business-Analyst_R9349"
+    )
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Associate Business Analyst",
+        "hiringOrganization": {
+            "@type": "Organization",
+            "name": "Great American Insurance Group",
+        },
+        "jobLocationType": "TELECOMMUTE",
+        "jobLocation": {
+            "@type": "Place",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "NY10- 28 Liberty St",
+                "addressCountry": "United States",
+            },
+        },
+        "description": "This is a hybrid role that combines in-office and remote work.",
+    }
+    html = f"""
+        <html><head>
+          <script type="application/ld+json">{json.dumps(posting)}</script>
+        </head><body></body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["work_type"] == "Hybrid"
+
+
+def test_company_page_strips_job_title_from_location_and_reads_onsite_schema():
+    url = (
+        "https://www.elixirr.com/en-gb/job-openings/graduate-analyst-3/"
+        "#talent-sync-application-wrapper"
+    )
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Graduate Analyst",
+        "description": "You will be based in New York, our east coast hub.",
+        "hiringOrganization": {"@type": "Organization", "name": "Elixirr"},
+        "jobLocationType": "On-site",
+        "employmentType": "Full-time",
+    }
+    html = f"""
+        <html><head>
+          <title>Graduate Analyst - Elixirr</title>
+          <script type="application/ld+json">
+            {json.dumps({"@context": "https://schema.org", "@type": "WebPage", "name": "Graduate Analyst - Elixirr"})}
+          </script>
+          <script type="application/ld+json">{json.dumps(posting)}</script>
+        </head><body>
+          <p class="wp-component-content__eyebrow">New York, United States</p>
+          <h1>Graduate Analyst</h1>
+          <main>You will be based in New York, our east coast hub.</main>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "Elixirr"
+    assert result["location"] == "New York, United States"
+    assert result["work_type"] == "Onsite"
+
+
+def test_linkedin_known_posting_signature_restores_hidden_onsite_tag():
+    url = "https://www.linkedin.com/jobs/view/4449748904/"
+    html = """
+        <html><head><title>ATC hiring Data Analyst in New York, United States | LinkedIn</title></head><body>
+          <h1>Data Analyst</h1>
+          <a data-tracking-control-name="public_jobs_topcard-org-name">ATC</a>
+          <span class="topcard__flavor--bullet">New York, United States</span>
+          <div class="show-more-less-html__markup">
+            American Technology Consulting (ATC) is a service-first tech company.
+            As an Entry-Level Data Analyst at ATC, you will turn raw data into
+            actionable insights and collaborate with cross-functional teams.
+          </div>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["location"] == "New York, United States"
+    assert result["work_type"] == "Onsite"
+
+
+def test_linkedin_remote_location_statement_remains_remote():
+    url = "https://www.linkedin.com/jobs/view/4440759711/"
+    html = """
+        <html><head><title>Elios AI hiring AI Operations Analyst in United States | LinkedIn</title></head><body>
+          <h1>AI Operations Analyst</h1>
+          <a data-tracking-control-name="public_jobs_topcard-org-name">Elios AI</a>
+          <span class="topcard__flavor--bullet">United States</span>
+          <div class="show-more-less-html__markup">
+            Location: Remote (US) | Type: Full Time | Experience: 0 to 2 years.
+            You will help teams adopt new AI systems and improve their workflows.
+          </div>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["location"] == "United States"
+    assert result["work_type"] == "Remote"
 
 
 def test_expired_posting_is_not_mistaken_for_an_inactivity_dialog():

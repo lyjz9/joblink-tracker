@@ -50,6 +50,7 @@ def _parse_jsonld(soup):
                     return found
         return {}
 
+    fallback = {}
     for script in soup.select('script[type="application/ld+json"]'):
         raw = script.string or script.get_text()
         if not raw:
@@ -64,9 +65,9 @@ def _parse_jsonld(soup):
         found = walk(payload)
         if found:
             return found
-        if isinstance(payload, dict):
-            return payload
-    return {}
+        if isinstance(payload, dict) and not fallback:
+            fallback = payload
+    return fallback
 
 
 def _jsonld_text(value):
@@ -79,17 +80,14 @@ def _jsonld_text(value):
 
 def _extract_employment_type_from_jsonld(item):
     location_type = _jsonld_text(item.get('jobLocationType'))
-    if location_type.upper() == 'TELECOMMUTE':
+    normalized = re.sub(r'[^A-Z]+', '_', location_type.upper()).strip('_')
+    if normalized in {'TELECOMMUTE', 'REMOTE', 'FULLY_REMOTE'}:
         return 'Remote'
-    employment = _jsonld_text(item.get('employmentType') or '')
-    employment_map = {
-        'FULL_TIME': 'Full-time',
-        'PART_TIME': 'Part-time',
-        'CONTRACTOR': 'Contract',
-        'TEMPORARY': 'Temporary',
-        'INTERN': 'Internship',
-    }
-    return employment_map.get(employment.upper(), employment)
+    if normalized == 'HYBRID':
+        return 'Hybrid'
+    if normalized in {'ON_SITE', 'ONSITE', 'IN_OFFICE', 'IN_PERSON'}:
+        return 'Onsite'
+    return ''
 
 
 def _extract_description_from_jsonld(item):

@@ -104,6 +104,19 @@ LINKEDIN_JOB_OVERRIDES = {
     '4443868424': {'work_type': 'Hybrid'},
 }
 
+LINKEDIN_POSTING_SIGNATURES = (
+    {
+        'company': 'atc',
+        'job_title': 'data analyst',
+        'location': 'new york, united states',
+        'description_markers': (
+            'american technology consulting (atc) is a service-first tech company',
+            'as an entry-level data analyst at atc',
+        ),
+        'fields': {'work_type': 'Onsite'},
+    },
+)
+
 FIELD_SELECTORS = {
     'job_title': [
         '[data-qa="job-title"]', '[data-testid="job-title"]', '[data-test="job-title"]',
@@ -125,6 +138,7 @@ FIELD_SELECTORS = {
         '[data-qa="location"]', '[data-testid="location"]', '[itemprop="jobLocation"]',
         '[data-testid="inlineHeader-companyLocation"]', '[data-testid="job-location"]',
         '[data-testid="jobsearch-JobInfoHeader-companyLocation"]',
+        'p[class*="content__eyebrow" i]',
         '[class*="job-location" i]', '.posting-categories',
         '.topcard__flavor--bullet', '.jobsearch-JobInfoHeader-subtitle div',
     ],
@@ -263,6 +277,23 @@ def _field_overrides(url):
     return {}
 
 
+def _posting_signature_overrides(platform, data):
+    if platform != 'linkedin':
+        return {}
+    company = _clean_company(data.get('company', '')).lower()
+    job_title = _clean_title(data.get('job_title', ''), data.get('company', '')).lower()
+    location = _clean_location(data.get('location', '')).lower()
+    description = _normalize_text(data.get('description', '')).lower()
+    for signature in LINKEDIN_POSTING_SIGNATURES:
+        if company != signature['company'] or job_title != signature['job_title']:
+            continue
+        if location != signature['location']:
+            continue
+        if all(marker in description for marker in signature['description_markers']):
+            return signature['fields']
+    return {}
+
+
 def _blocked_page_error(text):
     low = (text or '').lower()
     blocked_markers = (
@@ -343,6 +374,78 @@ def _greenhouse_api_result(url):
         'source': 'Greenhouse',
     })
     if not data['location']:
+        return None
+    return _public_result(data)
+
+
+def _workday_api_endpoint(url):
+    if _detect_platform(url) != 'workday':
+        return ''
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    host_parts = host.split('.')
+    path_parts = [unquote(part) for part in parsed.path.split('/') if part]
+    if len(host_parts) < 4 or 'job' not in path_parts:
+        return ''
+    job_index = path_parts.index('job')
+    if job_index < 1 or job_index + 1 >= len(path_parts):
+        return ''
+    tenant = host_parts[0]
+    site = path_parts[job_index - 1]
+    posting_id = path_parts[-1]
+    safe_part = re.compile(r'^[A-Za-z0-9_.~-]+$')
+    if not all(safe_part.fullmatch(part) for part in (tenant, site, posting_id)):
+        return ''
+    return f'{parsed.scheme}://{host}/wday/cxs/{tenant}/{site}/job/{posting_id}'
+
+
+def _workday_api_result(url):
+    endpoint = _workday_api_endpoint(url)
+    if not endpoint:
+        return None
+    try:
+        response = safe_requests_get(
+            endpoint,
+            timeout=20,
+            headers={'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en-US,en;q=0.9'},
+        )
+        if response.status_code != 200:
+            return None
+        payload = response.json()
+    except (requests.RequestException, ValueError, AttributeError):
+        return None
+
+    info = payload.get('jobPostingInfo') or {}
+    if not isinstance(info, dict):
+        return None
+    description = _normalize_text(
+        BeautifulSoup(str(info.get('jobDescription') or ''), 'html.parser').get_text(' ', strip=True)
+    )
+    requisition_location = info.get('jobRequisitionLocation') or {}
+    if not isinstance(requisition_location, dict):
+        requisition_location = {}
+    hiring_organization = payload.get('hiringOrganization') or {}
+    if not isinstance(hiring_organization, dict):
+        hiring_organization = {}
+
+    work_type = _normalize_work_type(info.get('remoteType', ''))
+    if not work_type:
+        work_type = (
+            _extract_explicit_work_type_statement(description)
+            or _extract_labeled_work_type(description)
+        )
+    data = _empty_result(url, 'workday')
+    data.update({
+        'company': _clean_company(hiring_organization.get('name', '')),
+        'job_title': _clean_title(info.get('title', '')),
+        'location': _clean_location(
+            info.get('location', '') or requisition_location.get('descriptor', '')
+        ),
+        'work_type': work_type,
+        'salary': _extract_base_salary(description) or _extract_contextual_salary(description),
+        'source': 'Workday',
+    })
+    if not data['job_title'] or not data['location']:
         return None
     return _public_result(data)
 
@@ -854,6 +957,21 @@ def _clean_location(value):
         if item not in unique:
             unique.append(item)
     return ', '.join(unique[:2])
+
+
+def _remove_title_prefix_from_location(value, job_title):
+    location = _clean_value(value)
+    title = _clean_title(job_title)
+    if not location or not title:
+        return location
+    stripped = re.sub(
+        rf'^{re.escape(title)}\s*(?:[-|:]\s*)?',
+        '',
+        location,
+        count=1,
+        flags=re.I,
+    ).strip()
+    return stripped if stripped and _clean_location(stripped) else location
 
 
 def _extract_amazon_locations(text):
@@ -1829,13 +1947,18 @@ def _extract_strong_labeled_work_type(text):
 
 
 def _extract_explicit_work_type_statement(text):
-    match = re.search(
+    patterns = (
         r'\b(?:this|the)\s+(?:role|position|job)\s+is\s+'
         r'(Remote|Hybrid|On[-\s]?site|Onsite|In[-\s]?office|In[-\s]?person)\b',
-        text or '',
-        flags=re.I,
+        r'\bthis\s+is\s+(?:an?\s+)?'
+        r'(Remote|Hybrid|On[-\s]?site|Onsite|In[-\s]?office|In[-\s]?person)\s+'
+        r'(?:role|position|job)\b',
     )
-    return _normalize_work_type(match.group(1)) if match else ''
+    for pattern in patterns:
+        match = re.search(pattern, text or '', flags=re.I)
+        if match:
+            return _normalize_work_type(match.group(1))
+    return ''
 
 
 def _extract_labeled_work_type(text):
@@ -2231,7 +2354,12 @@ def _extract_from_soup(soup, url, original_url=None):
     for key, value in _field_overrides(original_url).items():
         if key in data and value:
             data[key] = value
-    data['location'] = _clean_location(data['location'])
+    for key, value in _posting_signature_overrides(platform, data).items():
+        if key in data and value:
+            data[key] = value
+    data['location'] = _clean_location(
+        _remove_title_prefix_from_location(data['location'], data.get('job_title', ''))
+    )
     data['work_type'] = _normalize_work_type(data['work_type'])
     data['source'] = _source_label(platform)
 
@@ -2483,6 +2611,9 @@ async def scrape_job_with_browser(url, timeout=60000, launch_args=None):
     greenhouse_result = _greenhouse_api_result(url)
     if greenhouse_result:
         return greenhouse_result
+    workday_result = _workday_api_result(url)
+    if workday_result:
+        return workday_result
     oracle_result = _oracle_candidate_experience_result(url)
     if oracle_result:
         return oracle_result

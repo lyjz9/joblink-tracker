@@ -64,7 +64,59 @@ def test_public_results_normalize_location_and_salary(clean_result):
     })
 
     assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Onsite"
     assert result["salary"] == "$20.00/hr - $25.00/hr"
+
+
+@pytest.mark.parametrize(
+    "clean_result",
+    (_public_result, _public_scrape_result),
+    ids=("browser_result", "shared_result"),
+)
+@pytest.mark.parametrize("work_type", ("", "n/a"))
+def test_complete_public_results_default_unspecified_work_type_to_onsite(
+    clean_result,
+    work_type,
+):
+    result = clean_result({
+        "company": "Example Company",
+        "job_title": "Operations Analyst",
+        "location": "New York, NY",
+        "work_type": work_type,
+    })
+
+    assert result["work_type"] == "Onsite"
+
+
+@pytest.mark.parametrize(
+    "clean_result",
+    (_public_result, _public_scrape_result),
+    ids=("browser_result", "shared_result"),
+)
+@pytest.mark.parametrize(
+    "overrides",
+    (
+        {"company": "n/a"},
+        {"job_title": "n/a"},
+        {"location": "n/a"},
+        {"error": "This posting could not be read."},
+    ),
+)
+def test_incomplete_or_failed_results_keep_unspecified_work_type_na(
+    clean_result,
+    overrides,
+):
+    payload = {
+        "company": "Example Company",
+        "job_title": "Operations Analyst",
+        "location": "New York, NY",
+        "work_type": "",
+    }
+    payload.update(overrides)
+
+    result = clean_result(payload)
+
+    assert result["work_type"] == "n/a"
 
 
 def test_salary_label_without_an_amount_becomes_na():

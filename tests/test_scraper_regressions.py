@@ -548,7 +548,7 @@ def test_indeed_posting_can_use_direct_html_without_browser(monkeypatch):
     assert result["company"] == "Seaport Entertainment Group"
     assert result["job_title"] == "Data and Inventory Specialist TEMP"
     assert result["location"] == "New York, NY"
-    assert result["work_type"] == "n/a"
+    assert result["work_type"] == "Onsite"
     assert result["salary"] == "$23 - $25 an hour"
     assert result["source"] == "Indeed"
 
@@ -1109,7 +1109,7 @@ def test_workday_cleans_internal_fields_and_reads_plain_us_compensation():
     assert result["job_title"] == "Associate Growth & Commercial Strategy Analyst"
     assert result["location"] == "New York, NY"
     assert result["salary"] == "$60,800.00 - $99,960.00"
-    assert result["work_type"] == "n/a"
+    assert result["work_type"] == "Onsite"
 
 
 def test_visible_lockton_location_and_workplace_override_broad_schema():

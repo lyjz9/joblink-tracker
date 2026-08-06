@@ -4,6 +4,7 @@ import re
 
 from scraper.browser_scraper_v2 import _detect_platform
 from scraper.field_normalization import (
+    default_unspecified_work_type,
     normalize_location_display,
     normalize_salary_display,
 )
@@ -235,6 +236,8 @@ def _public_scrape_result(result):
         value = result.get(key, '')
         if key == 'location':
             value = normalize_location_display(value)
+        elif key == 'work_type':
+            value = default_unspecified_work_type(value, result)
         elif key == 'salary':
             value = normalize_salary_display(value)
         if key in defaults and not value:

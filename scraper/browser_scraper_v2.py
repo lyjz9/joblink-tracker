@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
 from .field_normalization import (
+    default_unspecified_work_type,
     normalize_location_display,
     normalize_salary_display,
 )
@@ -2404,6 +2405,8 @@ def _public_result(data):
         value = data.get(key, '')
         if key == 'location':
             value = normalize_location_display(value)
+        elif key == 'work_type':
+            value = default_unspecified_work_type(value, data)
         elif key == 'salary':
             value = normalize_salary_display(value)
         if key in defaults and not value:

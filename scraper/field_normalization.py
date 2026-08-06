@@ -63,6 +63,8 @@ _CURRENCY_ALIASES = {
     '\u20b9': 'INR',
 }
 
+_MISSING_DISPLAY_VALUES = frozenset({'', 'n/a', 'na', 'none', 'null'})
+
 
 def normalize_location_display(value):
     """Title-case all-caps places without lowercasing location abbreviations."""
@@ -105,6 +107,21 @@ def normalize_salary_display(value):
     if not amount or not _SALARY_AMOUNT_RE.search(amount):
         return ''
     return _collapse_equal_salary_range(amount)
+
+
+def default_unspecified_work_type(value, result):
+    """Default a complete, successful posting to Onsite when work type is absent."""
+    text = re.sub(r'\s+', ' ', str(value or '')).strip()
+    if text.lower() not in _MISSING_DISPLAY_VALUES:
+        return text
+    if result.get('error'):
+        return 'n/a'
+    if any(
+        str(result.get(field) or '').strip().lower() in _MISSING_DISPLAY_VALUES
+        for field in ('company', 'job_title', 'location')
+    ):
+        return 'n/a'
+    return 'Onsite'
 
 
 def _collapse_equal_salary_range(value):

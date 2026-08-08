@@ -86,10 +86,13 @@ SOURCE_LABELS = {
 
 COMPANY_HOST_OVERRIDES = {
     'careers.achievetestprep.com': 'Achieve Test Prep',
+    'jpmc.fa.oraclecloud.com': 'JPMorgan Chase & Co.',
     'jobs.citi.com': 'Citi',
     'burberrycareers.com': 'Burberry',
     'careers.twosigma.com': 'Two Sigma',
     'hdr.taleo.net': 'HDR',
+    'blackrock.tal.net': 'BlackRock',
+    'groupecreditagricole.jobs': 'Crédit Agricole CIB',
     'careers.paramount.com': 'Paramount',
     'paramount.com': 'Paramount',
     'cityjobs.nyc.gov': 'New York City',
@@ -429,6 +432,19 @@ def _workday_api_result(url):
     if not isinstance(hiring_organization, dict):
         hiring_organization = {}
 
+    location = _clean_location(info.get('location', ''))
+    if not location:
+        country = requisition_location.get('country') or {}
+        if not isinstance(country, dict):
+            country = {}
+        location = _clean_location(', '.join(
+            part for part in (
+                _clean_value(requisition_location.get('descriptor', '')),
+                _clean_value(country.get('descriptor', '')),
+            )
+            if part
+        ))
+
     work_type = _normalize_work_type(info.get('remoteType', ''))
     if not work_type:
         work_type = (
@@ -439,9 +455,7 @@ def _workday_api_result(url):
     data.update({
         'company': _clean_company(hiring_organization.get('name', '')),
         'job_title': _clean_title(info.get('title', '')),
-        'location': _clean_location(
-            info.get('location', '') or requisition_location.get('descriptor', '')
-        ),
+        'location': location,
         'work_type': work_type,
         'salary': _extract_base_salary(description) or _extract_contextual_salary(description),
         'source': 'Workday',
@@ -499,7 +513,15 @@ def _oracle_candidate_experience_result(url):
     item = items[0]
     platform = _detect_platform(url)
     data = _empty_result(url, platform)
-    company = _get_meta_content(page_soup, 'property', ['og:site_name'])
+    host = parsed.netloc.lower().replace('www.', '')
+    company = next((
+        value for domain, value in COMPANY_HOST_OVERRIDES.items()
+        if host == domain or host.endswith('.' + domain)
+    ), '')
+    if not company:
+        company = _get_meta_content(page_soup, 'property', ['og:site_name'])
+    if re.search(r'\b(?:candidate experience|career)\s+page\b', company, flags=re.I):
+        company = ''
     description = ' '.join(str(item.get(key) or '') for key in (
         'ExternalDescriptionStr', 'OrganizationDescriptionStr', 'CorporateDescriptionStr'
     ))
@@ -782,6 +804,7 @@ def _clean_company(value):
     if re.search(r'\b(?:MS\s+Smith\s+Barney|Morgan\s+Stanley)\b', value, flags=re.I):
         return 'Morgan Stanley'
     known = {
+        'jpmc': 'JPMorgan Chase & Co.',
         'burberry': 'Burberry',
         'burberrycareers': 'Burberry',
         'fdmgroup': 'FDM Group',
@@ -794,6 +817,9 @@ def _clean_company(value):
         'ms': 'Morgan Stanley',
         'morgan stanley': 'Morgan Stanley',
         'pnc': 'PNC',
+        'bbva red exterior de oficinas': 'BBVA',
+        'ca cib americas': 'Crédit Agricole CIB',
+        'blackrock': 'BlackRock',
         'alphasights': 'AlphaSights',
         'nyulangone': 'NYU Langone Health',
         'nyu langone': 'NYU Langone Health',
@@ -900,6 +926,16 @@ def _clean_location(value):
         'Australia', 'India', 'Japan', 'Singapore', 'Germany', 'France',
         'Ireland', 'Poland', 'Spain', 'Italy', 'Brazil', 'Netherlands', 'Gibraltar',
     )
+    country_parts = [part.strip() for part in value.split(',') if part.strip()]
+    canonical_countries = {
+        part.lower(): next(
+            (country for country in countries if country.lower() == part.lower()),
+            '',
+        )
+        for part in country_parts
+    }
+    if len(country_parts) > 1 and all(canonical_countries.values()):
+        return ', '.join(canonical_countries[part.lower()] for part in country_parts)
     country_name = next((country for country in countries if country.lower() == value.lower()), '')
     if country_name:
         return country_name
@@ -1224,7 +1260,9 @@ def _extract_base_salary(text):
 def _extract_labeled_plain_salary(text, location=''):
     match = re.search(
         r'\b(?:a\s+good\s+faith\s+estimate\s+of\s+(?:the\s+)?compensation\s+is|'
-        r'(?:salary|compensation)\s+range(?:\s+is)?)\s*:?\s*'
+        r'(?:salary|(?:base\s+)?compensation)\s+range'
+        r'(?:\s+for\s+(?:this|the)\s+(?:role|position|job)'
+        r'(?:\s+in\s+the\s+posted\s+location)?)?(?:\s+is)?)\s*:?\s*'
         r'(?P<low>\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?)\s*'
         r'(?:-|\u2013|\u2014|to)\s*'
         r'(?P<high>\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?)\b',
@@ -1819,6 +1857,15 @@ def _extract_taleo_location(text):
     return ''
 
 
+def _extract_talnet_countries(text):
+    match = re.search(
+        r'\bCountries\s+(.{2,160}?)\s+Cities\b',
+        text or '',
+        flags=re.I,
+    )
+    return _clean_location(match.group(1)) if match else ''
+
+
 def _visible_workday_location(soup):
     for selector in ('[data-automation-id="locations"]', '[data-automation-id="jobPostingLocation"]'):
         for elem in soup.select(selector):
@@ -1922,6 +1969,21 @@ def _extract_work_type(text):
         'on-site', 'onsite', 'in-office', 'in office', 'in-person', 'in person', 'on site',
         'office-based', 'office based',
     ))
+    conditional_remote = re.search(
+        r'\b(?:may\s+be\s+eligible\s+for\s+(?:remote\s+work|telework)|'
+        r'may\s+work\s+remotely\s+if|eligible\s+for\s+(?:remote\s+work|telework)|'
+        r'remote\s+work\s+pilot\s+program)\b',
+        low,
+    )
+    explicit_remote = re.search(
+        r'\b(?:(?:fully|entirely|100%)\s+remote|remote\s+(?:role|position|job|opportunity)|'
+        r'(?:this|the)\s+(?:role|position|job)\s+is\s+(?:fully\s+)?remote|'
+        r'(?:workplace\s+type|work\s*type|location)\s*[:\-]?\s*remote|'
+        r'remote\s*[-,:/]\s*(?:us|usa|united\s+states)|work\s+from\s+home)\b',
+        low,
+    )
+    if has_remote and conditional_remote and not explicit_remote:
+        has_remote = False
     if has_hybrid:
         return 'Hybrid'
     if has_remote and has_onsite:
@@ -2187,6 +2249,7 @@ def _merge(data, candidate):
 def _extract_from_soup(soup, url, original_url=None):
     original_url = original_url or url
     platform = _detect_platform(original_url, soup)
+    source_platform = _detect_platform(original_url)
     data = _empty_result(original_url, platform)
     url_hints = _extract_url_hints(original_url, platform)
     host = urlparse(original_url).netloc.lower().replace('www.', '')
@@ -2279,6 +2342,7 @@ def _extract_from_soup(soup, url, original_url=None):
         data['salary'] = _extract_contextual_salary(salary_text) or _extract_salary(full_text)
     url_location = _extract_location_from_url(original_url)
     taleo_location = _extract_taleo_location(full_text) if 'taleo.net' in urlparse(original_url).netloc.lower() else ''
+    talnet_location = _extract_talnet_countries(full_text) if 'tal.net' in host else ''
     amazon_location = _extract_amazon_locations(full_text) if 'amazon.jobs' in urlparse(original_url).netloc.lower() else ''
     if platform == 'workday':
         primary_location = _workday_primary_location(
@@ -2290,7 +2354,9 @@ def _extract_from_soup(soup, url, original_url=None):
             visible_location = _visible_workday_location(soup)
             if visible_location and (not data['location'] or _location_looks_internal(data['location'])):
                 data['location'] = visible_location
-    if taleo_location:
+    if talnet_location:
+        data['location'] = talnet_location
+    elif taleo_location:
         data['location'] = taleo_location
     elif amazon_location:
         data['location'] = amazon_location
@@ -2317,7 +2383,8 @@ def _extract_from_soup(soup, url, original_url=None):
         labeled_page_work_type = ''
     else:
         data['salary'] = _extract_salary(data.get('salary', ''))
-        work_type_source = ' '.join([data.get('location', ''), data.get('description', ''), full_text])
+        work_type_body = data.get('description', '') or full_text
+        work_type_source = ' '.join([data.get('location', ''), work_type_body])
         labeled_page_work_type = (
             _visible_labeled_work_type(soup)
             or _extract_strong_labeled_work_type(full_text)
@@ -2362,7 +2429,7 @@ def _extract_from_soup(soup, url, original_url=None):
         _remove_title_prefix_from_location(data['location'], data.get('job_title', ''))
     )
     data['work_type'] = _normalize_work_type(data['work_type'])
-    data['source'] = _source_label(platform)
+    data['source'] = _source_label(source_platform)
 
     data['job_title'] = _clean_title(data['job_title'], data['company'])
     if url_hints.get('job_title') and _looks_generic_title(data.get('job_title', '')):

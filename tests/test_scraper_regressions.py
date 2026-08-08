@@ -427,6 +427,52 @@ def test_oracle_candidate_experience_api_returns_official_job_fields(monkeypatch
     assert result["source"] == "Company Website"
 
 
+def test_oracle_candidate_page_uses_tenant_brand_instead_of_shell_title(monkeypatch):
+    url = (
+        "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/"
+        "CX_1001/job/210763120"
+    )
+    page_html = """
+        <html><head>
+          <base href="/en/sites/CX_1001"
+                data-apibaseurl="https://jpmc.fa.oraclecloud.com"
+                data-sitenumber="CX_1001">
+          <meta property="og:site_name" content="JPMC Candidate Experience page">
+        </head></html>
+    """
+    payload = {
+        "items": [{
+            "Title": "Markets Full-Time Analyst Program",
+            "PrimaryLocation": "New York, NY, United States",
+            "WorkplaceType": "",
+        }]
+    }
+
+    class PageResponse:
+        status_code = 200
+        text = page_html
+
+    class ApiResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return payload
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda request_url, **_kwargs: (
+            ApiResponse() if "recruitingCEJobRequisitionDetails" in request_url else PageResponse()
+        ),
+    )
+
+    result = _oracle_candidate_experience_result(url)
+
+    assert result["company"] == "JPMorgan Chase & Co."
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Onsite"
+
+
 def test_custom_career_page_can_use_direct_html_without_browser(monkeypatch):
     url = (
         "https://careers.achievetestprep.com/jobs/careers/424687000052441476/"
@@ -791,6 +837,44 @@ def test_workday_api_uses_public_location_and_remote_type(monkeypatch):
     assert result["salary"] == "$70,000.00"
 
 
+def test_workday_uses_requisition_country_when_city_label_is_too_broad(monkeypatch):
+    url = (
+        "https://bbva.wd3.myworkdayjobs.com/en-US/BBVA/job/New-York/"
+        "XMLNAME-2026-CIB-New-Generation-Program_JR00099227"
+    )
+    payload = {
+        "jobPostingInfo": {
+            "title": "2026 CIB New Generation Program",
+            "jobDescription": "<p>Salary Range: $90,000 to $100,000</p>",
+            "location": "New York",
+            "remoteType": "On Site",
+            "jobRequisitionLocation": {
+                "descriptor": "NEW YORK",
+                "country": {"descriptor": "United States of America"},
+            },
+        },
+        "hiringOrganization": {"name": "BBVA RED EXTERIOR DE OFICINAS"},
+    }
+
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return payload
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    result = _workday_api_result(url)
+
+    assert result["company"] == "BBVA"
+    assert result["location"] == "New York, United States"
+    assert result["work_type"] == "Onsite"
+
+
 def test_workday_explicit_hybrid_statement_overrides_remote_schema():
     url = (
         "https://gaig.wd1.myworkdayjobs.com/en-US/GAIG_External/job/"
@@ -1144,6 +1228,113 @@ def test_visible_lockton_location_and_workplace_override_broad_schema():
     assert result["location"] == "New York City, NY"
     assert result["work_type"] == "Hybrid"
     assert result["salary"] == "$70,000-$73,000"
+
+
+def test_conditional_remote_policy_is_not_treated_as_remote_work_type():
+    policy = (
+        "This position may be eligible for remote work up to 2 days per week, "
+        "pursuant to the Remote Work Pilot Program."
+    )
+
+    assert _extract_work_type(policy) == ""
+    assert _extract_work_type(f"This is a fully remote role. {policy}") == "Remote"
+
+
+def test_credit_agricole_uses_canonical_brand_and_ignores_footer_policy():
+    url = (
+        "https://groupecreditagricole.jobs/en/our-jobs-offer/"
+        "578-170470-4-us-analyst-third-party-risk-management/"
+    )
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "US Analyst - Third Party Risk Management",
+        "hiringOrganization": {"@type": "Organization", "name": "CA CIB Americas"},
+        "jobLocation": {
+            "@type": "Place",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "NEW YORK",
+                "addressCountry": "United States",
+            },
+        },
+        "description": "<p>Support the Third Party Risk Management team.</p><p>Salary Range: $80K</p>",
+    }
+    html = f"""
+        <html><head><script type="application/ld+json">{json.dumps(posting)}</script></head>
+        <body><main>
+          <p>Employees may work remotely if their role is eligible.</p>
+          <p>The number of remote working days varies by country.</p>
+        </main></body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "Crédit Agricole CIB"
+    assert result["location"] == "New York, United States"
+    assert result["work_type"] == "Onsite"
+    assert result["salary"] == "$80K"
+
+
+def test_capgemini_reads_scoped_plain_number_compensation_range():
+    url = "https://www.capgemini.com/jobs/521043-en_US+sap_btp"
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Junior AI Data Scientist/Engineer",
+        "hiringOrganization": {"@type": "Organization", "name": "Capgemini"},
+        "jobLocation": {
+            "@type": "Place",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "New York",
+                "addressCountry": "en-us",
+            },
+        },
+        "description": (
+            "The base compensation range for this role in the posted location "
+            "is: 60,000 - 65,000."
+        ),
+    }
+    html = (
+        '<html><head><script type="application/ld+json">'
+        f'{json.dumps(posting)}</script></head>'
+        '<body><script>window.atsVendor = "lever";</script></body></html>'
+    )
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["location"] == "New York, United States"
+    assert result["salary"] == "$60,000 - $65,000"
+    assert result["source"] == "Company Website"
+
+
+def test_tal_program_page_keeps_labeled_multi_country_location():
+    url = (
+        "https://blackrock.tal.net/vx/lang-en-GB/mobile-0/brand-3/"
+        "candidate/so/pm/1/pl/1/opp/12218-2027-Full-Time-Analyst-Program-AMRS/en-GB"
+    )
+    html = """
+        <html><head><title>2027 Full-Time Analyst Program - AMRS - BlackRock</title></head>
+        <body><main>
+          <h1>2027 Full-Time Analyst Program - AMRS</h1>
+          <p>Region Americas Countries Canada, Mexico, United States Cities Atlanta,
+             Boston, Mexico City, Montreal, New York, Toronto</p>
+          <section>Job description The analyst program is a two-year experience.</section>
+        </main></body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "BlackRock"
+    assert result["location"] == "Canada, Mexico, United States"
+    assert result["work_type"] == "Onsite"
 
 
 def test_jobvite_domain_is_not_misidentified_from_page_copy():

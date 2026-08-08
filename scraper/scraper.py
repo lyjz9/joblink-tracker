@@ -165,7 +165,14 @@ def _extract_location_from_jsonld(item):
     if isinstance(job_location, dict):
         if 'address' in job_location and isinstance(job_location['address'], dict):
             addr = job_location['address']
-            location = ', '.join([_jsonld_text(addr.get(k, '')).strip() for k in ('addressLocality', 'addressRegion', 'addressCountry') if addr.get(k)])
+            parts = [
+                _normalize_jsonld_country(addr.get(key, ''))
+                if key == 'addressCountry'
+                else _jsonld_text(addr.get(key, '')).strip()
+                for key in ('addressLocality', 'addressRegion', 'addressCountry')
+                if addr.get(key)
+            ]
+            location = ', '.join(part for part in parts if part)
         elif job_location.get('address'):
             location = _jsonld_text(job_location['address'])
         elif job_location.get('name'):
@@ -173,6 +180,14 @@ def _extract_location_from_jsonld(item):
     elif job_location:
         location = _jsonld_text(job_location)
     return _normalize_text(location)
+
+
+def _normalize_jsonld_country(value):
+    country = _jsonld_text(value).strip()
+    compact = re.sub(r'[^a-z]+', '-', country.lower()).strip('-')
+    if compact in {'en-us', 'us', 'usa', 'united-states', 'united-states-of-america'}:
+        return 'United States'
+    return country
 
 
 def _extract_salary_from_jsonld(item):

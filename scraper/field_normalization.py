@@ -69,28 +69,35 @@ _MISSING_DISPLAY_VALUES = frozenset({'', 'n/a', 'na', 'none', 'null'})
 def normalize_location_display(value):
     """Title-case all-caps places without lowercasing location abbreviations."""
     text = re.sub(r'\s+', ' ', str(value or '')).strip()
-    letters = ''.join(character for character in text if character.isalpha())
-    if not letters or not letters.isupper():
-        return text
 
-    word_index = 0
+    def normalize_piece(piece):
+        letters = ''.join(character for character in piece if character.isalpha())
+        if not letters or not letters.isupper():
+            return piece
 
-    def replace_word(match):
-        nonlocal word_index
-        word = match.group(0)
-        upper = word.upper()
-        if upper in _LOCATION_ACRONYMS:
-            cleaned = upper
-        elif word_index and upper in _LOCATION_CONNECTORS:
-            cleaned = upper.lower()
-        elif upper.startswith('MC') and len(upper) > 3 and "'" not in word:
-            cleaned = f"Mc{upper[2:].capitalize()}"
-        else:
-            cleaned = word.title()
-        word_index += 1
-        return cleaned
+        word_index = 0
 
-    return _LOCATION_WORD_RE.sub(replace_word, text)
+        def replace_word(match):
+            nonlocal word_index
+            word = match.group(0)
+            upper = word.upper()
+            if upper in _LOCATION_ACRONYMS:
+                cleaned = upper
+            elif word_index and upper in _LOCATION_CONNECTORS:
+                cleaned = upper.lower()
+            elif upper.startswith('MC') and len(upper) > 3 and "'" not in word:
+                cleaned = f"Mc{upper[2:].capitalize()}"
+            else:
+                cleaned = word.title()
+            word_index += 1
+            return cleaned
+
+        return _LOCATION_WORD_RE.sub(replace_word, piece)
+
+    return ''.join(
+        part if part in {',', ';', '|', '/'} else normalize_piece(part)
+        for part in re.split(r'([,;|/])', text)
+    )
 
 
 def normalize_salary_display(value):

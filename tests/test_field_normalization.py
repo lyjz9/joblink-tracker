@@ -16,6 +16,7 @@ from scraper.result_quality import _public_scrape_result
         ("CITY OF INDUSTRY, CA", "City of Industry, CA"),
         ("MCKINNEY, TX", "McKinney, TX"),
         ("SEOUL, SOUTH KOREA", "Seoul, South Korea"),
+        ("NEW YORK, United States", "New York, United States"),
         ("Remote - USA", "Remote - USA"),
         ("McLean, VA", "McLean, VA"),
     ),

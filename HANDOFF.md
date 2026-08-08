@@ -1,6 +1,6 @@
 # Job Tracker Project Development Handoff
 
-Last updated: 2026-08-06
+Last updated: 2026-08-08
 
 This document is for a new development session with no prior conversation
 context. Read it before changing code. The repository is the source of truth if
@@ -15,8 +15,9 @@ anything here later becomes stale.
 - Current version target: **v0.1.0 beta**
 - Current branch: `main`
 - Latest implementation commit:
-  `cf625f0` (`Default unspecified work type to onsite`)
+  `9722386` (`Fix multi-site job field extraction`)
 - Recent focused commits:
+  - `9722386` (`Fix multi-site job field extraction`)
   - `cf625f0` (`Default unspecified work type to onsite`)
   - `ec08b6b` (`Fix location and work type extraction`)
   - `ed98779` (`Improve multi-site job extraction`)
@@ -91,6 +92,30 @@ The latest extraction pass is also complete and pushed:
   available. Explicit `Remote`, `Hybrid`, or `Onsite` evidence still wins.
   Errors, expired/search pages, and rows missing company, title, or location
   remain `n/a`.
+- The 2026-08-08 multi-site pass added stable employer normalization for
+  JPMorgan Chase, BBVA, Crédit Agricole CIB, and BlackRock. Oracle Candidate
+  Experience shell titles are no longer accepted as company names.
+- Workday now falls back from an unusably broad city string to its requisition
+  location and country, while still honoring the public `remoteType` field.
+- All-caps pieces inside mixed-case locations are normalized independently, so
+  `NEW YORK, United States` becomes `New York, United States`.
+- Conditional policy text such as `may be eligible for remote work` no longer
+  makes a posting Remote. Broad work-type fallback scans the job description,
+  not unrelated ATS configuration or site footer text.
+- Plain-number ranges in scoped phrases such as `The base compensation range
+  for this role ... is: 60,000 - 65,000` now receive the appropriate currency
+  marker when the posting location establishes it.
+- Company career URLs remain `Company Website` even when the page contains an
+  embedded Lever or other ATS implementation. JSON-LD locale codes such as
+  `en-us` are normalized without discarding the city.
+- TAL program pages can retain a labeled multi-country location instead of
+  returning label text such as `Region Americas Countries`.
+- Live checks on 2026-08-08 returned the corrected affected rows:
+  - JPMorgan Chase & Co.: `New York, NY`, `Onsite`, `$110,000.00`
+  - BBVA: `New York, United States`, `Onsite`, `$90,000 to $100,000`
+  - Crédit Agricole CIB: `New York, United States`, `Onsite`, `$80K`
+  - Capgemini: `New York, United States`, `Onsite`, `$60,000 - $65,000`
+  - BlackRock: `Canada, Mexico, United States`, `Onsite`
 - Live checks on 2026-08-06 returned:
   - Great American Insurance: `New York, NY`, `Hybrid`
   - Elixirr: `New York, United States`, `Onsite`
@@ -475,8 +500,8 @@ At this handoff:
 - `main` is clean and matches `origin/main`.
 - Python virtual environment: Python 3.12.13 with the pinned dependencies from
   `requirements-dev.txt`.
-- Pytest collects 160 tests.
-- The full suite completed with 158 tests passing and two
+- Pytest collects 179 tests.
+- The full suite completed with 177 tests passing and two
   Node-dependent wrapper tests skipped because `node` was not on the normal
   shell `PATH`.
 - The underlying Node link-input suite passed when run directly.
@@ -624,7 +649,23 @@ run from source. Do not promise packaged macOS/Linux builds yet.
 - **Workday schema can contradict Workday's own job data:** A page may publish
   an internal office code and `TELECOMMUTE` while its public CXS payload says
   `New York, NY` and `Hybrid`. Prefer the same-host public CXS location and
-  `remoteType`; if that endpoint fails, keep the browser and schema fallbacks.
+  `remoteType`; if the short `location` value cannot be normalized, combine
+  the requisition descriptor and country before abandoning the CXS response.
+  If that endpoint fails, keep the browser and schema fallbacks.
+- **ATS shell text is not job evidence:** Oracle can publish `Candidate
+  Experience page` as `og:site_name`, and Eightfold scripts contain generic
+  Remote/Hybrid filter labels. Reject shell branding and do not scan ATS
+  configuration or site footers as if they describe the current job.
+- **The original URL determines Source:** A branded company careers URL remains
+  `Company Website` even if its HTML mentions or embeds Lever, Greenhouse, or
+  another ATS. ATS detection may guide extraction, but it must not rewrite the
+  source the user pasted.
+- **Mixed-case location strings can preserve an all-caps city:** Normalize
+  comma-separated location pieces independently. Also normalize malformed
+  JSON-LD country locale values such as `en-us` before cleaning the full place.
+- **Program pages can list many valid locations:** A TAL page may label Region,
+  Countries, and Cities instead of publishing one `jobLocation`. Keep the
+  labeled country list without attaching its surrounding labels or city list.
 - **A plausible field can still be wrong:** Company, location, work type, and
   salary can look valid enough to receive Ready status while belonging to
   navigation, another listing, or compensation copy. Review field provenance,
@@ -767,7 +808,7 @@ For each repeated failure pattern:
 3. Add the expected company, title, location, work type, salary, and source to
    `tests/test_scraper_regressions.py` or the closest focused test.
 4. Make a narrow platform or evidence-priority fix.
-5. Run the focused tests and the full suite (currently 172 collected tests).
+5. Run the focused tests and the full suite (currently 179 collected tests).
 6. Manually verify the UI status and Excel result.
 7. Commit and push the focused change.
 

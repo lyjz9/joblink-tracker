@@ -174,6 +174,14 @@ def test_missing_browser_error_tells_user_how_to_recover():
     )
 
 
+def test_no_longer_available_error_is_explained_clearly():
+    message = app_module._friendly_error(
+        "This job posting is no longer available."
+    )
+
+    assert message == "This posting is unavailable or has expired."
+
+
 def test_browser_readiness_launches_the_headless_browser(monkeypatch):
     observed = {}
 

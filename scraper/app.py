@@ -448,7 +448,10 @@ def _friendly_error(error, url=''):
         return 'This link opens a list of jobs. Open one specific posting and paste that link instead.'
     if 'browser runtime unavailable' in low:
         return 'Linc could not start its browser. Restart Linc and try again. If it continues, reinstall the app.'
-    if any(marker in low for marker in ('http 404', 'http 410', 'unavailable', 'general careers page', 'job search page')):
+    if any(marker in low for marker in (
+        'http 404', 'http 410', 'unavailable', 'no longer available', 'expired',
+        'general careers page', 'job search page',
+    )):
         return 'This posting is unavailable or has expired.'
     if any(marker in low for marker in ('blocked automated access', 'access denied', 'captcha')):
         return 'The website blocked automated access. Open the job page yourself, then use Linc Capture.'

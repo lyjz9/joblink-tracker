@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import scraper.app as app_module
 from scraper.browser_scraper_v2 import _looks_generic_title
-from scraper.result_quality import _annotate_result, _quality_issues
+from scraper.result_quality import _annotate_result, _quality_issues, _review_details, _review_notes
 
 
 LINKEDIN_URL = "https://www.linkedin.com/jobs/view/4433291582/"
@@ -27,6 +27,22 @@ def test_aggregate_job_search_heading_is_generic():
     assert _looks_generic_title("Senior Data Analyst") is False
 
 
+def test_exact_job_search_heading_is_rejected():
+    result = {
+        "company": "HDR",
+        "job_title": "Job Search",
+        "location": "US",
+        "work_type": "Onsite",
+        "salary": "$65,000 - $75,000",
+        "source": "Company Website",
+    }
+
+    issues = _quality_issues(result)
+
+    assert "generic_job_title" in issues
+    assert "job_search_page" in issues
+
+
 def test_job_search_heading_forces_low_confidence_review():
     result = _search_page_result()
     issues = _quality_issues(result)
@@ -47,6 +63,28 @@ def test_missing_company_and_title_are_not_reported_as_matching_text():
     assert "missing_company" in issues
     assert "missing_job_title" in issues
     assert "generic_job_title" not in issues
+
+
+def test_unavailable_posting_does_not_recommend_retrying():
+    result = {
+        "company": "n/a",
+        "job_title": "n/a",
+        "location": "n/a",
+        "work_type": "n/a",
+        "salary": "n/a",
+        "error": "This job posting is no longer available.",
+    }
+
+    issues = _quality_issues(result)
+    details = _review_details(issues)
+
+    assert "unavailable_posting" in issues
+    assert "scrape_error" not in issues
+    assert "unavailable or has expired" in _review_notes(issues)
+    assert any(
+        detail["code"] == "unavailable_posting" and "replace the link" in detail["action"]
+        for detail in details
+    )
 
 
 def test_linkedin_missing_work_type_is_sent_for_review():
@@ -77,6 +115,36 @@ def test_scrape_discards_fields_from_redirected_search_page(monkeypatch, tmp_pat
 
     result = app_module._scrape_url(
         LINKEDIN_URL,
+        issue_log=tmp_path / "issues.jsonl",
+    )
+
+    assert result["error"] == "This link opens a list of jobs. Open one specific posting and paste that link instead."
+    assert result["company"] == "n/a"
+    assert result["job_title"] == "n/a"
+    assert result["location"] == "n/a"
+    assert result["work_type"] == "n/a"
+    assert result["salary"] == "n/a"
+    assert "job_search_page" in result["review_issues"]
+
+
+def test_scrape_discards_complete_taleo_search_shell(monkeypatch, tmp_path):
+    url = "https://hdr.taleo.net/careersection/ex/jobdetail.ftl?job=192857"
+    monkeypatch.setattr(
+        app_module,
+        "parse_job_with_browser",
+        lambda *_args, **_kwargs: {
+            "company": "HDR",
+            "job_title": "Job Search",
+            "job_link": url,
+            "location": "US",
+            "work_type": "Onsite",
+            "salary": "$65,000 - $75,000",
+            "source": "Company Website",
+        },
+    )
+
+    result = app_module._scrape_url(
+        url,
         issue_log=tmp_path / "issues.jsonl",
     )
 

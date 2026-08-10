@@ -366,6 +366,7 @@ function reviewDetails(job) {
     missing_location: ['Location missing', 'Fill in the location if the posting shows one.'],
     generic_company: ['Company too generic', 'Replace the job-board name with the real employer.'],
     generic_job_title: ['Title too generic', 'Replace blocked-page text with the real role title.'],
+    unavailable_posting: ['Posting unavailable', 'Remove this row or replace the link with an active posting.'],
     scrape_error: ['Scrape failed', 'Retry, use capture, or edit the fields and click the check.'],
   };
   return (job.review_issues || []).map((issue) => ({

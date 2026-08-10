@@ -56,6 +56,7 @@ JOB_BOARDS = {
     'smartrecruiters': ['smartrecruiters.com'],
     'workable': ['workable.com'],
     'bamboohr': ['bamboohr.com'],
+    'dayforce': ['dayforcehcm.com'],
     'icims': ['icims.com'],
     'breezy': ['breezy.hr'],
     'jobvite': ['jobvite.com'],
@@ -78,6 +79,7 @@ SOURCE_LABELS = {
     'smartrecruiters': 'SmartRecruiters',
     'workable': 'Workable',
     'bamboohr': 'BambooHR',
+    'dayforce': 'Dayforce',
     'icims': 'iCIMS',
     'breezy': 'Breezy',
     'jobvite': 'Jobvite',
@@ -315,6 +317,9 @@ def _blocked_page_error(text):
 def _unavailable_page_error(text):
     low = (text or '').lower()
     unavailable_markers = (
+        'job not found',
+        'position not found',
+        'opportunity not found',
         'this job is no longer available',
         'the job you are looking for is no longer available',
         'this position is no longer available',
@@ -766,6 +771,11 @@ def _direct_html_result(url):
         return None
 
     final_url = getattr(response, 'url', '') or url
+    if _unavailable_redirect(url, final_url):
+        data = _empty_result(url, _detect_platform(url))
+        _apply_url_hints(data, url)
+        data['error'] = 'Job page redirected to a general careers page and is likely unavailable.'
+        return _public_result(data)
     soup = BeautifulSoup(response.text, 'html.parser')
     result = _public_result(_extract_from_soup(soup, final_url, url))
     if result.get('error'):
@@ -1028,6 +1038,8 @@ def _looks_generic_title(value):
         'access denied', 'humans only', 'www.ziprecruiter.com', 'jooble.org',
         'digitalhire', 'tal healthcare', "let's confirm you are human",
         'just a moment...', 'job details', 'search jobs', 'jobs', 'sign up',
+        'job search', 'job not found', 'position not found', 'opportunity not found',
+        'current openings', 'all jobs',
         'are you still with us?',
         'work summary',
         'n/a', 'na', 'none',

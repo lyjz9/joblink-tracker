@@ -2,7 +2,7 @@
 
 import re
 
-from scraper.browser_scraper_v2 import _detect_platform
+from scraper.browser_scraper_v2 import _detect_platform, _looks_generic_title
 from scraper.field_normalization import (
     default_unspecified_work_type,
     normalize_location_display,
@@ -18,6 +18,7 @@ RELIABILITY = {
     'icims': ('Good', 'iCIMS usually works once Linc reads the job frame.'),
     'breezy': ('Good', 'Breezy usually makes the job details easy to read.'),
     'smartrecruiters': ('Good', 'SmartRecruiters usually provides clean job data.'),
+    'dayforce': ('Good', 'Dayforce usually provides clean structured job data.'),
     'company_website': ('Good', 'The company career page is usually the best source.'),
     'linkedin': ('Okay', 'LinkedIn may hide work type and salary from its public page. A signed-in browser capture can read visible tags.'),
     'indeed': ('Okay', 'Indeed often works, but locations can pick up extra words.'),
@@ -62,9 +63,13 @@ def _quality_issues(result):
     }:
         issues.append('generic_company')
     title = str(result.get('job_title', '')).strip()
-    if title.lower() in {'access denied', 'humans only', 'www.ziprecruiter.com', 'jooble.org', 'digitalhire'}:
+    if not _missing(title) and _looks_generic_title(title):
         issues.append('generic_job_title')
-    if _looks_like_job_search_title(title):
+    if _looks_like_job_search_title(title) or re.match(
+        r'^(?:job search|search jobs|current openings(?: at .+)?|all jobs)$',
+        title,
+        flags=re.I,
+    ):
         issues.append('job_search_page')
     comparable_company = re.sub(r'\W+', '', company.lower())
     comparable_title = re.sub(r'\W+', '', title.lower())
@@ -86,8 +91,17 @@ def _quality_issues(result):
         issues.append('linkedin_work_type_hidden')
     if result.get('confidence') == 'Low':
         issues.append('low_confidence')
-    if result.get('error'):
-        issues.append('scrape_error')
+    error = str(result.get('error') or '').lower()
+    if error:
+        unavailable_markers = (
+            'http 404', 'http 410', 'unavailable', 'no longer available',
+            'expired', 'general careers page',
+        )
+        issues.append(
+            'unavailable_posting'
+            if any(marker in error for marker in unavailable_markers)
+            else 'scrape_error'
+        )
     return sorted(set(issues))
 
 
@@ -104,6 +118,7 @@ def _review_notes(issues):
         'location_looks_like_page_text': 'Location may include extra page text.',
         'invalid_work_type': 'Work type should be Remote, Hybrid, Onsite, or n/a.',
         'linkedin_work_type_hidden': 'LinkedIn hid the work type from its public page.',
+        'unavailable_posting': 'The posting is unavailable or has expired.',
         'scrape_error': 'Linc could not read this page.',
         'captured_page_review': 'The browser capture may include extra site text.',
         'capture_low_confidence': 'The capture did not have clear labels for these fields.',
@@ -127,6 +142,7 @@ def _review_details(issues):
         'location_looks_like_page_text': ('Location has extra text', 'Location', 'Keep only the city/state/country.'),
         'invalid_work_type': ('Work type invalid', 'Work Type', 'Use Remote, Hybrid, Onsite, or n/a.'),
         'linkedin_work_type_hidden': ('Work type hidden', 'Work Type', 'Open the signed-in LinkedIn posting and use Linc Capture to read the visible tag.'),
+        'unavailable_posting': ('Posting unavailable', 'Link', 'Remove this row or replace the link with an active posting.'),
         'scrape_error': ('Page could not be read', 'Link', 'Retry, use browser capture, or fix the fields yourself and choose the checkmark.'),
         'captured_page_review': ('Check this browser capture', 'Captured row', 'Remove any menu, button, or footer text that slipped into the fields.'),
         'capture_low_confidence': ('Capture needs a closer look', 'Captured row', 'Choose one of the suggestions or type the correct value.'),
@@ -151,7 +167,7 @@ def _reliability_for(url, source=''):
             'upwork': 'upwork', 'simplyhired': 'simplyhired', 'dice': 'dice',
             'greenhouse': 'greenhouse', 'lever': 'lever', 'workday': 'workday',
             'ashby': 'ashby', 'icims': 'icims', 'breezy': 'breezy',
-            'smartrecruiters': 'smartrecruiters',
+            'smartrecruiters': 'smartrecruiters', 'dayforce': 'dayforce',
         }
         platform = source_lookup.get(source_key, platform)
     label, note = RELIABILITY.get(platform, RELIABILITY['company_website'])
@@ -181,6 +197,7 @@ def _confidence_for(result, issues):
         'linkedin_work_type_hidden': 8,
         'captured_page_review': 8,
         'capture_low_confidence': 15,
+        'unavailable_posting': 28,
         'scrape_error': 28,
         'monster_search_page': 35,
     }

@@ -510,6 +510,34 @@ def test_custom_career_page_can_use_direct_html_without_browser(monkeypatch):
     assert result["salary"] == "n/a"
 
 
+def test_direct_html_rejects_greenhouse_redirect_to_job_board(monkeypatch):
+    url = "https://job-boards.greenhouse.io/upstack/jobs/5211525008"
+    html = """
+        <html><head><title>Current openings at UPSTACK</title></head>
+        <body><h1>Current openings at UPSTACK</h1></body></html>
+    """
+
+    class Response:
+        status_code = 200
+        text = html
+        url = "https://job-boards.greenhouse.io/upstack"
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    result = _direct_html_result(url)
+
+    assert result["job_link"] == url
+    assert result["company"] == "n/a"
+    assert result["job_title"] == "n/a"
+    assert result["location"] == "n/a"
+    assert result["work_type"] == "n/a"
+    assert result["source"] == "Greenhouse"
+    assert "general careers page" in result["error"]
+
+
 def test_generic_amex_shell_falls_through_to_the_rendered_page(monkeypatch):
     url = "https://careers.americanexpress.com/en/sites/CX_1/job/26011162"
     html = """
@@ -748,6 +776,26 @@ def test_dayforce_uses_the_job_object_instead_of_navigation_labels():
     assert result["location"] == "New York, NY"
     assert result["work_type"] == "Onsite"
     assert result["salary"] == "$22-$23/hr"
+    assert result["source"] == "Dayforce"
+
+
+def test_ashby_job_not_found_page_is_unavailable():
+    url = "https://jobs.ashbyhq.com/rho/18da5bcb-aabe-424e-a9d1-e2e1c5abc2b1"
+    html = """
+        <html><head><title>Job not found</title></head>
+        <body><main><h1>Job not found</h1></main></body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["job_link"] == url
+    assert result["job_title"] == "n/a"
+    assert result["location"] == "n/a"
+    assert result["work_type"] == "n/a"
+    assert result["source"] == "Ashby"
+    assert result["error"] == "This job posting is no longer available."
 
 
 def test_workday_prefers_labeled_primary_location_and_salary():

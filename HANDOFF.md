@@ -1,6 +1,6 @@
 # Job Tracker Project Development Handoff
 
-Last updated: 2026-08-08
+Last updated: 2026-08-10
 
 This document is for a new development session with no prior conversation
 context. Read it before changing code. The repository is the source of truth if
@@ -15,8 +15,9 @@ anything here later becomes stale.
 - Current version target: **v0.1.0 beta**
 - Current branch: `main`
 - Latest implementation commit:
-  `9722386` (`Fix multi-site job field extraction`)
+  `5120e70` (`Reject unavailable job page shells`)
 - Recent focused commits:
+  - `5120e70` (`Reject unavailable job page shells`)
   - `9722386` (`Fix multi-site job field extraction`)
   - `cf625f0` (`Default unspecified work type to onsite`)
   - `ec08b6b` (`Fix location and work type extraction`)
@@ -70,7 +71,29 @@ History. It is complete and pushed:
 The earlier Original, Hourly, and Yearly salary modes remain intact, including
 part-time Hours/week estimates and Excel export in the selected format.
 
-The latest extraction pass is also complete and pushed:
+The 2026-08-10 false-success audit is complete and pushed:
+
+- Exact unavailable headings such as `Job not found`, `Position not found`,
+  and `Opportunity not found` are rejected instead of becoming plausible
+  Review or Ready rows.
+- The direct-HTML path now checks whether a Greenhouse or other supported job
+  URL redirected to a general board before extracting generic board content.
+- Exact shell titles such as `Job Search`, `Current openings`, and `All jobs`
+  are treated as job-list pages. Their plausible company, location, salary,
+  and default Onsite values are cleared rather than shown as a real job.
+- Dayforce is now a first-class source label and reliability category instead
+  of appearing as `Company Website`.
+- Expired rows use the specific `unavailable_posting` review reason and advise
+  removing or replacing the link instead of retrying or using capture.
+- Live checks through the real background queue verified:
+  - an expired Rho Ashby posting returns Error with all job fields `n/a`;
+  - a removed Upstack Greenhouse posting returns an expired Error rather than
+    the general UPSTACK board;
+  - an expired HDR Taleo URL that opens `Job Search` returns a job-list Error;
+  - the Lexitas Dayforce posting remains High confidence with correct fields
+    and `Dayforce` as its source.
+
+The earlier extraction pass is also complete and pushed:
 
 - Workday pages now use the official public CXS job endpoint before browser or
   page-shell fallbacks. This prevents internal office codes and stale
@@ -304,6 +327,10 @@ editing in every browser.
   SimplyHired, and Monster patterns.
 - Friendly errors for expired, blocked, CAPTCHA, timeout, invalid, and search
   pages.
+- Final-URL redirect checks and generic shell-title rejection prevent expired
+  ATS pages from being accepted as real postings.
+- Expired postings have distinct review guidance instead of generic retry
+  instructions.
 - Conservative company, title, location, work-type, and salary cleanup.
 - Regression fixtures for the major supported patterns.
 
@@ -500,14 +527,17 @@ At this handoff:
 - `main` is clean and matches `origin/main`.
 - Python virtual environment: Python 3.12.13 with the pinned dependencies from
   `requirements-dev.txt`.
-- Pytest collects 179 tests.
-- The full suite completed with 177 tests passing and two
+- Pytest collects 185 tests.
+- The full suite completed with 183 tests passing and two
   Node-dependent wrapper tests skipped because `node` was not on the normal
   shell `PATH`.
 - The underlying Node link-input suite passed when run directly.
 - The underlying Node salary-conversion suite passed when run directly.
-- The only test warnings are two OpenPyXL deprecation warnings about
-  `datetime.utcnow()`.
+- The latest full run reported no test warnings.
+- A live background-queue audit verified expired Ashby, redirected Greenhouse,
+  Taleo search-shell, and successful Dayforce behavior after an app restart.
+- `GET /ready` reports the browser available and the queue accepting at
+  `http://127.0.0.1:5050/`.
 - History browser QA verified save, search, status filtering, fresh-tab
   persistence, restore, selected deletion, and a clean empty state.
 - Simplified Workspace QA verified the secondary-add menu, manual entry,
@@ -631,6 +661,10 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   or redirect to a board search page. Validate that the final page is one
   individual job before extracting fields. Keep synthetic regression fixtures
   because a live URL is not a durable test.
+- **A job-detail URL can render only a search shell:** The path and query can
+  still look like one job even after the posting expires. Reject generic titles
+  such as `Job Search`, `Current openings`, and `All jobs`, and clear fields
+  copied from that shell before returning the row.
 - **Bot protection and verification pages:** Monster, Upwork, Wellfound,
   Cloudflare, CAPTCHA, and login walls repeatedly block automation. Do not try
   to bypass them. Prefer the employer's career page, local browser capture, or
@@ -688,6 +722,10 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   bonuses, equal ranges, hourly/yearly periods, and unrelated numbers. Prefer
   explicit base salary, strip labels only when the amount remains clear,
   collapse equal ranges, preserve the pay period, and use `n/a` when missing.
+- **Broad programs can publish several salary tables:** Taking the first valid
+  range may be misleading when one page covers many roles or locations. A
+  future focused improvement should mark multi-range program pages Review
+  unless the selected range is clearly tied to the scraped role and location.
 - **One-site fixes can regress another platform:** Never solve a posting with a
   broad regex or its current job ID. Save a minimal fixture, add the narrowest
   platform or evidence-priority rule, run the focused regression, and then run
@@ -808,7 +846,7 @@ For each repeated failure pattern:
 3. Add the expected company, title, location, work type, salary, and source to
    `tests/test_scraper_regressions.py` or the closest focused test.
 4. Make a narrow platform or evidence-priority fix.
-5. Run the focused tests and the full suite (currently 179 collected tests).
+5. Run the focused tests and the full suite (currently 185 collected tests).
 6. Manually verify the UI status and Excel result.
 7. Commit and push the focused change.
 

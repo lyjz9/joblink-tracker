@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 from flask import Blueprint, jsonify, request
 
 from scraper.security import canonical_url_key
+from scraper.source_tracking import enrich_source_tracking
 
 
 HISTORY_STATUSES = {"ready", "review", "error", "manual"}
@@ -26,6 +27,8 @@ HISTORY_JOB_KEYS = {
     "work_type",
     "salary",
     "follow_up",
+    "found_on",
+    "application_portal",
     "source",
     "error",
     "preferred_job_link",
@@ -76,6 +79,8 @@ class HistoryStore:
                     location TEXT NOT NULL DEFAULT '',
                     work_type TEXT NOT NULL DEFAULT '',
                     salary TEXT NOT NULL DEFAULT '',
+                    found_on TEXT NOT NULL DEFAULT '',
+                    application_portal TEXT NOT NULL DEFAULT '',
                     source TEXT NOT NULL DEFAULT '',
                     history_status TEXT NOT NULL DEFAULT 'review',
                     is_manual INTEGER NOT NULL DEFAULT 0,
@@ -87,8 +92,59 @@ class HistoryStore:
                     ON history_entries(updated_at DESC, id DESC);
                 CREATE INDEX IF NOT EXISTS history_entries_status_idx
                     ON history_entries(history_status, updated_at DESC);
-                PRAGMA user_version = 1;
                 """
+            )
+            columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(history_entries)")
+            }
+            if "found_on" not in columns:
+                connection.execute(
+                    "ALTER TABLE history_entries ADD COLUMN found_on TEXT NOT NULL DEFAULT ''"
+                )
+            if "application_portal" not in columns:
+                connection.execute(
+                    "ALTER TABLE history_entries ADD COLUMN application_portal TEXT NOT NULL DEFAULT ''"
+                )
+            self._backfill_source_tracking(connection)
+            connection.execute("PRAGMA user_version = 2")
+
+    @staticmethod
+    def _backfill_source_tracking(connection: sqlite3.Connection) -> None:
+        rows = connection.execute(
+            """
+            SELECT id, job_link, found_on, application_portal, source, job_json
+            FROM history_entries
+            WHERE found_on = '' OR application_portal = ''
+            """
+        ).fetchall()
+        for row in rows:
+            try:
+                job = json.loads(row["job_json"])
+            except (TypeError, json.JSONDecodeError):
+                job = {}
+            if not isinstance(job, dict):
+                job = {}
+            job.setdefault("job_link", row["job_link"])
+            job.setdefault("source", row["source"])
+            if row["found_on"]:
+                job.setdefault("found_on", row["found_on"])
+            if row["application_portal"]:
+                job.setdefault("application_portal", row["application_portal"])
+            tracked = enrich_source_tracking(job, row["job_link"])
+            connection.execute(
+                """
+                UPDATE history_entries
+                SET found_on = ?, application_portal = ?, source = ?, job_json = ?
+                WHERE id = ?
+                """,
+                (
+                    tracked["found_on"],
+                    tracked["application_portal"],
+                    tracked["source"],
+                    json.dumps(tracked, ensure_ascii=True, separators=(",", ":")),
+                    row["id"],
+                ),
             )
 
     def save_many(self, items: list[dict]) -> list[dict]:
@@ -107,9 +163,10 @@ class HistoryStore:
                     """
                     INSERT INTO history_entries (
                         identity_key, date_applied, company, job_title, job_link,
-                        location, work_type, salary, source, history_status,
-                        is_manual, created_at, updated_at, job_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        location, work_type, salary, found_on, application_portal,
+                        source, history_status, is_manual, created_at, updated_at,
+                        job_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(identity_key) DO UPDATE SET
                         date_applied = excluded.date_applied,
                         company = excluded.company,
@@ -118,6 +175,8 @@ class HistoryStore:
                         location = excluded.location,
                         work_type = excluded.work_type,
                         salary = excluded.salary,
+                        found_on = excluded.found_on,
+                        application_portal = excluded.application_portal,
                         source = excluded.source,
                         history_status = excluded.history_status,
                         is_manual = excluded.is_manual,
@@ -133,6 +192,8 @@ class HistoryStore:
                         job.get("location", ""),
                         job.get("work_type", ""),
                         job.get("salary", ""),
+                        job.get("found_on", ""),
+                        job.get("application_portal", ""),
                         job.get("source", ""),
                         history_status,
                         int(bool(job.get("manual"))),
@@ -168,11 +229,12 @@ class HistoryStore:
                     f"{column} LIKE ? ESCAPE '\\' COLLATE NOCASE"
                     for column in (
                         "company", "job_title", "location", "work_type",
-                        "salary", "source", "job_link", "date_applied",
+                        "salary", "found_on", "application_portal", "source",
+                        "job_link", "date_applied",
                     )
                 ) + ")"
             )
-            parameters.extend([pattern] * 8)
+            parameters.extend([pattern] * 10)
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         with self._connect() as connection:
@@ -331,7 +393,7 @@ def _sanitize_job(raw_job: dict) -> dict:
         job.pop("preferred_job_link", None)
     if not link and not (job.get("company") and job.get("job_title")):
         raise ValueError("A history row needs a job link or a company and job title.")
-    return job
+    return enrich_source_tracking(job, link)
 
 
 def _history_status(job: dict, supplied: object) -> str:
@@ -361,6 +423,14 @@ def _row_to_entry(row: sqlite3.Row) -> dict:
         job = json.loads(row["job_json"])
     except (TypeError, json.JSONDecodeError):
         job = {}
+    row_keys = set(row.keys())
+    if not job.get("found_on") and "found_on" in row_keys:
+        job["found_on"] = row["found_on"]
+    if not job.get("application_portal") and "application_portal" in row_keys:
+        job["application_portal"] = row["application_portal"]
+    if not job.get("source") and "source" in row_keys:
+        job["source"] = row["source"]
+    job = enrich_source_tracking(job, job.get("job_link"))
     return {
         "id": row["id"],
         "created_at": row["created_at"],

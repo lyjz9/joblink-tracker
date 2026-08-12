@@ -34,6 +34,15 @@ const {
   normalizeHoursPerWeek,
   normalizeSalaryMode,
 } = window.JobSalaryDisplay;
+const {
+  inferApplicationPortal,
+  normalizeJobSources,
+} = window.JobSourceTracking;
+const FOUND_ON_OPTIONS = [
+  'N/A', 'LinkedIn', 'Indeed', 'Glassdoor', 'ZipRecruiter', 'Google Jobs',
+  'Handshake', 'Monster', 'Wellfound', 'Upwork', 'SimplyHired', 'Dice', 'Jooble',
+  'Company Website', 'Referral', 'Other',
+];
 const linkPasteHistory = [];
 const linkPasteRedo = [];
 let changingLinksProgrammatically = false;
@@ -42,6 +51,7 @@ let historySearchTimer = null;
 const elements = {
   links: document.querySelector('#jobLinks'),
   appliedDate: document.querySelector('#appliedDate'),
+  foundOn: document.querySelector('#foundOn'),
   counter: document.querySelector('#linkCounter'),
   validation: document.querySelector('#validationMessage'),
   extract: document.querySelector('#extractButton'),
@@ -66,7 +76,8 @@ const elements = {
   manualLocation: document.querySelector('#manualLocation'),
   manualWorkType: document.querySelector('#manualWorkType'),
   manualSalary: document.querySelector('#manualSalary'),
-  manualSource: document.querySelector('#manualSource'),
+  manualFoundOn: document.querySelector('#manualFoundOn'),
+  manualApplicationPortal: document.querySelector('#manualApplicationPortal'),
   manualLink: document.querySelector('#manualLink'),
   download: document.querySelector('#downloadButton'),
   chooseWorkbook: document.querySelector('#chooseWorkbookButton'),
@@ -150,6 +161,14 @@ function selectedAppliedDate() {
   if (!value) return '';
   const [year, month, day] = value.split('-');
   return `${month}/${day}/${year}`;
+}
+
+function selectedFoundOn() {
+  return elements.foundOn?.value || '';
+}
+
+function trackedJob(job, foundOn = '') {
+  return normalizeJobSources(job || {}, foundOn);
 }
 
 function missingValue(value) {
@@ -319,6 +338,7 @@ function saveSession() {
       duplicateMode: elements.duplicateMode?.value || 'skip',
       salaryMode: state.salaryMode,
       salaryHoursPerWeek: state.salaryHoursPerWeek,
+      foundOn: selectedFoundOn(),
     }));
   } catch (error) {
     // Browser storage can be disabled; the app still works without persistence.
@@ -333,12 +353,13 @@ function restoreSession() {
     if (!raw) return;
     const saved = JSON.parse(raw);
     if (Array.isArray(saved.jobs)) {
-      state.jobs = saved.jobs.map((job) => ({ ...job, selected: false }));
+      state.jobs = saved.jobs.map((job) => ({ ...trackedJob(job), selected: false }));
     }
     if (FILTERS.includes(saved.filter)) state.filter = saved.filter;
     if (typeof saved.links === 'string') elements.links.value = saved.links;
     if (typeof saved.appliedDate === 'string' && saved.appliedDate) elements.appliedDate.value = saved.appliedDate;
     if (saved.duplicateMode && elements.duplicateMode) elements.duplicateMode.value = saved.duplicateMode;
+    if (typeof saved.foundOn === 'string' && elements.foundOn) elements.foundOn.value = saved.foundOn;
     state.salaryMode = normalizeSalaryMode(saved.salaryMode);
     state.salaryHoursPerWeek = normalizeHoursPerWeek(saved.salaryHoursPerWeek);
   } catch (error) {
@@ -402,6 +423,19 @@ function editableCell(job, key) {
   return `<div class="editable${muted}" contenteditable="true" data-key="${key}" spellcheck="false">${escapeHtml(value)}</div>${fieldOptions(job, key)}`;
 }
 
+function foundOnCell(job) {
+  const current = job.found_on || 'N/A';
+  const options = FOUND_ON_OPTIONS.includes(current)
+    ? FOUND_ON_OPTIONS
+    : [current, ...FOUND_ON_OPTIONS];
+  return `
+    <select class="source-select" data-key="found_on" aria-label="Found on">
+      ${options.map((value) => (
+        `<option value="${escapeHtml(value)}" ${value === current ? 'selected' : ''}>${escapeHtml(value)}</option>`
+      )).join('')}
+    </select>`;
+}
+
 function salaryCell(job) {
   const original = job.salary || 'n/a';
   if (state.salaryMode === 'original') return editableCell(job, 'salary');
@@ -444,7 +478,7 @@ function sourceCell(job) {
   const preferred = job.preferred_job_link || '';
   return `
     <div class="source-cell">
-      <span>${escapeHtml(job.source || 'n/a')}</span>
+      ${editableCell(job, 'application_portal')}
       ${reliabilityBadge(job)}
       ${note ? `<small>${escapeHtml(note)}</small>` : ''}
       ${preferred ? `<a href="${escapeHtml(preferred)}" target="_blank" rel="noopener noreferrer">Employer link</a>` : ''}
@@ -486,6 +520,7 @@ function render() {
         <td>${editableCell(job, 'location')}</td>
         <td>${editableCell(job, 'work_type')}</td>
         <td data-field="salary">${salaryCell(job)}</td>
+        <td>${foundOnCell(job)}</td>
         <td>${sourceCell(job)}</td>
         <td>
           <div class="row-actions">
@@ -546,6 +581,7 @@ function render() {
   elements.retryAll.hidden = !hasFlaggedJobs;
   elements.retryAll.disabled = state.processing || !hasFlaggedJobs;
   elements.appliedDate.disabled = state.processing;
+  if (elements.foundOn) elements.foundOn.disabled = state.processing;
   elements.clearResults.disabled = state.processing || !someSelected;
   if (elements.reportSelected) elements.reportSelected.disabled = state.processing || !someSelected;
   elements.clearResults.innerHTML = `${icon('trash-2')} Remove${selectedCount ? ` (${selectedCount})` : ''}`;
@@ -632,7 +668,8 @@ function renderHistory() {
         <td>${escapeHtml(job.location || 'n/a')}</td>
         <td>${escapeHtml(job.work_type || 'n/a')}</td>
         <td>${escapeHtml(job.salary || 'n/a')}</td>
-        <td><div class="history-cell-main"><strong>${escapeHtml(job.source || 'n/a')}</strong></div></td>
+        <td><div class="history-cell-main"><strong>${escapeHtml(job.found_on || 'N/A')}</strong></div></td>
+        <td><div class="history-cell-main"><strong>${escapeHtml(job.application_portal || job.source || 'Company Website')}</strong></div></td>
         <td>
           ${jobLink ? `<a class="icon-button" href="${escapeHtml(jobLink)}" target="_blank" rel="noopener noreferrer" title="Open job posting" aria-label="Open job posting">${icon('external-link')}</a>` : ''}
         </td>
@@ -700,6 +737,7 @@ async function loadHistory({ silent = false, preserveSelection = false } = {}) {
     if (requestId !== state.historyRequest) return;
     state.historyEntries = (payload.items || []).map((entry) => ({
       ...entry,
+      job: trackedJob(entry.job || {}),
       selected: selectedIds.has(entry.id),
     }));
     state.historyTotal = Number(payload.total) || 0;
@@ -722,7 +760,7 @@ async function saveJobsToHistory(jobs) {
   const items = jobs
     .filter((job) => job && (job.job_link || (job.company && job.job_title)))
     .map((job) => {
-      const { selected, _historyId, ...cleanJob } = job;
+      const { selected, _historyId, ...cleanJob } = trackedJob(job);
       return { job: cleanJob, status: historyStatusForJob(job) };
     });
   if (!items.length) return;
@@ -781,7 +819,7 @@ function restoreSelectedHistory() {
   let updated = 0;
   let skipped = 0;
   entries.slice().reverse().forEach((entry) => {
-    const job = { ...(entry.job || {}), selected: false, _historyId: entry.id };
+    const job = { ...trackedJob(entry.job || {}), selected: false, _historyId: entry.id };
     const existingIndex = job.job_link
       ? findJobIndexByLink(job.job_link)
       : state.jobs.findIndex((item) => item._historyId === entry.id);
@@ -805,7 +843,7 @@ function restoreSelectedHistory() {
 
 async function downloadHistory() {
   const jobs = state.historyEntries
-    .map((entry) => entry.job || {})
+    .map((entry) => trackedJob(entry.job || {}))
     .filter((job) => !job.error)
     .map((job) => jobWithSalaryDisplay(job, state.salaryMode, state.salaryHoursPerWeek));
   if (!jobs.length) return;
@@ -872,26 +910,30 @@ async function clearAllHistory() {
   }
 }
 
-async function scrapeOne(url) {
+async function scrapeOne(url, foundOn = '') {
   const response = await fetch('/scrape', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, found_on: foundOn }),
   });
   const result = await response.json().catch(() => ({ error: 'Linc received a response it could not read.' }));
   if (!response.ok && !result.error) result.error = `Linc could not finish that request (${response.status}).`;
-  return { ...result, job_link: result.job_link || url, date_applied: selectedAppliedDate() || result.date_applied };
+  return trackedJob({
+    ...result,
+    job_link: result.job_link || url,
+    date_applied: selectedAppliedDate() || result.date_applied,
+  }, foundOn);
 }
 
 function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
-async function createScrapeJob(urls, dateApplied) {
+async function createScrapeJob(urls, dateApplied, foundOn) {
   const response = await fetch('/api/jobs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ urls, date_applied: dateApplied }),
+    body: JSON.stringify({ urls, date_applied: dateApplied, found_on: foundOn }),
   });
   const payload = await response.json().catch(() => ({ error: 'Linc received a response it could not read.' }));
   if (!response.ok) throw new Error(payload.error || `Linc could not finish that request (${response.status}).`);
@@ -924,16 +966,19 @@ async function readScrapeJobWithRetry(pollUrl) {
   throw lastError;
 }
 
-function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
+function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied, foundOn) {
   const changedJobs = [];
   (snapshot.items || []).forEach((item, index) => {
     if (!['completed', 'failed'].includes(item.status) || appliedItems.has(index)) return;
     const target = plan[index];
     if (!target) return;
-    const result = {
+    const previousFoundOn = target.action === 'update'
+      ? state.jobs[target.index]?.found_on || ''
+      : '';
+    const result = trackedJob({
       ...(item.result || { error: 'Linc could not read this job page.' }),
       job_link: item.result?.job_link || target.url,
-    };
+    }, foundOn || previousFoundOn);
     if (dateApplied) result.date_applied = dateApplied;
     if (target.action === 'update') {
       result.selected = Boolean(state.jobs[target.index]?.selected);
@@ -978,13 +1023,14 @@ async function processLinks() {
 
   const appliedItems = new Set();
   const dateApplied = selectedAppliedDate();
+  const foundOn = selectedFoundOn();
   let finalStatus = 'stopped';
   try {
-    let snapshot = await createScrapeJob(plan.map(({ url }) => url), dateApplied);
+    let snapshot = await createScrapeJob(plan.map(({ url }) => url), dateApplied, foundOn);
     state.activeJobId = snapshot.job_id;
     elements.cancelJob.hidden = false;
     while (true) {
-      const changedJobs = applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied);
+      const changedJobs = applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied, foundOn);
       const settled = (snapshot.items || []).filter((item) => !['queued', 'running'].includes(item.status)).length;
       const processed = skipped + settled;
       elements.progressBar.style.width = `${Math.round((processed / urls.length) * 100)}%`;
@@ -1042,7 +1088,7 @@ async function retryJob(index) {
   state.processing = true;
   render();
   try {
-    const retried = await scrapeOne(current.job_link);
+    const retried = await scrapeOne(current.job_link, current.found_on);
     retried.selected = Boolean(current.selected);
     state.jobs[index] = retried;
     await saveJobsToHistory([retried]);
@@ -1068,7 +1114,7 @@ async function retryAllErrors() {
       const current = state.jobs[index];
       if (!current.job_link) continue;
       try {
-        const retried = await scrapeOne(current.job_link);
+        const retried = await scrapeOne(current.job_link, current.found_on);
         retried.selected = Boolean(current.selected);
         state.jobs[index] = retried;
         updatedJobs.push(retried);
@@ -1149,7 +1195,10 @@ async function loadCaptures() {
     const appliedDate = selectedAppliedDate();
 
     captures.slice().reverse().forEach((job) => {
-      const incoming = { ...job, date_applied: appliedDate || job.date_applied };
+      const incoming = trackedJob(
+        { ...job, date_applied: appliedDate || job.date_applied },
+        selectedFoundOn(),
+      );
       delete incoming.selected;
       const url = String(incoming.job_link || '').trim();
       if (!url) return;
@@ -1259,7 +1308,7 @@ function exportableJobs() {
   return state.jobs
     .filter((job) => !job.error)
     .map((job) => {
-      const { selected, ...cleanJob } = job;
+      const { selected, ...cleanJob } = trackedJob(job);
       const displayedJob = jobWithSalaryDisplay(
         cleanJob,
         state.salaryMode,
@@ -1437,7 +1486,7 @@ function useEditedRow(index) {
   }
   if (missingValue(job.work_type)) job.work_type = 'n/a';
   if (missingValue(job.salary)) job.salary = 'n/a';
-  if (missingValue(job.source)) job.source = 'Company Website';
+  Object.assign(job, trackedJob(job));
   delete job.error;
   delete job.review_issues;
   delete job.review_notes;
@@ -1465,6 +1514,7 @@ function toggleManualPanel(show = elements.manualPanel.hidden) {
   if (show) {
     elements.manualValidation.textContent = '';
     if (!elements.manualWorkType.value) elements.manualWorkType.value = 'n/a';
+    refreshManualApplicationPortal();
     elements.manualCompany.focus();
   }
 }
@@ -1472,11 +1522,13 @@ function toggleManualPanel(show = elements.manualPanel.hidden) {
 function resetManualForm() {
   elements.manualPanel.reset();
   elements.manualWorkType.value = 'n/a';
+  elements.manualFoundOn.value = '';
+  elements.manualApplicationPortal.dataset.autofilled = 'true';
   elements.manualValidation.textContent = '';
 }
 
 function manualJobFromForm() {
-  return {
+  const job = {
     date_applied: selectedAppliedDate(),
     company: elements.manualCompany.value.trim(),
     job_title: elements.manualTitle.value.trim(),
@@ -1486,11 +1538,23 @@ function manualJobFromForm() {
     work_type: elements.manualWorkType.value || 'n/a',
     salary: elements.manualSalary.value.trim() || 'n/a',
     follow_up: '',
-    source: elements.manualSource.value.trim() || 'Company Website',
+    found_on: elements.manualFoundOn.value,
+    application_portal: elements.manualApplicationPortal.value.trim(),
     confidence: 'Manual',
     confidence_score: 100,
     manual: true,
   };
+  return trackedJob(job, elements.manualFoundOn.value);
+}
+
+function refreshManualApplicationPortal() {
+  if (!elements.manualLink || !elements.manualApplicationPortal) return;
+  const shouldAutofill = !elements.manualApplicationPortal.value.trim()
+    || elements.manualApplicationPortal.dataset.autofilled === 'true';
+  if (!shouldAutofill) return;
+  const url = elements.manualLink.value.trim();
+  elements.manualApplicationPortal.value = url ? inferApplicationPortal(url) : '';
+  elements.manualApplicationPortal.dataset.autofilled = 'true';
 }
 
 function addManualJob(event) {
@@ -1546,6 +1610,7 @@ elements.appendWorkbook.addEventListener('click', appendToWorkbook);
 elements.chooseWorkbook.addEventListener('click', chooseWorkbook);
 if (elements.reportSelected) elements.reportSelected.addEventListener('click', reportSelectedJobs);
 if (elements.duplicateMode) elements.duplicateMode.addEventListener('change', saveSession);
+if (elements.foundOn) elements.foundOn.addEventListener('change', saveSession);
 if (elements.trackerButton) elements.trackerButton.addEventListener('click', () => toggleTrackerPanel());
 if (elements.trackerClose) {
   elements.trackerClose.addEventListener('click', () => {
@@ -1571,6 +1636,12 @@ if (elements.manualCancel) elements.manualCancel.addEventListener('click', () =>
   toggleManualPanel(false);
 });
 if (elements.manualPanel) elements.manualPanel.addEventListener('submit', addManualJob);
+if (elements.manualLink) elements.manualLink.addEventListener('input', refreshManualApplicationPortal);
+if (elements.manualApplicationPortal) {
+  elements.manualApplicationPortal.addEventListener('input', () => {
+    elements.manualApplicationPortal.dataset.autofilled = 'false';
+  });
+}
 elements.filterTabs.forEach((tab) => {
   tab.addEventListener('click', () => {
     const nextFilter = tab.dataset.filter;
@@ -1661,6 +1732,16 @@ elements.body.addEventListener('click', (event) => {
   render();
 });
 elements.body.addEventListener('change', (event) => {
+  const sourceSelect = event.target.closest('.source-select');
+  if (sourceSelect) {
+    const row = sourceSelect.closest('tr');
+    const job = state.jobs[Number(row.dataset.index)];
+    if (!job) return;
+    job.found_on = sourceSelect.value || 'N/A';
+    saveSession();
+    void saveJobsToHistory([job]);
+    return;
+  }
   const checkbox = event.target.closest('.select-row');
   if (!checkbox) return;
   const row = checkbox.closest('tr');
@@ -1673,6 +1754,7 @@ elements.body.addEventListener('input', (event) => {
   const row = editable.closest('tr');
   const job = state.jobs[Number(row.dataset.index)];
   job[editable.dataset.key] = editable.textContent.trim();
+  if (editable.dataset.key === 'application_portal') job.source = job.application_portal;
   delete job.review_issues;
   delete job.review_notes;
   delete job.review_details;

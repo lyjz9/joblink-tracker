@@ -14,8 +14,8 @@ anything here later becomes stale.
   the final product name.
 - Current version target: **v0.1.0 beta**
 - Current branch: `main`
-- Latest implementation commit:
-  `d1a98cb` (`Fix six-site job extraction patterns`)
+- Latest commit before the source-tracking change:
+  `90f9874` (`Update six-site scraper handoff`)
 - Recent focused commits:
   - `d1a98cb` (`Fix six-site job extraction patterns`)
   - `5120e70` (`Reject unavailable job page shells`)
@@ -177,10 +177,11 @@ The earlier extraction pass is also complete and pushed:
   - ATC: `New York, United States`, `Onsite`
   - Elios AI: `United States`, `Remote`
 
-There are no unfinished source edits. The local desktop app is running at
-`http://127.0.0.1:5050/`. Before building the public release candidate, the
-user still needs to choose the final product name and approve a coordinated
-rename.
+The local desktop app is running at `http://127.0.0.1:5050/`. Discovery source
+and application portal are now separate throughout scraping, History, manual
+entry, browser capture, and Excel. Before building the public release
+candidate, the user still needs to choose the final product name and approve a
+coordinated rename.
 
 ## What We Are Building
 
@@ -191,10 +192,13 @@ The main workflow is:
 
 1. Optionally choose an existing Excel tracker from the header `Tracker`
    panel before scraping.
-2. Select the application date.
+2. Select the application date and optionally choose where the current batch
+   was found.
 3. Paste up to 20 individual job-posting links.
-4. Scrape the links in a bounded background queue.
-5. Review company, title, location, work type, salary, and source.
+4. Scrape the links in a bounded background queue; the application portal is
+   inferred from each URL.
+5. Review company, title, location, work type, salary, Found On, and
+   Application Portal.
 6. Correct uncertain fields inline or add a row manually.
 7. Use the header Tracker panel to download a new tracker or update an
    existing `.xlsx` or `.xlsm` tracker.
@@ -217,7 +221,7 @@ not need any personal account data.
 
 ### Canonical tracker columns
 
-Keep these 10 fields compatible across every Excel workflow:
+Keep these 11 fields compatible across every Excel workflow:
 
 1. Date Applied
 2. Company
@@ -228,7 +232,8 @@ Keep these 10 fields compatible across every Excel workflow:
 7. Work Type
 8. Salary Range
 9. Follow-up
-10. Source
+10. Found On
+11. Application Portal
 
 There is no Description, AI Notes, or Skills column. The user explicitly
 removed those fields.
@@ -249,8 +254,15 @@ removed those fields.
 - All-caps locations should be display-normalized while preserving abbreviations
   such as NY, NJ, NYC, USA, and EMEA.
 - `follow_up` must be blank by default. Do not fill it with a future date.
-- `source` must be a readable label such as LinkedIn, Indeed, Greenhouse,
-  Workday, or Company Website, never the URL itself.
+- `found_on` records discovery, such as LinkedIn, Indeed, Google Jobs, a
+  referral, or Company Website. Auto mode may infer it from a job-board URL or
+  a recognized tracking parameter. If there is no evidence, use `N/A`.
+- `application_portal` is inferred from the actual job URL and must be a
+  readable label such as Workday, Ashby, Greenhouse, LinkedIn, or Company
+  Website, never the URL itself.
+- Keep legacy `source` internally as an alias for `application_portal` until
+  old sessions and integrations have migrated. Do not expose it as a third
+  user-facing field.
 - Preserve the original posting URL in `job_link`.
 - Do not replace the original job link with link text such as `Open job`.
 - The application date comes from the user's selected date, not always today.
@@ -322,6 +334,8 @@ The results table has `Original`, `Hourly`, and `Yearly` modes.
 - Prefer an `Applications` sheet, but support other sheets with recognizable
   header aliases.
 - Add missing recognized headers rather than rebuilding the workbook.
+- Older `Source` columns migrate to `Application Portal`; add `Found On` and
+  backfill it only when the old value or URL contains clear discovery evidence.
 - Support duplicate modes `skip` and `update`.
 - Use the first real empty application row; do not append after large amounts
   of formatting-only empty space.
@@ -332,6 +346,10 @@ Modern Chromium browsers can use the File System Access API to update the
 selected original workbook. Browsers without that API receive an updated
 downloaded copy and leave the original unchanged. Do not promise in-place
 editing in every browser.
+
+Do not collapse `Found On` and `Application Portal` back into one `Source`
+column. They answer different questions, and a normal row may intentionally be
+`LinkedIn` plus `Workday`.
 
 ## What Has Been Completed
 
@@ -364,6 +382,15 @@ editing in every browser.
 - Expired postings have distinct review guidance instead of generic retry
   instructions.
 - Conservative company, title, location, work-type, and salary cleanup.
+- Separate `Found On` and `Application Portal` fields across synchronous and
+  background scraping, capture, retry, manual entry, History, and Excel.
+- Auto discovery detection for job-board links and recognized tracking values
+  such as LinkedIn, Indeed, Google Jobs, and Jooble; unknown codes remain
+  `N/A`.
+- Legacy History and workbook migration from one `Source` field without
+  discarding the original job URL.
+- Blank tracker template updated with both source-tracking columns and concise
+  instructions.
 - Regression fixtures for the major supported patterns.
 
 ### Review and recovery
@@ -468,6 +495,9 @@ is moved to shared storage such as Redis.
 - `scraper/history.py`
   - Local SQLite History schema, sanitation, canonical upsert, search/filter,
     deletion, and `/api/history` routes.
+- `scraper/source_tracking.py`
+  - Shared discovery-source and application-portal inference plus legacy
+    `source` compatibility.
 - `scraper/errors.py`, `scraper/logging_config.py`
   - Central error and logging behavior.
 
@@ -494,6 +524,9 @@ is moved to shared storage such as Redis.
 - `scraper/static/styles.css`
 - `scraper/static/link_input.js`
 - `scraper/static/salary_conversion.js`
+- `scraper/static/source_tracking.js`
+  - Browser-side source normalization for edits, restored History, capture,
+    and manual rows.
 
 ### Excel
 
@@ -559,7 +592,7 @@ At this handoff:
 - `main` is clean and matches `origin/main`.
 - Python virtual environment: Python 3.12.13 with the pinned dependencies from
   `requirements-dev.txt`.
-- Pytest collects 191 tests.
+- Pytest collects 201 tests.
 - The full suite completed with 189 tests passing and two
   Node-dependent wrapper tests skipped because `node` was not on the normal
   shell `PATH`.
@@ -726,10 +759,15 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   Experience page` as `og:site_name`, and Eightfold scripts contain generic
   Remote/Hybrid filter labels. Reject shell branding and do not scan ATS
   configuration or site footers as if they describe the current job.
-- **The original URL determines Source:** A branded company careers URL remains
-  `Company Website` even if its HTML mentions or embeds Lever, Greenhouse, or
-  another ATS. ATS detection may guide extraction, but it must not rewrite the
-  source or prevent employer inference from the original company domain.
+- **The original URL determines Application Portal:** A branded company
+  careers URL remains `Company Website` even if its HTML mentions or embeds
+  Lever, Greenhouse, or another ATS. ATS detection may guide extraction, but
+  it must not rewrite the portal or prevent employer inference from the
+  original company domain.
+- **Found On requires discovery evidence:** A Workday or Ashby URL does not
+  prove where the user discovered the job. Infer discovery only from a known
+  job-board URL, a recognized query value such as `source=LinkedIn`, or the
+  user's selection. Keep unknown tracking codes as `N/A`.
 - **ATS employer names can contain internal codes:** Workday and similar
   systems may prefix the real company with values such as `02B` or `LE2201`.
   Remove a compact uppercase alphanumeric token only when it contains both a
@@ -891,10 +929,11 @@ For each repeated failure pattern:
 
 1. Identify the extraction layer that produced the wrong value.
 2. Save a minimal synthetic fixture with no private data.
-3. Add the expected company, title, location, work type, salary, and source to
+3. Add the expected company, title, location, work type, salary, Found On, and
+   Application Portal to
    `tests/test_scraper_regressions.py` or the closest focused test.
 4. Make a narrow platform or evidence-priority fix.
-5. Run the focused tests and the full suite (currently 191 collected tests).
+5. Run the focused tests and the full suite (currently 201 collected tests).
 6. Manually verify the UI status and Excel result.
 7. Commit and push the focused change.
 

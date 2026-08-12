@@ -11,9 +11,11 @@ from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
+from scraper.source_tracking import enrich_source_tracking
+
 INPUT_HEADERS = [
     "Job Link",
-    "Source",
+    "Found On",
     "Notes",
     "Process Status",
     "Processed At",
@@ -30,12 +32,13 @@ APPLICATION_HEADERS = [
     "Work Type",
     "Salary Range",
     "Follow-up",
-    "Source",
+    "Found On",
+    "Application Portal",
 ]
 
 SHEET_WIDTHS = {
     "Input": [70, 20, 35, 24, 22, 55],
-    "Applications": [15, 26, 38, 70, 18, 28, 16, 24, 15, 22],
+    "Applications": [15, 26, 38, 70, 18, 28, 16, 24, 15, 20, 22],
 }
 
 
@@ -53,23 +56,72 @@ def header_map(worksheet) -> dict[str, int]:
 
 def ensure_headers(worksheet, headers: list[str]) -> None:
     existing = header_map(worksheet)
-    for column, header in enumerate(headers, 1):
+    legacy_source_column = None
+    if "source" in existing:
+        if worksheet.title == "Applications" and "application portal" not in existing:
+            legacy_source_column = existing["source"]
+        replacement = "Found On" if worksheet.title == "Input" else "Application Portal"
+        worksheet.cell(row=1, column=existing["source"], value=replacement)
+        existing = header_map(worksheet)
+    next_column = max(existing.values(), default=0) + 1
+    for header in headers:
         if normalize_header(header) not in existing:
-            worksheet.cell(row=1, column=column, value=header)
+            worksheet.cell(row=1, column=next_column, value=header)
+            existing[normalize_header(header)] = next_column
+            next_column += 1
     worksheet.freeze_panes = "A2"
     if worksheet.tables:
         worksheet.auto_filter.ref = None
     else:
-        worksheet.auto_filter.ref = f"A1:{worksheet.cell(1, len(headers)).coordinate}"
+        worksheet.auto_filter.ref = (
+            f"A1:{worksheet.cell(1, max(existing.values(), default=len(headers))).coordinate}"
+        )
     worksheet.row_dimensions[1].height = 24
     widths = SHEET_WIDTHS.get(worksheet.title, [])
-    for column, header in enumerate(headers, 1):
+    for header, width in zip(headers, widths):
+        column = existing[normalize_header(header)]
         cell = worksheet.cell(row=1, column=column)
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="1F4E78")
         cell.alignment = Alignment(horizontal="center", vertical="center")
-        if column <= len(widths):
-            worksheet.column_dimensions[cell.column_letter].width = widths[column - 1]
+        worksheet.column_dimensions[cell.column_letter].width = width
+    if worksheet.title == "Applications":
+        migrate_application_sources(
+            worksheet,
+            legacy_source_column=legacy_source_column,
+        )
+
+
+def migrate_application_sources(worksheet, *, legacy_source_column: int | None = None) -> None:
+    columns = header_map(worksheet)
+    link_column = columns.get("job link")
+    found_on_column = columns.get("found on")
+    portal_column = columns.get("application portal")
+    if not link_column or not found_on_column or not portal_column:
+        return
+    for row in range(2, worksheet.max_row + 1):
+        link_cell = worksheet.cell(row=row, column=link_column)
+        link = clean_url(link_cell.hyperlink.target if link_cell.hyperlink else link_cell.value)
+        company = worksheet.cell(row=row, column=columns.get("company", 1)).value
+        title = worksheet.cell(row=row, column=columns.get("job title", 1)).value
+        if not link and not company and not title:
+            continue
+        found_on = worksheet.cell(row=row, column=found_on_column).value
+        portal = worksheet.cell(row=row, column=portal_column).value
+        if legacy_source_column:
+            tracked = enrich_source_tracking({
+                "job_link": link,
+                "source": worksheet.cell(row=row, column=legacy_source_column).value,
+            }, link)
+        else:
+            tracked = enrich_source_tracking({
+                "job_link": link,
+                "found_on": found_on,
+                "application_portal": portal,
+                "source": portal,
+            }, link)
+        worksheet.cell(row=row, column=found_on_column, value=tracked["found_on"])
+        worksheet.cell(row=row, column=portal_column, value=tracked["application_portal"])
 
 
 def get_or_create_sheet(workbook, name: str, headers: list[str]):
@@ -136,6 +188,7 @@ def result_status(result: dict) -> str:
 
 
 def append_application(worksheet, result: dict, original_url: str) -> None:
+    result = enrich_source_tracking(result, result.get("job_link") or original_url)
     applied = excel_date(result.get("date_applied"))
     follow_up = result.get("follow_up", "")
     values = {
@@ -148,7 +201,8 @@ def append_application(worksheet, result: dict, original_url: str) -> None:
         "work type": result.get("work_type", "n/a"),
         "salary range": result.get("salary", "n/a"),
         "follow-up": follow_up,
-        "source": result.get("source", "Company Website"),
+        "found on": result.get("found_on", "N/A"),
+        "application portal": result.get("application_portal", "Company Website"),
     }
     columns = header_map(worksheet)
     link_column = columns.get("job link")
@@ -204,6 +258,14 @@ def process_workbook(path: Path) -> tuple[int, int, int]:
 
                 scraper = parse_job_with_browser
             result = scraper(link)
+            result = enrich_source_tracking(
+                result,
+                link,
+                found_on=input_sheet.cell(
+                    row,
+                    input_columns.get("found on", 0),
+                ).value if input_columns.get("found on") else "",
+            )
             status = result_status(result)
             if status != "Error":
                 append_application(applications, result, link)

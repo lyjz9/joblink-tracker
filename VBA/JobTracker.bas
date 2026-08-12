@@ -13,6 +13,7 @@ Sub ProcessInputLinks()
     Dim processedCol As Long
     Dim errorCol As Long
     Dim appLinkCol As Long
+    Dim foundOnCol As Long
     Dim lastRow As Long
     Dim rowNumber As Long
     Dim added As Long
@@ -22,6 +23,7 @@ Sub ProcessInputLinks()
     Dim processStatus As String
     Dim response As String
     Dim scrapeError As String
+    Dim foundOn As String
 
     On Error GoTo setupError
     Set inputWs = ThisWorkbook.Worksheets("Input")
@@ -32,6 +34,7 @@ Sub ProcessInputLinks()
     statusCol = FindHeaderColumnOnSheet(inputWs, "Process Status")
     processedCol = FindHeaderColumnOnSheet(inputWs, "Processed At")
     errorCol = FindHeaderColumnOnSheet(inputWs, "Error Message")
+    foundOnCol = FindHeaderColumnOnSheet(inputWs, "Found On")
     appLinkCol = FindHeaderColumnOnSheet(applicationsWs, "Job link")
 
     If linkCol = 0 Or statusCol = 0 Or processedCol = 0 Or errorCol = 0 Or appLinkCol = 0 Then
@@ -44,6 +47,8 @@ Sub ProcessInputLinks()
 
     For rowNumber = 2 To lastRow
         jobLink = Trim(CStr(inputWs.Cells(rowNumber, linkCol).Value))
+        foundOn = ""
+        If foundOnCol > 0 Then foundOn = Trim(CStr(inputWs.Cells(rowNumber, foundOnCol).Value))
         processStatus = LCase(Trim(CStr(inputWs.Cells(rowNumber, statusCol).Value)))
 
         If Len(jobLink) > 0 And (Len(processStatus) = 0 Or processStatus = "pending" Or processStatus = "error") Then
@@ -65,7 +70,7 @@ Sub ProcessInputLinks()
                         inputWs.Cells(rowNumber, errorCol).Value = scrapeError
                         errorCount = errorCount + 1
                     Else
-                        AppendJsonToApplications applicationsWs, response, jobLink
+                        AppendJsonToApplications applicationsWs, response, jobLink, foundOn
                         If JsonNeedsManualReview(response) Then
                             inputWs.Cells(rowNumber, statusCol).Value = "Needs Manual Review"
                         Else
@@ -205,17 +210,21 @@ Sub SetCellByHeader(ws As Worksheet, rowNumber As Long, headerName As String, va
     If columnNumber > 0 Then ws.Cells(rowNumber, columnNumber).Value = value
 End Sub
 
-Sub AppendJsonToApplications(ws As Worksheet, json As String, originalLink As String)
+Sub AppendJsonToApplications(ws As Worksheet, json As String, originalLink As String, Optional foundOn As String = "")
     Dim rowNumber As Long
     Dim dateApplied As String
     Dim followUp As String
     Dim linkColumn As Long
     Dim linkCell As Range
+    Dim applicationPortal As String
 
     linkColumn = FindHeaderColumnOnSheet(ws, "Job link")
     rowNumber = FindFirstEmptyApplicationRow(ws, linkColumn)
     dateApplied = ParseJSONKey(json, "date_applied")
     followUp = ParseJSONKey(json, "follow_up")
+    applicationPortal = ParseJSONKey(json, "application_portal")
+    If Len(applicationPortal) = 0 Then applicationPortal = ParseJSONKey(json, "source")
+    If Len(foundOn) = 0 Then foundOn = ParseJSONKey(json, "found_on")
 
     If Len(dateApplied) = 0 Then dateApplied = Format(Date, "mm/dd/yyyy")
 
@@ -230,7 +239,8 @@ Sub AppendJsonToApplications(ws As Worksheet, json As String, originalLink As St
     SetCellByHeader ws, rowNumber, "Work Type", ParseJSONKey(json, "work_type")
     SetCellByHeader ws, rowNumber, "Salary Range", ParseJSONKey(json, "salary")
     SetCellByHeader ws, rowNumber, "Follow-up", followUp
-    SetCellByHeader ws, rowNumber, "Source", ParseJSONKey(json, "source")
+    SetCellByHeader ws, rowNumber, "Found On", foundOn
+    SetCellByHeader ws, rowNumber, "Application Portal", applicationPortal
 End Sub
 
 Function FindFirstEmptyApplicationRow(ws As Worksheet, linkColumn As Long) As Long
@@ -382,14 +392,16 @@ Function GetJobDetailsFromServer(jobUrl As String) As String
 End Function
 
 Sub WriteParsedFieldsToRow(r As Range, json As String)
-    ' Expected keys: company, job_title, job_link, location, salary, status, work_type, source
+    ' Expected keys include found_on and application_portal; source is the legacy portal field.
     Dim vCompany As String: vCompany = ParseJSONKey(json, "company")
     Dim vTitle As String: vTitle = ParseJSONKey(json, "job_title")
     Dim vJobLink As String: vJobLink = ParseJSONKey(json, "job_link")
     Dim vLocation As String: vLocation = ParseJSONKey(json, "location")
     Dim vWorkType As String: vWorkType = ParseJSONKey(json, "work_type")
     Dim vSalary As String: vSalary = ParseJSONKey(json, "salary")
-    Dim vSource As String: vSource = ParseJSONKey(json, "source")
+    Dim vFoundOn As String: vFoundOn = ParseJSONKey(json, "found_on")
+    Dim vPortal As String: vPortal = ParseJSONKey(json, "application_portal")
+    If Len(vPortal) = 0 Then vPortal = ParseJSONKey(json, "source")
 
     WriteToHeader r, "Company", vCompany
     WriteToHeader r, "Job Title", vTitle
@@ -397,7 +409,8 @@ Sub WriteParsedFieldsToRow(r As Range, json As String)
     WriteToHeader r, "Location", vLocation
     WriteToHeader r, "Work Type", vWorkType
     WriteToHeader r, "Salary Range", vSalary
-    WriteToHeader r, "Source", vSource
+    WriteToHeader r, "Found On", vFoundOn
+    WriteToHeader r, "Application Portal", vPortal
 End Sub
 
 Sub WriteToHeader(r As Range, headerName As String, value As String)

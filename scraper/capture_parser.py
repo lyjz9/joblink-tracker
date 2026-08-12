@@ -35,6 +35,7 @@ from scraper.scraper import (
     _parse_jsonld,
     _parse_next_data,
 )
+from scraper.source_tracking import enrich_source_tracking
 
 
 def _capture_payload_has_content(payload):
@@ -137,7 +138,7 @@ def _parse_captured_page(payload):
     if _missing(result['salary']):
         _merge_capture_value(result, evidence, 'salary', _capture_salary(rich_text), 'text')
 
-    public = _public_scrape_result(result)
+    public = enrich_source_tracking(_public_scrape_result(result), url)
     public['field_options'] = {
         key: values[:6]
         for key, values in candidate_fields.items()

@@ -9,7 +9,7 @@
 
 Linc is a small local app I built because copying the same details from job postings into Excel gets old fast.
 
-Paste a few job links and Linc fills in the details people usually track by hand: company, job title, location, work type, salary, and source. You can fix anything it gets wrong before adding the rows to your tracker.
+Paste a few job links and Linc fills in the details people usually track by hand: company, job title, location, work type, salary, where the job was found, and the application portal. You can fix anything it gets wrong before adding the rows to your tracker.
 
 I made it with students, new grads, and anyone juggling a long application list in mind.
 
@@ -33,6 +33,7 @@ Linc handles the repetitive part and leaves the judgment to you. Nothing goes in
 ## Features
 
 - Pull company, job title, location, salary, and work type from job posting links.
+- Keep where you found a job separate from the site where you applied.
 - Save results in an Excel-friendly application tracker format.
 - Work through up to 20 links in the background while showing progress and letting you cancel.
 - Keep a searchable job history on your computer and restore earlier results when you need them.
@@ -42,16 +43,17 @@ Linc handles the repetitive part and leaves the judgment to you. Nothing goes in
 ## How It Works
 
 1. Paste job posting links into the local app, command line, or Excel input sheet.
-2. Linc reads each posting and pulls out the fields it can trust.
-3. Check the rows it flags and fix anything that looks off.
-4. Add the reviewed rows to a new or existing Excel tracker.
+2. Choose where you found the jobs, or leave `Auto from link` selected.
+3. Linc reads each posting, detects its application portal, and pulls out the fields it can trust.
+4. Check the rows it flags and fix anything that looks off.
+5. Add the reviewed rows to a new or existing Excel tracker.
 
 ## Included Tracker Columns
 
 For reference, the template already contains these columns. You do not need to copy and paste them:
 
 ```text
-Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary Range, Follow-up, Source
+Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary Range, Follow-up, Found On, Application Portal
 ```
 
 ## Setup
@@ -265,10 +267,11 @@ Capture gives Linc more page text to work with, but it can still make mistakes. 
 - Start with the company career page when you can. It usually has cleaner data than a repost.
 - Some sites block automation, require login, or hide job details behind private APIs, so results will not be perfect for every link. Use browser capture for pages that you can open yourself.
 - Monster search pages and many Monster job-detail links are not reliable scraper inputs. If Monster opens or links to the employer/company job page, use that employer link instead.
-- Source labels are a quick heads-up: `Good` is usually clean, `Okay` deserves a look, and `Limited` often needs capture or manual edits.
+- Site reliability labels are a quick heads-up: `Good` is usually clean, `Okay` deserves a look, and `Limited` often needs capture or manual edits.
 - Captured rows may show suggested values under fields; selecting one replaces the current value.
-- Source should be a readable label such as Indeed, LinkedIn, Glassdoor, Greenhouse, or Company Website.
-- Work Type should be Remote, Hybrid, Onsite, or n/a. If the posting does not explicitly say the work type, use n/a.
+- `Found On` records where you discovered the job, such as LinkedIn, Indeed, a referral, or a company website. Auto mode uses a job-board URL or a clear tracking clue such as `source=LinkedIn`; otherwise it leaves this as `N/A`.
+- `Application Portal` comes from the actual job URL, so a job found on LinkedIn can still show Workday, Ashby, Greenhouse, or Company Website as the place where you applied.
+- Work Type should be Remote, Hybrid, Onsite, or n/a. A successfully identified posting defaults to Onsite when no work type is stated; errors and incomplete rows keep n/a.
 - Salary should show n/a when no trustworthy salary is found.
 
 ## Privacy
@@ -296,7 +299,7 @@ See [docs/privacy.md](docs/privacy.md) for the local and hosted data-handling de
 - Clean up location results when pages include extra words like posting status, job category, or repeated page text.
 - Improve work type detection so Remote, Hybrid, Onsite, and n/a are not guessed too aggressively.
 - Handle expired, login-only, or blocked postings more clearly instead of returning confusing fields.
-- Improve source labels for school career sites, reposts, and company career pages.
+- Improve discovery and application-portal labels for school career sites, reposts, and company career pages.
 - Grow the saved cross-site regression set when beta testing finds a repeated parser problem.
 - Add a short demo once the main workflow feels stable.
 - Collect beta feedback before adding a full installer or paid code signing.

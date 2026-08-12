@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify, request, url_for
 
 from scraper.job_queue import BackgroundJobManager, JobNotFound, JobQueueFull
 from scraper.security import canonical_url_key, validate_public_url
+from scraper.source_tracking import normalize_source_label
 
 
 def create_job_blueprint(
@@ -45,9 +46,10 @@ def create_job_blueprint(
         date_applied, date_error = _normalize_date(payload.get("date_applied"))
         if date_error:
             return jsonify({"error": date_error}), 400
+        found_on = normalize_source_label(payload.get("found_on"))
 
         try:
-            snapshot = manager.submit(urls, date_applied)
+            snapshot = manager.submit(urls, date_applied, found_on)
         except JobQueueFull:
             return jsonify({"error": "Linc is busy with another batch. Wait for it to finish, then try again."}), 503
 

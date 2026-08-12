@@ -45,6 +45,7 @@ from scraper.capture_parser import _capture_payload_has_content, _parse_captured
 from scraper.job_queue import ScrapeCapacityFull
 from scraper.job_routes import create_job_blueprint
 from scraper.history import HistoryStore, create_history_blueprint
+from scraper.source_tracking import enrich_source_tracking, normalize_source_label
 
 
 web = Blueprint('web', __name__)
@@ -225,6 +226,7 @@ def _scrape_url(
         result = merged
     else:
         result = _public_scrape_result(result)
+    result = enrich_source_tracking(result, url)
     issues = _quality_issues(result)
     if 'job_search_page' in issues:
         for field in ('company', 'job_title', 'location', 'work_type', 'salary'):
@@ -300,6 +302,7 @@ def _search_page_guidance_result(url):
             else 'Linc needs one individual job posting per link.'
         ),
     }
+    result = enrich_source_tracking(result, url)
     _annotate_result(result, url, result['review_issues'])
     return result
 
@@ -323,7 +326,10 @@ def _record_issue(
         'issues': issues,
         'result': {
             key: _bounded_log_value(result.get(key, ''))
-            for key in ('company', 'job_title', 'location', 'work_type', 'salary', 'source')
+            for key in (
+                'company', 'job_title', 'location', 'work_type', 'salary',
+                'found_on', 'application_portal', 'source',
+            )
         },
         'technical_error': str(raw_error)[:2000],
     }
@@ -386,7 +392,8 @@ def report_issue():
         key: _bounded_log_value(job.get(key, ''), 1000)
         for key in (
             'date_applied', 'company', 'job_title', 'job_link', 'location',
-            'work_type', 'salary', 'source', 'status', 'manual',
+            'work_type', 'salary', 'found_on', 'application_portal', 'source',
+            'status', 'manual',
             'source_reliability_label', 'source_reliability_note',
             'confidence', 'confidence_score', 'error', 'review_notes',
             'preferred_job_link',
@@ -576,7 +583,12 @@ def scrape():
         return jsonify({'error': validation_error}), 400
 
     try:
-        return jsonify(get_runtime().job_manager.run_sync(url))
+        result = get_runtime().job_manager.run_sync(url)
+        return jsonify(enrich_source_tracking(
+            result,
+            url,
+            found_on=normalize_source_label(data.get('found_on')),
+        ))
     except ScrapeCapacityFull:
         return jsonify({'error': 'Linc is busy with another page. Wait for it to finish, then try again.'}), 503
     except Exception:

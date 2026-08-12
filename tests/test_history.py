@@ -14,6 +14,8 @@ def _job(**overrides):
         "location": "New York, NY",
         "work_type": "Hybrid",
         "salary": "$70,000 - $80,000 per year",
+        "found_on": "LinkedIn",
+        "application_portal": "Company Website",
         "source": "Company Website",
         "confidence": "High",
         "confidence_score": 95,
@@ -44,6 +46,8 @@ def test_history_upserts_tracking_variants_without_storing_private_page_content(
     assert result["all_count"] == 1
     assert result["items"][0]["status"] == "review"
     assert result["items"][0]["job"]["salary"] == "$75,000 per year"
+    assert result["items"][0]["job"]["found_on"] == "LinkedIn"
+    assert result["items"][0]["job"]["application_portal"] == "Company Website"
     assert "description" not in result["items"][0]["job"]
     assert "selected" not in result["items"][0]["job"]
 
@@ -113,3 +117,63 @@ def test_history_routes_reject_invalid_payloads(tmp_path):
             json={"job": _job(job_link="javascript:alert(1)")},
         )
         assert response.status_code == 400
+
+
+def test_history_migrates_legacy_source_into_separate_fields(tmp_path):
+    import json
+    import sqlite3
+
+    database = tmp_path / "history.sqlite3"
+    legacy_job = _job(
+        job_link="https://example.wd5.myworkdayjobs.com/job/Analyst_R123",
+        source="LinkedIn",
+    )
+    legacy_job.pop("found_on")
+    legacy_job.pop("application_portal")
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            CREATE TABLE history_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                identity_key TEXT NOT NULL UNIQUE,
+                date_applied TEXT NOT NULL DEFAULT '',
+                company TEXT NOT NULL DEFAULT '',
+                job_title TEXT NOT NULL DEFAULT '',
+                job_link TEXT NOT NULL DEFAULT '',
+                location TEXT NOT NULL DEFAULT '',
+                work_type TEXT NOT NULL DEFAULT '',
+                salary TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT '',
+                history_status TEXT NOT NULL DEFAULT 'review',
+                is_manual INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                job_json TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO history_entries (
+                identity_key, company, job_title, job_link, source,
+                history_status, created_at, updated_at, job_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "legacy-row",
+                legacy_job["company"],
+                legacy_job["job_title"],
+                legacy_job["job_link"],
+                legacy_job["source"],
+                "ready",
+                "2026-08-01T12:00:00+00:00",
+                "2026-08-01T12:00:00+00:00",
+                json.dumps(legacy_job),
+            ),
+        )
+
+    store = HistoryStore(database)
+    item = store.list_entries()["items"][0]["job"]
+    assert item["found_on"] == "LinkedIn"
+    assert item["application_portal"] == "Workday"
+    assert store.list_entries(query="Workday")["total"] == 1

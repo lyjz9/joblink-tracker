@@ -6,6 +6,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
+from openpyxl import load_workbook
 
 import scraper.app as app_module
 
@@ -47,11 +48,13 @@ def test_append_workbook_returns_valid_xlsx(client):
         "date_applied": "07/12/2026",
         "company": "Example Company",
         "job_title": "Data Analyst",
-        "job_link": "https://example.com/jobs/route-test",
+        "job_link": "https://example.wd5.myworkdayjobs.com/job/route-test?source=LinkedIn",
         "location": "New York, NY",
         "work_type": "Hybrid",
         "salary": "n/a",
-        "source": "Company Website",
+        "found_on": "LinkedIn",
+        "application_portal": "Workday",
+        "source": "Workday",
     }]
     response = client.post(
         "/append-workbook",
@@ -67,3 +70,19 @@ def test_append_workbook_returns_valid_xlsx(client):
     assert response.headers["X-JobLink-Added"] == "1"
     with ZipFile(io.BytesIO(response.data)) as workbook:
         assert "xl/workbook.xml" in workbook.namelist()
+    output = load_workbook(io.BytesIO(response.data))
+    worksheet = output["Applications"]
+    headers = {
+        cell.value: cell.column
+        for cell in worksheet[1]
+        if cell.value
+    }
+    assert "Source" not in headers
+    assert headers.keys() >= {"Found On", "Application Portal"}
+    row = next(
+        row_number
+        for row_number in range(2, worksheet.max_row + 1)
+        if worksheet.cell(row_number, headers["Company"]).value == "Example Company"
+    )
+    assert worksheet.cell(row, headers["Found On"]).value == "LinkedIn"
+    assert worksheet.cell(row, headers["Application Portal"]).value == "Workday"

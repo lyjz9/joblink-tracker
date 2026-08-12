@@ -7,8 +7,10 @@ import re
 from pathlib import Path
 
 from openpyxl import load_workbook
-from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.table import Table
+from openpyxl.utils import get_column_letter, range_boundaries
+from openpyxl.worksheet.table import Table, TableColumn
+
+from scraper.source_tracking import enrich_source_tracking
 
 
 CANONICAL_HEADERS = [
@@ -21,7 +23,8 @@ CANONICAL_HEADERS = [
     "Work Type",
     "Salary Range",
     "Follow-up",
-    "Source",
+    "Found On",
+    "Application Portal",
 ]
 
 HEADER_ALIASES = {
@@ -34,7 +37,11 @@ HEADER_ALIASES = {
     "Work Type": {"worktype", "workstyle", "remotehybridonsite", "remote"},
     "Salary Range": {"salaryrange", "salary", "pay", "compensation"},
     "Follow-up": {"followup", "followupdate", "followupdate"},
-    "Source": {"source", "jobboard", "platform", "website"},
+    "Found On": {"foundon", "discoveredon", "discoverysource", "jobboard", "wherefound"},
+    "Application Portal": {
+        "applicationportal", "appliedthrough", "applicationsite", "portal",
+        "source", "platform", "website",
+    },
 }
 
 JOB_KEYS = {
@@ -47,7 +54,8 @@ JOB_KEYS = {
     "Work Type": "work_type",
     "Salary Range": "salary",
     "Follow-up": "follow_up",
-    "Source": "source",
+    "Found On": "found_on",
+    "Application Portal": "application_portal",
 }
 
 
@@ -65,7 +73,14 @@ def append_jobs_to_workbook(
     keep_vba = suffix == ".xlsm"
     workbook = load_workbook(file_obj, keep_vba=keep_vba)
     worksheet, header_row = _choose_worksheet(workbook)
+    legacy_source_column = _legacy_source_column(worksheet, header_row)
     columns = _ensure_headers(worksheet, header_row)
+    _migrate_source_columns(
+        worksheet,
+        columns,
+        header_row,
+        legacy_source_column=legacy_source_column,
+    )
     duplicate_mode = duplicate_mode if duplicate_mode in {"skip", "update"} else "skip"
     existing_links = _existing_links(worksheet, columns["Job link"], header_row)
 
@@ -94,7 +109,7 @@ def append_jobs_to_workbook(
         added += 1
         last_row = max(last_row, row_number)
 
-    _extend_tables(worksheet, last_row)
+    _extend_tables(worksheet, last_row, header_row, columns)
     _tidy_columns(worksheet, columns)
 
     os.makedirs(outdir, exist_ok=True)
@@ -166,6 +181,17 @@ def _score_header_rows(worksheet) -> tuple[int, int]:
 
 
 def _ensure_headers(worksheet, header_row: int) -> dict[str, int]:
+    normalized_headers = {
+        _normalize(cell.value): cell.column
+        for cell in worksheet[header_row]
+        if _clean_text(cell.value)
+    }
+    if "source" in normalized_headers and "applicationportal" not in normalized_headers:
+        worksheet.cell(
+            row=header_row,
+            column=normalized_headers["source"],
+            value="Application Portal",
+        )
     columns = _header_map(worksheet, header_row)
     next_column = max(worksheet.max_column, 1) + 1
     if not any(_clean_text(cell.value) for cell in worksheet[header_row]):
@@ -181,6 +207,80 @@ def _ensure_headers(worksheet, header_row: int) -> dict[str, int]:
         columns[header] = column
     worksheet.freeze_panes = worksheet.cell(row=header_row + 1, column=1).coordinate
     return columns
+
+
+def _legacy_source_column(worksheet, header_row: int) -> int | None:
+    has_application_portal = any(
+        _normalize(cell.value) == "applicationportal"
+        for cell in worksheet[header_row]
+    )
+    if has_application_portal:
+        return None
+    return next(
+        (
+            cell.column
+            for cell in worksheet[header_row]
+            if _normalize(cell.value) == "source"
+        ),
+        None,
+    )
+
+
+def _migrate_source_columns(
+    worksheet,
+    columns: dict[str, int],
+    header_row: int,
+    *,
+    legacy_source_column: int | None,
+) -> None:
+    link_column = columns.get("Job link")
+    found_on_column = columns.get("Found On")
+    portal_column = columns.get("Application Portal")
+    if not found_on_column or not portal_column:
+        return
+
+    identifying_columns = [
+        columns.get(header)
+        for header in ("Company", "Job Title", "Job link")
+        if columns.get(header)
+    ]
+    for row_number in range(header_row + 1, worksheet.max_row + 1):
+        if not any(_clean_text(worksheet.cell(row=row_number, column=column).value) for column in identifying_columns):
+            continue
+        link_cell = worksheet.cell(row=row_number, column=link_column) if link_column else None
+        link = _clean_text(
+            link_cell.hyperlink.target
+            if link_cell and link_cell.hyperlink
+            else link_cell.value if link_cell else ""
+        )
+        found_on = _clean_text(worksheet.cell(row=row_number, column=found_on_column).value)
+        portal = _clean_text(worksheet.cell(row=row_number, column=portal_column).value)
+        if legacy_source_column:
+            tracked = enrich_source_tracking({
+                "job_link": link,
+                "source": _clean_text(
+                    worksheet.cell(row=row_number, column=legacy_source_column).value
+                ),
+            }, link)
+        else:
+            tracked = enrich_source_tracking({
+                "job_link": link,
+                "found_on": found_on,
+                "application_portal": portal,
+                "source": portal,
+            }, link)
+        if not found_on:
+            worksheet.cell(
+                row=row_number,
+                column=found_on_column,
+                value=tracked["found_on"],
+            )
+        if legacy_source_column or not portal:
+            worksheet.cell(
+                row=row_number,
+                column=portal_column,
+                value=tracked["application_portal"],
+            )
 
 
 def _existing_links(worksheet, link_column: int, header_row: int) -> dict[str, int]:
@@ -211,6 +311,7 @@ def _first_empty_row(worksheet, columns: dict[str, int], header_row: int) -> int
 
 
 def _write_job_row(worksheet, row_number: int, columns: dict[str, int], job: dict) -> None:
+    job = enrich_source_tracking(job, job.get("job_link"))
     for header, key in JOB_KEYS.items():
         column = columns.get(header)
         if not column:
@@ -222,7 +323,9 @@ def _write_job_row(worksheet, row_number: int, columns: dict[str, int], job: dic
             value = ""
         elif header in {"Company", "Job Title", "Location", "Work Type", "Salary Range"} and not value:
             value = "n/a"
-        elif header == "Source" and not value:
+        elif header == "Found On" and not value:
+            value = "N/A"
+        elif header == "Application Portal" and not value:
             value = "Company Website"
         worksheet.cell(row=row_number, column=column, value=value)
 
@@ -272,15 +375,33 @@ def _copy_row_style(worksheet, source_row: int, target_row: int) -> None:
     worksheet.row_dimensions[target_row].height = worksheet.row_dimensions[source_row].height
 
 
-def _extend_tables(worksheet, last_row: int) -> None:
+def _extend_tables(
+    worksheet,
+    last_row: int,
+    header_row: int,
+    columns: dict[str, int],
+) -> None:
+    required_column = max(columns.values(), default=0)
+    job_link_column = columns.get("Job link", 0)
     for table in worksheet.tables.values():
         if not isinstance(table, Table):
             continue
-        start, end = table.ref.split(":")
-        end_column = re.match(r"[A-Z]+", end).group(0)
-        end_row = int(re.search(r"\d+", end).group(0))
-        if last_row > end_row:
-            table.ref = f"{start}:{end_column}{last_row}"
+        min_column, min_row, max_column, max_row = range_boundaries(table.ref)
+        if min_row != header_row or not (min_column <= job_link_column <= max_column):
+            continue
+        target_column = max(max_column, required_column)
+        target_row = max(max_row, last_row)
+        for column in range(max_column + 1, target_column + 1):
+            table.tableColumns.append(TableColumn(
+                id=len(table.tableColumns) + 1,
+                name=_clean_text(worksheet.cell(row=header_row, column=column).value),
+            ))
+        table.ref = (
+            f"{get_column_letter(min_column)}{min_row}:"
+            f"{get_column_letter(target_column)}{target_row}"
+        )
+        if table.autoFilter:
+            table.autoFilter.ref = table.ref
 
 
 def _tidy_columns(worksheet, columns: dict[str, int]) -> None:
@@ -291,7 +412,8 @@ def _tidy_columns(worksheet, columns: dict[str, int]) -> None:
         "Company": 24,
         "Location": 28,
         "Work Type": 14,
-        "Source": 18,
+        "Found On": 18,
+        "Application Portal": 22,
     }
     for header, width in preferred.items():
         column = columns.get(header)

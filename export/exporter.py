@@ -3,9 +3,11 @@ from openpyxl.utils import get_column_letter
 import datetime
 import os
 
+from scraper.source_tracking import enrich_source_tracking
+
 HEADERS = [
     'Date Applied', 'Company', 'Job Title', 'Job link', 'Status', 'Location', 'Work Type',
-    'Salary Range', 'Follow-up', 'Source'
+    'Salary Range', 'Follow-up', 'Found On', 'Application Portal'
 ]
 
 
@@ -16,17 +18,19 @@ def export_jobs_to_xlsx(jobs, outdir='exports'):
     ws.title = 'Jobs'
     ws.append(HEADERS)
     for j in jobs:
+        tracked = enrich_source_tracking(j, j.get('job_link'))
         row = [
-            j.get('date_applied', ''),
-            j.get('company', ''),
-            j.get('job_title', ''),
-            j.get('job_link', ''),
-            j.get('status', ''),
-            j.get('location', ''),
-            j.get('work_type', ''),
-            j.get('salary', ''),
-            j.get('follow_up', ''),
-            j.get('source', '')
+            tracked.get('date_applied', ''),
+            tracked.get('company', ''),
+            tracked.get('job_title', ''),
+            tracked.get('job_link', ''),
+            tracked.get('status', ''),
+            tracked.get('location', ''),
+            tracked.get('work_type', ''),
+            tracked.get('salary', ''),
+            tracked.get('follow_up', ''),
+            tracked.get('found_on', 'N/A'),
+            tracked.get('application_portal', 'Company Website'),
         ]
         ws.append(row)
     # auto-width (simple)

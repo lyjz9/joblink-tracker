@@ -6,7 +6,7 @@ Some job boards hide details behind login walls, Cloudflare checks, human verifi
 
 Pay, work type, and location deserve an extra look because sites label them in very different ways.
 
-## Source Reliability
+## Site Reliability
 
 - **Good:** Company career pages and common ATS pages usually provide clean structured data.
 - **Okay:** LinkedIn, Indeed, Glassdoor, ZipRecruiter, SimplyHired, and Dice often work but deserve a quick review.

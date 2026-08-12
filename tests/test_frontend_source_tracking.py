@@ -33,5 +33,16 @@ def test_source_tracking_helpers_load_before_the_application_script():
     template = (ROOT / "scraper" / "templates" / "index.html").read_text(
         encoding="utf-8"
     )
+    application = (ROOT / "scraper" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
 
     assert template.index("../static/source_tracking.js") < template.index("../static/app.js")
+    assert 'id="foundOn"' not in template
+    assert '<th scope="col">Found on</th>' in template
+    assert template.index('<th scope="col">Found on</th>') < template.index(
+        '<th scope="col">Company</th>'
+    )
+    assert "function foundOnCell(job)" in application
+    assert 'class="source-select"' in application
+    assert "selectedFoundOn" not in application

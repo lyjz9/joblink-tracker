@@ -192,13 +192,13 @@ The main workflow is:
 
 1. Optionally choose an existing Excel tracker from the header `Tracker`
    panel before scraping.
-2. Select the application date and optionally choose where the current batch
-   was found.
+2. Select the application date.
 3. Paste up to 20 individual job-posting links.
 4. Scrape the links in a bounded background queue; the application portal is
    inferred from each URL.
 5. Review company, title, location, work type, salary, Found On, and
-   Application Portal.
+   Application Portal. Choose Found On separately in each result row because
+   one batch may contain jobs discovered on different websites.
 6. Correct uncertain fields inline or add a row manually.
 7. Use the header Tracker panel to download a new tracker or update an
    existing `.xlsx` or `.xlsm` tracker.
@@ -767,7 +767,9 @@ run from source. Do not promise packaged macOS/Linux builds yet.
 - **Found On requires discovery evidence:** A Workday or Ashby URL does not
   prove where the user discovered the job. Infer discovery only from a known
   job-board URL, a recognized query value such as `source=LinkedIn`, or the
-  user's selection. Keep unknown tracking codes as `N/A`.
+  user's per-result selection. Keep unknown tracking codes as `N/A`. Do not
+  restore a batch-wide Found On control; mixed-source batches made it
+  misleading.
 - **ATS employer names can contain internal codes:** Workday and similar
   systems may prefix the real company with values such as `02B` or `LE2201`.
   Remove a compact uppercase alphanumeric token only when it contains both a

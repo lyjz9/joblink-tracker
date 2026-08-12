@@ -269,7 +269,7 @@ Capture gives Linc more page text to work with, but it can still make mistakes. 
 - Monster search pages and many Monster job-detail links are not reliable scraper inputs. If Monster opens or links to the employer/company job page, use that employer link instead.
 - Site reliability labels are a quick heads-up: `Good` is usually clean, `Okay` deserves a look, and `Limited` often needs capture or manual edits.
 - Captured rows may show suggested values under fields; selecting one replaces the current value.
-- `Found On` records where you discovered the job, such as LinkedIn, Indeed, a referral, or a company website. Auto mode uses a job-board URL or a clear tracking clue such as `source=LinkedIn`; otherwise it leaves this as `N/A`.
+- `Found On` records where you discovered each job, such as LinkedIn, Indeed, a referral, or a company website. The app starts with what it can infer from the link, then lets you choose a different value in that result row. If there is no evidence, it uses `N/A`.
 - `Application Portal` comes from the actual job URL, so a job found on LinkedIn can still show Workday, Ashby, Greenhouse, or Company Website as the place where you applied.
 - Work Type should be Remote, Hybrid, Onsite, or n/a. A successfully identified posting defaults to Onsite when no work type is stated; errors and incomplete rows keep n/a.
 - Salary should show n/a when no trustworthy salary is found.

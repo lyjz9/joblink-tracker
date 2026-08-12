@@ -51,7 +51,6 @@ let historySearchTimer = null;
 const elements = {
   links: document.querySelector('#jobLinks'),
   appliedDate: document.querySelector('#appliedDate'),
-  foundOn: document.querySelector('#foundOn'),
   counter: document.querySelector('#linkCounter'),
   validation: document.querySelector('#validationMessage'),
   extract: document.querySelector('#extractButton'),
@@ -161,10 +160,6 @@ function selectedAppliedDate() {
   if (!value) return '';
   const [year, month, day] = value.split('-');
   return `${month}/${day}/${year}`;
-}
-
-function selectedFoundOn() {
-  return elements.foundOn?.value || '';
 }
 
 function trackedJob(job, foundOn = '') {
@@ -338,7 +333,6 @@ function saveSession() {
       duplicateMode: elements.duplicateMode?.value || 'skip',
       salaryMode: state.salaryMode,
       salaryHoursPerWeek: state.salaryHoursPerWeek,
-      foundOn: selectedFoundOn(),
     }));
   } catch (error) {
     // Browser storage can be disabled; the app still works without persistence.
@@ -359,7 +353,6 @@ function restoreSession() {
     if (typeof saved.links === 'string') elements.links.value = saved.links;
     if (typeof saved.appliedDate === 'string' && saved.appliedDate) elements.appliedDate.value = saved.appliedDate;
     if (saved.duplicateMode && elements.duplicateMode) elements.duplicateMode.value = saved.duplicateMode;
-    if (typeof saved.foundOn === 'string' && elements.foundOn) elements.foundOn.value = saved.foundOn;
     state.salaryMode = normalizeSalaryMode(saved.salaryMode);
     state.salaryHoursPerWeek = normalizeHoursPerWeek(saved.salaryHoursPerWeek);
   } catch (error) {
@@ -515,12 +508,12 @@ function render() {
             ${reviewList(job)}
           </div>
         </td>
+        <td>${foundOnCell(job)}</td>
         <td>${editableCell(job, 'company')}</td>
         <td>${editableCell(job, 'job_title')}</td>
         <td>${editableCell(job, 'location')}</td>
         <td>${editableCell(job, 'work_type')}</td>
         <td data-field="salary">${salaryCell(job)}</td>
-        <td>${foundOnCell(job)}</td>
         <td>${sourceCell(job)}</td>
         <td>
           <div class="row-actions">
@@ -581,7 +574,6 @@ function render() {
   elements.retryAll.hidden = !hasFlaggedJobs;
   elements.retryAll.disabled = state.processing || !hasFlaggedJobs;
   elements.appliedDate.disabled = state.processing;
-  if (elements.foundOn) elements.foundOn.disabled = state.processing;
   elements.clearResults.disabled = state.processing || !someSelected;
   if (elements.reportSelected) elements.reportSelected.disabled = state.processing || !someSelected;
   elements.clearResults.innerHTML = `${icon('trash-2')} Remove${selectedCount ? ` (${selectedCount})` : ''}`;
@@ -929,11 +921,11 @@ function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
-async function createScrapeJob(urls, dateApplied, foundOn) {
+async function createScrapeJob(urls, dateApplied) {
   const response = await fetch('/api/jobs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ urls, date_applied: dateApplied, found_on: foundOn }),
+    body: JSON.stringify({ urls, date_applied: dateApplied }),
   });
   const payload = await response.json().catch(() => ({ error: 'Linc received a response it could not read.' }));
   if (!response.ok) throw new Error(payload.error || `Linc could not finish that request (${response.status}).`);
@@ -966,7 +958,7 @@ async function readScrapeJobWithRetry(pollUrl) {
   throw lastError;
 }
 
-function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied, foundOn) {
+function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
   const changedJobs = [];
   (snapshot.items || []).forEach((item, index) => {
     if (!['completed', 'failed'].includes(item.status) || appliedItems.has(index)) return;
@@ -978,7 +970,7 @@ function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied, foundOn)
     const result = trackedJob({
       ...(item.result || { error: 'Linc could not read this job page.' }),
       job_link: item.result?.job_link || target.url,
-    }, foundOn || previousFoundOn);
+    }, previousFoundOn);
     if (dateApplied) result.date_applied = dateApplied;
     if (target.action === 'update') {
       result.selected = Boolean(state.jobs[target.index]?.selected);
@@ -1023,14 +1015,13 @@ async function processLinks() {
 
   const appliedItems = new Set();
   const dateApplied = selectedAppliedDate();
-  const foundOn = selectedFoundOn();
   let finalStatus = 'stopped';
   try {
-    let snapshot = await createScrapeJob(plan.map(({ url }) => url), dateApplied, foundOn);
+    let snapshot = await createScrapeJob(plan.map(({ url }) => url), dateApplied);
     state.activeJobId = snapshot.job_id;
     elements.cancelJob.hidden = false;
     while (true) {
-      const changedJobs = applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied, foundOn);
+      const changedJobs = applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied);
       const settled = (snapshot.items || []).filter((item) => !['queued', 'running'].includes(item.status)).length;
       const processed = skipped + settled;
       elements.progressBar.style.width = `${Math.round((processed / urls.length) * 100)}%`;
@@ -1195,10 +1186,10 @@ async function loadCaptures() {
     const appliedDate = selectedAppliedDate();
 
     captures.slice().reverse().forEach((job) => {
-      const incoming = trackedJob(
-        { ...job, date_applied: appliedDate || job.date_applied },
-        selectedFoundOn(),
-      );
+      const incoming = trackedJob({
+        ...job,
+        date_applied: appliedDate || job.date_applied,
+      });
       delete incoming.selected;
       const url = String(incoming.job_link || '').trim();
       if (!url) return;
@@ -1610,7 +1601,6 @@ elements.appendWorkbook.addEventListener('click', appendToWorkbook);
 elements.chooseWorkbook.addEventListener('click', chooseWorkbook);
 if (elements.reportSelected) elements.reportSelected.addEventListener('click', reportSelectedJobs);
 if (elements.duplicateMode) elements.duplicateMode.addEventListener('change', saveSession);
-if (elements.foundOn) elements.foundOn.addEventListener('change', saveSession);
 if (elements.trackerButton) elements.trackerButton.addEventListener('click', () => toggleTrackerPanel());
 if (elements.trackerClose) {
   elements.trackerClose.addEventListener('click', () => {

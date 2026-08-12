@@ -1,6 +1,6 @@
 # Job Tracker Project Development Handoff
 
-Last updated: 2026-08-10
+Last updated: 2026-08-12
 
 This document is for a new development session with no prior conversation
 context. Read it before changing code. The repository is the source of truth if
@@ -15,8 +15,9 @@ anything here later becomes stale.
 - Current version target: **v0.1.0 beta**
 - Current branch: `main`
 - Latest implementation commit:
-  `5120e70` (`Reject unavailable job page shells`)
+  `d1a98cb` (`Fix six-site job extraction patterns`)
 - Recent focused commits:
+  - `d1a98cb` (`Fix six-site job extraction patterns`)
   - `5120e70` (`Reject unavailable job page shells`)
   - `9722386` (`Fix multi-site job field extraction`)
   - `cf625f0` (`Default unspecified work type to onsite`)
@@ -70,6 +71,37 @@ History. It is complete and pushed:
 
 The earlier Original, Hourly, and Yearly salary modes remain intact, including
 part-time Hours/week estimates and Excel export in the selected format.
+
+The 2026-08-12 six-site extraction audit is complete and pushed:
+
+- An explicit nearby pay-period label is retained when the numeric salary
+  omits its unit. For example, `Hourly: $20-$35` becomes `$20-$35 per hour`,
+  so the Hourly/Yearly salary views can convert it safely.
+- A clearly job-shaped browser title such as `Role | Company Careers` or
+  `Role Job Details | Company` can override stale JSON-LD title data.
+- Workday organization codes containing both letters and numbers, such as
+  `02B`, are removed from the displayed employer name.
+- Company inference now uses the original URL's platform and domain even when
+  embedded scripts mention another ATS. This prevents company career pages
+  from losing their employer name.
+- Inline semantic fields such as `<strong>Location:</strong> New York, NY` are
+  preferred over truncated free-text guesses, while LinkedIn description text
+  such as `Location: Remote | Type: Full Time` is not treated as a geographic
+  label.
+- `Traditional office environment` is accepted as explicit Onsite evidence.
+- `Careers Site` is removed from otherwise usable employer names, and common
+  brand punctuation/casing is restored for L'Oréal and JetBlue.
+- Live checks through the real background queue returned:
+  - Rho: Quantitative Analyst Intern, New York City, Onsite,
+    `$20-$35 per hour`;
+  - L'Oréal: Operations - Intern - 12 month, New York, Hybrid, `$29.50`;
+  - Federal Reserve Bank of New York: Regulatory Data Analyst, New York,
+    Onsite, `$79,300 - $85,000 / year`;
+  - JetBlue: Analyst System Operations Strategy & Analytics, Long Island City,
+    Onsite, `$64,350.00 and $89,600.00 per year`;
+  - MTA: Operations Analyst Accounts Payable, New York, Onsite,
+    `$45,125 - $75,208`;
+  - MFA on LinkedIn remained correct as Hybrid with no published salary.
 
 The 2026-08-10 false-success audit is complete and pushed:
 
@@ -527,8 +559,8 @@ At this handoff:
 - `main` is clean and matches `origin/main`.
 - Python virtual environment: Python 3.12.13 with the pinned dependencies from
   `requirements-dev.txt`.
-- Pytest collects 185 tests.
-- The full suite completed with 183 tests passing and two
+- Pytest collects 191 tests.
+- The full suite completed with 189 tests passing and two
   Node-dependent wrapper tests skipped because `node` was not on the normal
   shell `PATH`.
 - The underlying Node link-input suite passed when run directly.
@@ -677,6 +709,10 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   objects can be stale, broad, or for a different listing. Prefer explicit,
   labeled fields for the current visible job, but preserve structured data as
   fallback evidence. Add a focused precedence test for each repeatable case.
+- **A stale schema title can look valid:** When a page's current browser title
+  follows a clear job-title pattern but JSON-LD supplies a different plausible
+  title, prefer the current page title. Do not apply this to generic search or
+  careers-shell titles.
 - **The first JSON-LD block may not be the job:** Company sites often place
   `WebPage`, breadcrumbs, or organization schema before `JobPosting`. Scan all
   JSON-LD blocks for a real job object before accepting a generic fallback.
@@ -693,7 +729,15 @@ run from source. Do not promise packaged macOS/Linux builds yet.
 - **The original URL determines Source:** A branded company careers URL remains
   `Company Website` even if its HTML mentions or embeds Lever, Greenhouse, or
   another ATS. ATS detection may guide extraction, but it must not rewrite the
-  source the user pasted.
+  source or prevent employer inference from the original company domain.
+- **ATS employer names can contain internal codes:** Workday and similar
+  systems may prefix the real company with values such as `02B` or `LE2201`.
+  Remove a compact uppercase alphanumeric token only when it contains both a
+  letter and a number; do not strip ordinary brand names such as `3M`.
+- **Inline labels can be stronger than free-text guesses:** Read short fields
+  such as `<strong>Location:</strong> New York, NY` from their parent element.
+  Reject multi-field description lines containing separators or labels such as
+  Type, Experience, or Salary.
 - **Mixed-case location strings can preserve an all-caps city:** Normalize
   comma-separated location pieces independently. Also normalize malformed
   JSON-LD country locale values such as `en-us` before cleaning the full place.
@@ -722,6 +766,10 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   bonuses, equal ranges, hourly/yearly periods, and unrelated numbers. Prefer
   explicit base salary, strip labels only when the amount remains clear,
   collapse equal ranges, preserve the pay period, and use `n/a` when missing.
+- **The period can sit outside the matched salary:** Phrases such as
+  `Hourly: $20-$35` have explicit period evidence even though the numeric range
+  does not contain `/hr`. Carry a nearby unambiguous Hourly, Annual, or Weekly
+  label into the stored salary; never infer a period from the amount alone.
 - **Broad programs can publish several salary tables:** Taking the first valid
   range may be misleading when one page covers many roles or locations. A
   future focused improvement should mark multi-range program pages Review
@@ -846,7 +894,7 @@ For each repeated failure pattern:
 3. Add the expected company, title, location, work type, salary, and source to
    `tests/test_scraper_regressions.py` or the closest focused test.
 4. Make a narrow platform or evidence-priority fix.
-5. Run the focused tests and the full suite (currently 185 collected tests).
+5. Run the focused tests and the full suite (currently 191 collected tests).
 6. Manually verify the UI status and Excel result.
 7. Commit and push the focused change.
 

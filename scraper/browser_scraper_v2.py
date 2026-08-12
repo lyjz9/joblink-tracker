@@ -810,7 +810,14 @@ def _clean_company(value):
     value = re.sub(r'\s+\d+(?:\.\d+)?\s*(?:out of 5 stars?|stars?)?.*$', '', value, flags=re.I)
     value = re.sub(r'^©\s*\d{4}\s*', '', value).strip()
     value = re.sub(r',?\s+all rights reserved.*$', '', value, flags=re.I).strip()
-    value = re.sub(r'\s+Careers$', '', value, flags=re.I).strip()
+    value = re.sub(r'\s+Careers(?:\s+Site)?$', '', value, flags=re.I).strip()
+    internal_code = re.match(r'^(?P<code>[A-Z0-9]{3,8})\s+(?P<name>.+)$', value)
+    if (
+        internal_code
+        and re.search(r'[A-Z]', internal_code.group('code'))
+        and re.search(r'\d', internal_code.group('code'))
+    ):
+        value = internal_code.group('name').strip()
     if re.search(r'\b(?:MS\s+Smith\s+Barney|Morgan\s+Stanley)\b', value, flags=re.I):
         return 'Morgan Stanley'
     known = {
@@ -819,6 +826,9 @@ def _clean_company(value):
         'burberrycareers': 'Burberry',
         'fdmgroup': 'FDM Group',
         'fdm group': 'FDM Group',
+        'loreal': "L'Or\u00e9al",
+        'jetblue': 'JetBlue',
+        'jetblue airways corporation': 'JetBlue',
         'le001 berkeley research group, llc': 'BRG',
         'berkeley research group, llc': 'BRG',
         'thinkbrg': 'BRG',
@@ -1251,7 +1261,43 @@ def _pick_flat(flat, keys):
 
 def _extract_salary(text):
     match = SALARY_RE.search(text or '')
-    return normalize_salary_display(_clean_value(match.group(0))) if match else ''
+    return _salary_match_value(text or '', match) if match else ''
+
+
+def _salary_match_value(text, match):
+    salary = normalize_salary_display(_clean_value(match.group(0)))
+    if not salary or re.search(
+        r'(?:\b(?:per|an?)\s+(?:year|yr|hour|hr|annum|week|wk)\b|'
+        r'/(?:year|yr|hour|hr|week|wk)\b|'
+        r'\b(?:annual(?:ly)?|yearly|hourly|weekly)\b)',
+        salary,
+        flags=re.I,
+    ):
+        return salary
+
+    before = text[max(0, match.start() - 80):match.start()]
+    after = text[match.end():match.end() + 50]
+    periods = (
+        (
+            r'\bhourly(?:\s+(?:pay|rate|salary|compensation))?\s*[:\-]?\s*$',
+            r'^\s*(?:per\s+hour|/\s*(?:hr|hour)|hourly)\b',
+            'per hour',
+        ),
+        (
+            r'\b(?:annual(?:ized)?|yearly)(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?\s*[:\-]?\s*$',
+            r'^\s*(?:per\s+year|/\s*(?:yr|year)|annual(?:ly)?|yearly)\b',
+            'per year',
+        ),
+        (
+            r'\bweekly(?:\s+(?:pay|rate|salary|compensation))?\s*[:\-]?\s*$',
+            r'^\s*(?:per\s+week|/\s*(?:wk|week)|weekly)\b',
+            'per week',
+        ),
+    )
+    for before_pattern, after_pattern, period in periods:
+        if re.search(before_pattern, before, flags=re.I) or re.search(after_pattern, after, flags=re.I):
+            return normalize_salary_display(f'{salary} {period}')
+    return salary
 
 
 def _extract_base_salary(text):
@@ -1307,7 +1353,7 @@ def _extract_contextual_salary(text):
         start, end = match.span()
         context = text[max(0, start - 120):min(len(text), end + 160)].lower()
         if any(term in context for term in salary_terms) and not any(term in context for term in blocked_terms):
-            return normalize_salary_display(_clean_value(match.group(0)))
+            return _salary_match_value(text, match)
     return ''
 
 
@@ -1757,6 +1803,21 @@ def _company_from_page_title(title):
     return ''
 
 
+def _job_title_from_page_title(title):
+    title = _clean_value(title)
+    patterns = (
+        r'^(?P<title>.+?)\s*\|\s*.+?\s+Careers?$',
+        r'^(?P<title>.+?)\s+Job Details\s*\|\s*.+$',
+    )
+    for pattern in patterns:
+        match = re.match(pattern, title, flags=re.I)
+        if match:
+            job_title = _clean_title(match.group('title'))
+            if job_title and not _looks_generic_title(job_title):
+                return job_title
+    return ''
+
+
 def _location_from_title(title):
     title = _clean_value(title)
     match = re.search(r'\b(?:in|based in)\s+([A-Z][A-Za-z.\'-]+(?:\s+[A-Z][A-Za-z.\'-]+){0,3})(?:,\s*([A-Z]{2}))?$', title)
@@ -1897,9 +1958,38 @@ def _visible_labeled_location(soup):
 
     location_label = re.compile(r'^\s*(?:job\s+)?location\s*:?\s*$', flags=re.I)
     for label in soup.find_all(['dt', 'h2', 'h3', 'h4', 'h5', 'strong'], string=location_label):
+        parent = label.parent
+        if parent and parent.name in {'dd', 'div', 'li', 'p'}:
+            parent_text = _normalize_text(parent.get_text(' ', strip=True))
+            if len(parent_text) <= 160:
+                inline_value = re.sub(
+                    r'^\s*(?:job\s+)?location\s*:?\s*',
+                    '',
+                    parent_text,
+                    flags=re.I,
+                )
+                location = _clean_location(inline_value)
+                if location:
+                    return location
         candidate = label.find_next(['dd', 'p', 'span', 'div'])
         if candidate:
             location = _clean_location(candidate.get_text(' ', strip=True))
+            if location:
+                return location
+    for container in soup.select('dd, div, li, p'):
+        text = _normalize_text(container.get_text(' ', strip=True))
+        if len(text) > 160:
+            continue
+        match = re.fullmatch(r'(?:Job\s+)?Location\s*:\s*(.+)', text, flags=re.I)
+        if match:
+            inline_value = match.group(1)
+            if re.search(
+                r'\||\b(?:type|experience|salary|compensation|employment)\s*:',
+                inline_value,
+                flags=re.I,
+            ):
+                continue
+            location = _clean_location(inline_value)
             if location:
                 return location
     return ''
@@ -1979,7 +2069,7 @@ def _extract_work_type(text):
     ))
     has_onsite = any(term in low for term in (
         'on-site', 'onsite', 'in-office', 'in office', 'in-person', 'in person', 'on site',
-        'office-based', 'office based',
+        'office-based', 'office based', 'traditional office environment',
     ))
     conditional_remote = re.search(
         r'\b(?:may\s+be\s+eligible\s+for\s+(?:remote\s+work|telework)|'
@@ -2303,6 +2393,9 @@ def _extract_from_soup(soup, url, original_url=None):
     if meta_title and (not data['job_title'] or _looks_generic_title(data['job_title'])):
         data['job_title'] = meta_title
     title_tag_text = soup.title.get_text(' ', strip=True) if soup.title else ''
+    page_title_job = _job_title_from_page_title(title_tag_text)
+    if page_title_job:
+        data['job_title'] = page_title_job
     page_title_company = _company_from_page_title(title_tag_text or meta_title or '')
     if page_title_company and _looks_generic_company(data.get('company', '')):
         data['company'] = page_title_company
@@ -2383,7 +2476,12 @@ def _extract_from_soup(soup, url, original_url=None):
     if title_location and _location_is_broad(data.get('location', '')):
         data['location'] = title_location
     visible_labeled_location = _visible_labeled_location(soup)
-    if visible_labeled_location and _location_is_broad(data.get('location', '')):
+    visible_is_only_work_type = visible_labeled_location.lower() in {
+        'remote', 'hybrid', 'onsite', 'on-site',
+    }
+    if visible_labeled_location and (
+        not visible_is_only_work_type or not _clean_location(data.get('location', ''))
+    ):
         data['location'] = visible_labeled_location
     if not _extract_salary(data.get('salary', '')):
         labeled_plain_salary = _extract_labeled_plain_salary(salary_text, data.get('location', ''))
@@ -2417,14 +2515,14 @@ def _extract_from_soup(soup, url, original_url=None):
     if not data['company']:
         data['company'] = _extract_company_from_text(full_text, platform)
     if not data['company']:
-        data['company'] = _infer_company_from_url(url, platform)
+        data['company'] = _infer_company_from_url(original_url, source_platform)
     if url_hints.get('company') and _looks_generic_company(data.get('company', '')):
         data['company'] = url_hints['company']
     data['company'] = _clean_company(data['company'])
     if page_title_company and _looks_generic_company(data.get('company', '')):
         data['company'] = page_title_company
     if not data['company']:
-        data['company'] = _clean_company(_infer_company_from_url(original_url, platform))
+        data['company'] = _clean_company(_infer_company_from_url(original_url, source_platform))
     if url_hints.get('company') and _looks_generic_company(data.get('company', '')):
         data['company'] = _clean_company(url_hints['company'])
     for domain, company in COMPANY_HOST_OVERRIDES.items():

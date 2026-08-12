@@ -798,6 +798,68 @@ def test_ashby_job_not_found_page_is_unavailable():
     assert result["error"] == "This job posting is no longer available."
 
 
+def test_ashby_hourly_label_preserves_the_pay_period():
+    url = "https://jobs.ashbyhq.com/rho/eb5c9709-ab43-4e9e-9c41-ccb122955fcf"
+    html = """
+        <html><head><title>Quantitative Analyst Intern @ Rho</title></head>
+        <body>
+          <h1>Quantitative Analyst Intern</h1>
+          <div data-testid="job-location">NYC</div>
+          <h2>Location Type</h2><p>On-site</p>
+          <main>
+            The intern builds analytical models and experiments, works with large
+            datasets, and communicates findings to technical and business teams.
+            Hourly: $20-$35 | Start: ASAP
+          </main>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "Rho"
+    assert result["job_title"] == "Quantitative Analyst Intern"
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Onsite"
+    assert result["salary"] == "$20-$35 per hour"
+
+
+def test_visible_careers_title_beats_stale_jsonld_title():
+    url = "https://careers.loreal.com/en_US/jobs/JobDetail/249925"
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Intern - NonProgram - 12 month",
+    }
+    html = f"""
+        <html><head>
+          <title>Operations - Intern - 12 month | L'Or\u00e9al Careers</title>
+          <meta property="og:title" content="Operations - Intern - 12 month | L'Or\u00e9al Careers">
+          <script type="application/ld+json">{json.dumps(posting)}</script>
+        </head><body>
+          <h1>Operations - Intern - 12 month</h1>
+          <div data-testid="location">New York, NY</div>
+          <main>
+            This internship follows a Hybrid Work Policy with three days in the
+            office and two days working from home. Salary Range: $29.50. The intern
+            supports the operations team and works across several business groups.
+          </main>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "L'Or\u00e9al"
+    assert result["job_title"] == "Operations - Intern - 12 month"
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Hybrid"
+    assert result["salary"] == "$29.50"
+    assert result["source"] == "Company Website"
+
+
 def test_workday_prefers_labeled_primary_location_and_salary():
     url = (
         "https://citi.wd5.myworkdayjobs.com/en-US/2/job/"
@@ -883,6 +945,47 @@ def test_workday_api_uses_public_location_and_remote_type(monkeypatch):
     assert result["location"] == "New York, NY"
     assert result["work_type"] == "Hybrid"
     assert result["salary"] == "$70,000.00"
+
+
+def test_workday_api_removes_internal_hiring_organization_code(monkeypatch):
+    url = (
+        "https://rb.wd5.myworkdayjobs.com/en-US/FRS/job/"
+        "Regulatory-Data-Analyst_R-0000032890-1"
+    )
+    payload = {
+        "jobPostingInfo": {
+            "title": "Regulatory Data Analyst",
+            "jobDescription": (
+                "<p>At the Bank, we work full-time onsite with our teams.</p>"
+                "<p>Salary Range: $79,300 - $85,000 / year</p>"
+            ),
+            "location": "New York, NY",
+            "remoteType": "On Site",
+        },
+        "hiringOrganization": {
+            "name": "02B Federal Reserve Bank of New York",
+        },
+    }
+
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return payload
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    result = _workday_api_result(url)
+
+    assert result["company"] == "Federal Reserve Bank of New York"
+    assert result["job_title"] == "Regulatory Data Analyst"
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Onsite"
+    assert result["salary"] == "$79,300 - $85,000 / year"
 
 
 def test_workday_uses_requisition_country_when_city_label_is_too_broad(monkeypatch):
@@ -1400,6 +1503,96 @@ def test_jobvite_domain_is_not_misidentified_from_page_copy():
     assert _detect_platform(url, soup) == "jobvite"
     result = _public_result(_extract_from_soup(soup, url))
     assert result["source"] == "Jobvite"
+
+
+def test_company_domain_wins_when_page_contains_embedded_ats_text():
+    url = (
+        "https://careers.jetblue.com/job/Long-Island-City-"
+        "Analyst-System-Operations-Strategy-%26-Analytics-NY-11101/1386539100/"
+    )
+    html = """
+        <html><head>
+          <title>Analyst System Operations Strategy &amp; Analytics Job Details | JetBlue Airways Corporation</title>
+          <meta property="og:title" content="Analyst System Operations Strategy &amp; Analytics">
+        </head><body>
+          <script>window.embeddedVendor = "lever";</script>
+          <h1>Title: Analyst System Operations Strategy &amp; Analytics</h1>
+          <div><strong>Location:</strong> Long Island City, NY, US, 11101</div>
+          <main>
+            The analyst supports operational planning, reporting, and data-driven
+            decisions across several teams. Work Environment: Traditional office
+            environment. Compensation: The base pay range for this position is
+            between $64,350.00 and $89,600.00 per year.
+          </main>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "JetBlue"
+    assert result["job_title"] == "Analyst System Operations Strategy & Analytics"
+    assert result["location"] == "Long Island City, NY"
+    assert result["work_type"] == "Onsite"
+    assert result["salary"] == "$64,350.00 and $89,600.00 per year"
+    assert result["source"] == "Company Website"
+
+
+def test_inline_labeled_location_overrides_truncated_page_location():
+    url = "https://careers.mta.org/jobs/18076075-operations-analyst-accounts-payable"
+    html = """
+        <html><head>
+          <title>Operations Analyst Accounts Payable in New York, New York, United States</title>
+          <meta property="og:site_name" content="MTA Careers Site">
+        </head><body>
+          <h1>Operations Analyst Accounts Payable</h1>
+          <div><strong>Business Unit:</strong> MTA Headquarters</div>
+          <div><strong>Location:</strong> New York, NY, United States</div>
+          <main>
+            JOB TITLE: Operations Analyst - Accounts Payable. SALARY RANGE:
+            $45,125 - $75,208. The analyst supports invoice processing, reconciles
+            records, and works with finance teams at 333 West 34th Street.
+          </main>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "MTA"
+    assert result["job_title"] == "Operations Analyst Accounts Payable"
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Onsite"
+    assert result["salary"] == "$45,125 - $75,208"
+
+
+def test_linkedin_hybrid_posting_remains_unchanged():
+    url = "https://www.linkedin.com/jobs/view/4440321514/"
+    html = """
+        <html><head><title>MFA hiring Intern, Business Systems in New York, NY | LinkedIn</title></head>
+        <body>
+          <h1>Intern, Business Systems</h1>
+          <a data-tracking-control-name="public_jobs_topcard-org-name">MFA</a>
+          <span class="topcard__flavor--bullet">New York, NY</span>
+          <div class="show-more-less-html__markup">
+            Position title: Intern, Business Systems. Location: New York, N.Y
+            (Hybrid). The internship supports business systems throughout the
+            academic year and requires office attendance three days each week.
+          </div>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "MFA"
+    assert result["job_title"] == "Intern, Business Systems"
+    assert result["location"] == "New York, NY"
+    assert result["work_type"] == "Hybrid"
+    assert result["salary"] == "n/a"
 
 
 @pytest.mark.parametrize(

@@ -15,6 +15,9 @@ def test_application_portal_is_inferred_from_the_actual_job_url():
     assert application_portal_for_url(
         "https://careers.example.com/jobs/123"
     ) == "Company Website"
+    assert application_portal_for_url(
+        "https://blackrock.tal.net/vx/opp/12218/en-GB"
+    ) == "TAL"
 
 
 def test_found_on_uses_the_user_choice_or_a_job_board_url():

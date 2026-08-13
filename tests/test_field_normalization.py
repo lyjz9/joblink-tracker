@@ -45,6 +45,10 @@ def test_location_display_normalization(value, expected):
         ("$20/hour - $25/hour", "$20/hour - $25/hour"),
         ("$20/hour - $20/year", "$20/hour - $20/year"),
         ("USD $20/hour - CAD $20/hour", "USD $20/hour - CAD $20/hour"),
+        ("$70,000-$73,000", "$70,000 - $73,000"),
+        ("$64,350 and $89,600 per year", "$64,350 - $89,600 per year"),
+        ("$60K to $90K", "$60K - $90K"),
+        ("$23- $25 per hour", "$23 - $25 per hour"),
     ),
 )
 def test_salary_display_normalization(value, expected):

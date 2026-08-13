@@ -44,7 +44,7 @@ _EQUAL_SALARY_RANGE_RE = re.compile(
     r'(?P<left_scale>\s*[kK])?'
     r'(?P<left_unit>\s*(?:(?:per\s+|/\s*|an?\s+)'
     r'(?:year|yr|hour|hr|annum|week|wk)))?'
-    r'\s*(?:-|\u2013|\u2014|\bto\b|\band\b)\s*'
+    r'\s*(?P<separator>-|\u2013|\u2014|\bto\b|\band\b)\s*'
     r'(?P<right_currency>'
     r'(?:(?:USD|CAD|AUD|GBP|EUR|JPY|INR)\s*[$\u00a3\u20ac\u00a5\u20b9]?'
     r'|[$\u00a3\u20ac\u00a5\u20b9])\s*)?'
@@ -136,28 +136,34 @@ def _collapse_equal_salary_range(value):
     if not match:
         return value
 
+    separator_start, separator_end = match.span('separator')
+    normalized_range = (
+        f'{value[:separator_start].rstrip()} - '
+        f'{value[separator_end:].lstrip()}'
+    )
+
     try:
         left_amount = Decimal(match.group('left_amount').replace(',', ''))
         right_amount = Decimal(match.group('right_amount').replace(',', ''))
     except InvalidOperation:
-        return value
+        return normalized_range
     if left_amount != right_amount:
-        return value
+        return normalized_range
 
     left_scale = (match.group('left_scale') or '').strip().lower()
     right_scale = (match.group('right_scale') or '').strip().lower()
     if left_scale != right_scale:
-        return value
+        return normalized_range
 
     left_currency = _currency_key(match.group('left_currency'))
     right_currency = _currency_key(match.group('right_currency'))
     if not _compatible_salary_parts(left_currency, right_currency, dollar_codes={'USD', 'CAD', 'AUD'}):
-        return value
+        return normalized_range
 
     left_unit = _unit_key(match.group('left_unit'))
     right_unit = _unit_key(match.group('right_unit'))
     if not _compatible_salary_parts(left_unit, right_unit):
-        return value
+        return normalized_range
 
     currency = re.sub(
         r'\s+',

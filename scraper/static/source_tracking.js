@@ -54,6 +54,7 @@
     ['jobvite.com', 'Jobvite'],
     ['oraclecloud.com', 'Oracle Recruiting'],
     ['taleo.net', 'Taleo'],
+    ['tal.net', 'TAL'],
     ['eploy.net', 'Eploy'],
     ['eightfold.ai', 'Eightfold'],
     ['successfactors.com', 'SAP SuccessFactors'],
@@ -64,7 +65,7 @@
     ...[
       'N/A', 'Company Website', 'Referral', 'Other', 'Greenhouse', 'Lever',
       'Workday', 'Ashby', 'SmartRecruiters', 'Workable', 'BambooHR', 'Dayforce',
-      'iCIMS', 'Breezy', 'Jobvite', 'Oracle Recruiting', 'Taleo', 'Eploy',
+      'iCIMS', 'Breezy', 'Jobvite', 'Oracle Recruiting', 'Taleo', 'TAL', 'Eploy',
       'Eightfold', 'SAP SuccessFactors', 'Google Jobs', 'Jooble',
     ].map((label) => [label.toLowerCase(), label]),
   ]);

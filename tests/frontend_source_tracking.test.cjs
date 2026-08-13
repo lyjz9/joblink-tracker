@@ -8,6 +8,7 @@ const {
 const workday = 'https://example.wd5.myworkdayjobs.com/en-US/jobs/job/Analyst_R123';
 assert.strictEqual(inferApplicationPortal(workday), 'Workday');
 assert.strictEqual(inferApplicationPortal('https://jobs.ashbyhq.com/example/123'), 'Ashby');
+assert.strictEqual(inferApplicationPortal('https://blackrock.tal.net/vx/opp/12218/en-GB'), 'TAL');
 assert.strictEqual(inferApplicationPortal('https://careers.example.com/jobs/123'), 'Company Website');
 assert.strictEqual(inferFoundOn(workday, 'LinkedIn'), 'LinkedIn');
 assert.strictEqual(inferFoundOn(workday), 'N/A');

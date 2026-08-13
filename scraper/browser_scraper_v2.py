@@ -10,6 +10,7 @@ The extractor favors reliable signals in this order:
 import asyncio
 import re
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from html import unescape as html_unescape
 from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
@@ -326,6 +327,11 @@ def _unavailable_page_error(text):
         'this posting is no longer available',
         'this position has been filled',
         'job posting has expired',
+        'this vacancy has now expired',
+        'vacancy has expired',
+        'job you are trying to apply for is currently unavailable',
+        'job you are trying to view is currently unavailable',
+        'this job is currently unavailable',
     )
     if any(marker in low for marker in unavailable_markers):
         return 'This job posting is no longer available.'
@@ -788,6 +794,9 @@ def _direct_html_result(url):
         return None
     if result.get('location') in {'', 'n/a', None}:
         return None
+    if _detect_platform(url) == 'wellfound' and result.get('salary') not in {'', 'n/a', None}:
+        if not _salary_has_range(result['salary']):
+            return None
     host = urlparse(url).netloc.lower().replace('www.', '')
     if host in RENDER_REQUIRED_WHEN_LOCATION_IS_BROAD and _location_is_broad(result.get('location', '')):
         return None
@@ -847,6 +856,8 @@ def _clean_company(value):
         'le2201 newrez llc - corporate': 'Newrez',
         'newrez llc - corporate': 'Newrez',
         'newrez llc': 'Newrez',
+        'gaic great american insurance company': 'Great American Insurance Group',
+        'great american insurance company': 'Great American Insurance Group',
     }
     return known.get(value.lower(), value)
 
@@ -1047,11 +1058,12 @@ def _looks_generic_title(value):
     blocked = {
         'access denied', 'humans only', 'www.ziprecruiter.com', 'jooble.org',
         'digitalhire', 'tal healthcare', "let's confirm you are human",
-        'just a moment...', 'job details', 'search jobs', 'jobs', 'sign up',
+        'just a moment...', 'job', 'job details', 'search jobs', 'jobs', 'sign up',
         'job search', 'job not found', 'position not found', 'opportunity not found',
         'current openings', 'all jobs',
         'are you still with us?',
         'work summary',
+        'where intelligence works',
         'n/a', 'na', 'none',
     }
     if low in blocked:
@@ -1315,6 +1327,65 @@ def _extract_base_salary(text):
     return ''
 
 
+def _salary_numeric_values(value):
+    values = []
+    for amount, scale in re.findall(
+        r'(?<![A-Za-z])(?P<amount>\d+(?:,\d{3})*(?:\.\d+)?)\s*(?P<scale>[kK])?',
+        value or '',
+    ):
+        try:
+            number = Decimal(amount.replace(',', ''))
+        except InvalidOperation:
+            continue
+        values.append(number * 1000 if scale else number)
+    return values
+
+
+def _salary_has_period(value):
+    return bool(re.search(
+        r'(?:\b(?:per|an?)\s+(?:year|yr|hour|hr|annum|week|wk)\b|'
+        r'/(?:year|yr|hour|hr|week|wk)\b|'
+        r'\b(?:annual(?:ly)?|yearly|hourly|weekly)\b)',
+        value or '',
+        flags=re.I,
+    ))
+
+
+def _salary_has_range(value):
+    return len(_salary_numeric_values(value)) >= 2 and bool(re.search(
+        r'(?:-|\u2013|\u2014|\bto\b|\band\b)',
+        value or '',
+        flags=re.I,
+    ))
+
+
+def _salary_is_more_complete(candidate, current, *, allow_expanded_range=False):
+    candidate = normalize_salary_display(candidate)
+    current = normalize_salary_display(current)
+    if not candidate or candidate == current:
+        return False
+    if not current:
+        return True
+
+    candidate_values = _salary_numeric_values(candidate)
+    current_values = _salary_numeric_values(current)
+    if not candidate_values or not current_values:
+        return False
+
+    if (
+        candidate_values == current_values
+        and _salary_has_period(candidate)
+        and not _salary_has_period(current)
+    ):
+        return True
+    return bool(
+        allow_expanded_range
+        and _salary_has_range(candidate)
+        and len(candidate_values) > len(current_values)
+        and set(current_values).issubset(candidate_values)
+    )
+
+
 def _extract_labeled_plain_salary(text, location=''):
     match = re.search(
         r'\b(?:a\s+good\s+faith\s+estimate\s+of\s+(?:the\s+)?compensation\s+is|'
@@ -1349,11 +1420,26 @@ def _extract_contextual_salary(text):
         'rate', 'range', 'per hour', '/hr', '/yr', 'per year',
     )
     blocked_terms = ('asset', 'assets', 'revenue', 'budget', 'funding')
+    best_salary = ''
+    best_score = -1
     for match in SALARY_RE.finditer(text):
         start, end = match.span()
         context = text[max(0, start - 120):min(len(text), end + 160)].lower()
         if any(term in context for term in salary_terms) and not any(term in context for term in blocked_terms):
-            return _salary_match_value(text, match)
+            salary = _salary_match_value(text, match)
+            score = (2 if _salary_has_range(salary) else 0) + (1 if _salary_has_period(salary) else 0)
+            if salary and score > best_score:
+                best_salary = salary
+                best_score = score
+    return best_salary
+
+
+def _extract_wellfound_salary(text):
+    header = re.split(r'\bAbout the job\b', text or '', maxsplit=1, flags=re.I)[0]
+    for match in SALARY_RE.finditer(header):
+        salary = _salary_match_value(header, match)
+        if _salary_has_range(salary):
+            return salary
     return ''
 
 
@@ -2383,6 +2469,11 @@ def _extract_from_soup(soup, url, original_url=None):
     if not data['description']:
         data['description'] = _best_description(soup)
 
+    rendered_page = soup.select_one('[data-rendered-page-text="true"]')
+    rendered_page_text = _normalize_text(
+        rendered_page.get_text(separator=' ', strip=True) if rendered_page else ''
+    )
+
     meta_title = (
         _get_meta_content(soup, 'name', ['job-title', 'pagetitle'])
         or _get_meta_content(soup, 'property', ['og:title', 'twitter:title'])
@@ -2440,11 +2531,25 @@ def _extract_from_soup(soup, url, original_url=None):
             if breezy_fields.get(key):
                 data[key] = breezy_fields[key]
     salary_text = ' '.join([data.get('description', ''), meta_description or '', full_text])
+    wellfound_salary = (
+        _extract_wellfound_salary(rendered_page_text or full_text)
+        if platform == 'wellfound'
+        else ''
+    )
     preferred_base_salary = _extract_base_salary(salary_text)
-    if preferred_base_salary:
+    contextual_salary = _extract_contextual_salary(salary_text)
+    if wellfound_salary:
+        data['salary'] = wellfound_salary
+    elif preferred_base_salary:
         data['salary'] = preferred_base_salary
+    elif _salary_is_more_complete(
+        contextual_salary,
+        data.get('salary', ''),
+        allow_expanded_range=platform == 'wellfound',
+    ):
+        data['salary'] = contextual_salary
     elif not data['salary']:
-        data['salary'] = _extract_contextual_salary(salary_text) or _extract_salary(full_text)
+        data['salary'] = contextual_salary or _extract_salary(full_text)
     url_location = _extract_location_from_url(original_url)
     taleo_location = _extract_taleo_location(full_text) if 'taleo.net' in urlparse(original_url).netloc.lower() else ''
     talnet_location = _extract_talnet_countries(full_text) if 'tal.net' in host else ''
@@ -2467,7 +2572,10 @@ def _extract_from_soup(soup, url, original_url=None):
         data['location'] = amazon_location
     elif not data['location']:
         data['location'] = url_location or _extract_location(full_text)
-    elif url_location and str(data['location']).strip().lower() in {'remote', 'hybrid', 'onsite', 'on-site'}:
+    elif url_location and (
+        str(data['location']).strip().lower() in {'remote', 'hybrid', 'onsite', 'on-site'}
+        or (host == 'cityjobs.nyc.gov' and _location_is_broad(data['location']))
+    ):
         data['location'] = url_location
     if url_hints.get('location') and not data['location']:
         data['location'] = url_hints['location']

@@ -27,6 +27,18 @@ def test_aggregate_job_search_heading_is_generic():
     assert _looks_generic_title("Senior Data Analyst") is False
 
 
+def test_generic_career_shell_titles_are_not_marked_ready():
+    for title in ("Job", "Where Intelligence Works"):
+        issues = _quality_issues({
+            "company": "BRG",
+            "job_title": title,
+            "location": "United States",
+            "work_type": "Onsite",
+        })
+
+        assert "generic_job_title" in issues
+
+
 def test_exact_job_search_heading_is_rejected():
     result = {
         "company": "HDR",

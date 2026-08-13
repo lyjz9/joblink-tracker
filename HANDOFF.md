@@ -1,6 +1,6 @@
 # Job Tracker Project Development Handoff
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 This document is for a new development session with no prior conversation
 context. Read it before changing code. The repository is the source of truth if
@@ -14,9 +14,10 @@ anything here later becomes stale.
   the final product name.
 - Current version target: **v0.1.0 beta**
 - Current branch: `main`
-- Latest commit before the source-tracking change:
-  `90f9874` (`Update six-site scraper handoff`)
+- Latest commit before the 2026-08-13 proactive scraper audit:
+  `f592ef7` (`Move discovery choice into result rows`)
 - Recent focused commits:
+  - `f592ef7` (`Move discovery choice into result rows`)
   - `d1a98cb` (`Fix six-site job extraction patterns`)
   - `5120e70` (`Reject unavailable job page shells`)
   - `9722386` (`Fix multi-site job field extraction`)
@@ -71,6 +72,37 @@ History. It is complete and pushed:
 
 The earlier Original, Hourly, and Yearly salary modes remain intact, including
 part-time Hours/week estimates and Excel export in the selected format.
+
+The 2026-08-13 proactive live audit is complete:
+
+- Sixty previously collected links were checked across company sites,
+  LinkedIn, Indeed, Greenhouse, Lever, Ashby, Workday, Oracle, TAL, Taleo,
+  Dayforce, Wellfound, and other ATS providers. The audit looked for plausible
+  false Ready rows as well as obvious missing-field errors.
+- Additional expired-page wording used by NYC Careers and PNC is recognized.
+  Those pages now return an unavailable Error instead of a real-looking title,
+  location, salary, and default Onsite value.
+- Generic shell titles `Job` and `Where Intelligence Works` are no longer
+  treated as valid job titles.
+- A CityJobs page that exposes only `US` can recover the borough from an
+  individual URL such as `...-in-manhattan-...` instead of keeping the broad
+  page-filter location.
+- `GAIC Great American Insurance Company` is normalized to Great American
+  Insurance Group, and `tal.net` is labeled `TAL` as the application portal.
+- Salary range separators are displayed consistently as ` - `, including
+  source text that used `to`, `and`, an en dash, or missing spaces. Equal
+  ranges still collapse to one amount.
+- Wellfound pages with a single salary in their initial metadata now continue
+  to browser rendering. The current job's visible header is read separately
+  from raw page HTML so a salary from `Similar Jobs` cannot replace it.
+- Live verification after restarting the actual port-5050 process returned:
+  - expired CityJobs and PNC rows as unavailable Errors;
+  - Great American Insurance Group with New York, Hybrid, and `$70,000.00`;
+  - BlackRock with `TAL` as its application portal;
+  - Nexta Security with New York, Remote, and the complete `$50k - $125k`
+    Wellfound range.
+- The full automated suite passes. The local app is running from the updated
+  source at `http://127.0.0.1:5050/`.
 
 The 2026-08-12 six-site extraction audit is complete and pushed:
 
@@ -250,6 +282,7 @@ removed those fields.
   `Onsite`. Keep `n/a` for errors and incomplete rows.
 - Missing salary must be `n/a`.
 - Remove labels such as `Base pay range:` when a clean salary amount remains.
+- Normalize salary range separators to ` - ` without inventing a pay period.
 - Collapse equal ranges such as `$20 - $20 per hour` to `$20 per hour`.
 - All-caps locations should be display-normalized while preserving abbreviations
   such as NY, NJ, NYC, USA, and EMEA.
@@ -726,6 +759,10 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   or redirect to a board search page. Validate that the final page is one
   individual job before extracting fields. Keep synthetic regression fixtures
   because a live URL is not a durable test.
+- **Expired pages use many different sentences:** Do not rely on one exact
+  `job no longer available` phrase. Keep focused fixtures for new vendor
+  wording, and clear extracted fields when the page itself says the vacancy is
+  expired or unavailable.
 - **A job-detail URL can render only a search shell:** The path and query can
   still look like one job even after the posting expires. Reject generic titles
   such as `Job Search`, `Current openings`, and `All jobs`, and clear fields
@@ -738,6 +775,15 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   salary, work type, or location only after JavaScript renders, `Read more` is
   opened, or an embedded frame loads. Browser extraction must inspect the
   rendered job detail and supported frames before falling back to page shells.
+- **Complete-looking metadata can still be incomplete:** Wellfound can provide
+  company, title, location, work type, and one salary endpoint before the page
+  renders. A complete field count is not enough to skip rendering when a known
+  platform exposes richer current-job data only in its visible header.
+- **Rendered text and raw HTML can appear in different orders:** When browser
+  text is appended to an SSR page, a `Similar Jobs` range in the raw HTML may
+  appear before the current job header. Keep the browser-visible text as a
+  separate evidence source and scope salary selection to the current job
+  header before recommendation sections.
 - **Visible fields conflict with structured data:** JSON-LD and embedded job
   objects can be stale, broad, or for a different listing. Prefer explicit,
   labeled fields for the current visible job, but preserve structured data as
@@ -829,9 +875,11 @@ run from source. Do not promise packaged macOS/Linux builds yet.
 - **Workbook formatting can look like used rows:** Do not append after
   formatting-only space. Find the first real empty application row, preserve
   nearby styles, extend table ranges, and test both `.xlsx` and `.xlsm`.
-- **The running Flask app can serve stale templates:** After backend or template
-  changes, restart the process on port `5050` before browser QA. A normal page
-  refresh is not always enough when Jinja caching is active.
+- **The running Flask app can serve stale code and templates:** After backend
+  or template changes, identify the exact process listening on port `5050`,
+  restart only that project process, and confirm `/health` starts with a fresh
+  in-memory queue before live QA. A browser refresh cannot reload Python code
+  in a `--no-reload` Flask process.
 - **A running launcher locks `.venv` on Windows:** Recreating the environment
   while `desktop_launcher.py` is running can leave a partially deleted folder.
   Identify the exact project process, stop only that process, verify the
@@ -865,8 +913,9 @@ run from source. Do not promise packaged macOS/Linux builds yet.
 3. Exercise the native workbook picker from the header before scraping, then
    verify original `.xlsx` and `.xlsm` updates plus downloaded-copy fallback.
 4. Build a fresh Windows ZIP and run the clean-folder desktop checklist.
-5. Test current links across employer sites, LinkedIn, Indeed, and several ATS
-   platforms; fix repeatable false Ready patterns with fixtures.
+5. Continue the proactive live audit with fresh employer, LinkedIn, Indeed,
+   and ATS links; prioritize repeatable false Ready patterns and preserve each
+   one as a synthetic fixture.
 6. Run the small private beta, review intentionally submitted feedback, and
    repeat the focused regression loop.
 7. Create `v0.1.0` only after the packaged beta and workbook workflows pass.
@@ -935,7 +984,7 @@ For each repeated failure pattern:
    Application Portal to
    `tests/test_scraper_regressions.py` or the closest focused test.
 4. Make a narrow platform or evidence-priority fix.
-5. Run the focused tests and the full suite (currently 201 collected tests).
+5. Run the focused tests and the full suite (currently 213 collected tests).
 6. Manually verify the UI status and Excel result.
 7. Commit and push the focused change.
 

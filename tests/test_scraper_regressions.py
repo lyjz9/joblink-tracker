@@ -13,6 +13,7 @@ from scraper.browser_scraper_v2 import (
     _detect_platform,
     _direct_html_result,
     _extract_from_soup,
+    _extract_wellfound_salary,
     _extract_work_type,
     _greenhouse_api_result,
     _is_direct_html_candidate,
@@ -723,6 +724,7 @@ def test_job_specific_meta_title_beats_signup_heading():
     assert result["company"] == "Kroll"
     assert result["job_title"] == "Analyst, Mail Services, Kroll Settlement Administration"
     assert result["location"] == "New York, NY"
+    assert result["salary"] == "$22 - $24 per hour"
 
 
 def test_dayforce_uses_the_job_object_instead_of_navigation_labels():
@@ -775,7 +777,7 @@ def test_dayforce_uses_the_job_object_instead_of_navigation_labels():
     assert result["job_title"] == "Data Entry Specialist"
     assert result["location"] == "New York, NY"
     assert result["work_type"] == "Onsite"
-    assert result["salary"] == "$22-$23/hr"
+    assert result["salary"] == "$22 - $23/hr"
     assert result["source"] == "Dayforce"
 
 
@@ -796,6 +798,53 @@ def test_ashby_job_not_found_page_is_unavailable():
     assert result["work_type"] == "n/a"
     assert result["source"] == "Ashby"
     assert result["error"] == "This job posting is no longer available."
+
+
+@pytest.mark.parametrize(
+    ("url", "message"),
+    (
+        (
+            "https://cityjobs.nyc.gov/job/financial-analyst-in-manhattan-jid-40370",
+            "This vacancy has now expired.",
+        ),
+        (
+            "https://careers.pnc.com/global/en/job/R224938/Operations-Associate",
+            "The job you are trying to apply for is currently unavailable.",
+        ),
+    ),
+)
+def test_additional_expired_page_messages_are_unavailable(url, message):
+    html = f"<html><body><main><h1>Job</h1><p>{message}</p></main></body></html>"
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["job_title"] == "n/a"
+    assert result["error"] == "This job posting is no longer available."
+
+
+def test_cityjobs_uses_the_borough_in_the_url_when_page_location_is_only_us():
+    url = "https://cityjobs.nyc.gov/job/data-analyst-in-manhattan-jid-46033"
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Data Analyst",
+        "hiringOrganization": {"name": "Department of Transportation"},
+        "jobLocation": {
+            "address": {"addressCountry": "US"},
+        },
+    }
+    html = (
+        '<html><head><script type="application/ld+json">'
+        f'{json.dumps(posting)}</script></head><body><main>Job details</main></body></html>'
+    )
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["location"] == "New York, NY"
 
 
 def test_ashby_hourly_label_preserves_the_pay_period():
@@ -822,7 +871,7 @@ def test_ashby_hourly_label_preserves_the_pay_period():
     assert result["job_title"] == "Quantitative Analyst Intern"
     assert result["location"] == "New York, NY"
     assert result["work_type"] == "Onsite"
-    assert result["salary"] == "$20-$35 per hour"
+    assert result["salary"] == "$20 - $35 per hour"
 
 
 def test_visible_careers_title_beats_stale_jsonld_title():
@@ -943,6 +992,7 @@ def test_workday_api_uses_public_location_and_remote_type(monkeypatch):
         "Associate-Business-Analyst_R9349"
     ]
     assert result["location"] == "New York, NY"
+    assert result["company"] == "Great American Insurance Group"
     assert result["work_type"] == "Hybrid"
     assert result["salary"] == "$70,000.00"
 
@@ -1378,7 +1428,7 @@ def test_visible_lockton_location_and_workplace_override_broad_schema():
 
     assert result["location"] == "New York City, NY"
     assert result["work_type"] == "Hybrid"
-    assert result["salary"] == "$70,000-$73,000"
+    assert result["salary"] == "$70,000 - $73,000"
 
 
 def test_conditional_remote_policy_is_not_treated_as_remote_work_type():
@@ -1535,8 +1585,91 @@ def test_company_domain_wins_when_page_contains_embedded_ats_text():
     assert result["job_title"] == "Analyst System Operations Strategy & Analytics"
     assert result["location"] == "Long Island City, NY"
     assert result["work_type"] == "Onsite"
-    assert result["salary"] == "$64,350.00 and $89,600.00 per year"
+    assert result["salary"] == "$64,350.00 - $89,600.00 per year"
     assert result["source"] == "Company Website"
+
+
+def test_wellfound_visible_range_beats_a_single_structured_salary_endpoint():
+    url = "https://wellfound.com/jobs/4379435-cybersecurity-consulting-sales-executive-clone"
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Cybersecurity Consulting Sales Executive",
+        "hiringOrganization": {"name": "Nexta Security"},
+        "jobLocation": {"address": {"addressCountry": "US"}},
+        "baseSalary": "$95k",
+        "description": "The salary range for this position is $45k - $95k. This is a remote role.",
+    }
+    html = (
+        '<html><head><script type="application/ld+json">'
+        f'{json.dumps(posting)}</script></head><body><main>'
+        'Salary range: $45k - $95k</main></body></html>'
+    )
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["salary"] == "$45k - $95k"
+
+
+def test_wellfound_header_salary_does_not_need_a_salary_label():
+    text = (
+        "Nexta Security Business Development Representative "
+        "$50k - $125k - No equity | Remote | Contract "
+        "About the job Compensation includes uncapped commission. "
+        "Similar role $90k - $105k"
+    )
+
+    assert _extract_wellfound_salary(text) == "$50k - $125k"
+
+
+def test_wellfound_browser_text_beats_a_similar_job_salary_in_page_html():
+    url = "https://wellfound.com/jobs/4379435-cybersecurity-consulting-sales-executive-clone"
+    html = """
+        <html><head><title>Business Development Representative at Nexta Security</title></head>
+        <body>
+          <h1>Business Development Representative</h1>
+          <div data-testid="company">Nexta Security</div>
+          <div data-testid="location">New York, NY</div>
+          <main>
+            About the job This remote role supports cybersecurity consulting.
+            Similar jobs Account Executive $120k - $160k.
+          </main>
+          <div data-rendered-page-text="true">
+            Nexta Security Business Development Representative $50k - $125k - No equity
+            Remote United States About the job This role supports consulting sales.
+          </div>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["salary"] == "$50k - $125k"
+
+
+def test_wellfound_single_direct_salary_waits_for_the_rendered_page(monkeypatch):
+    url = "https://wellfound.com/jobs/4379435-cybersecurity-consulting-sales-executive-clone"
+    html = """
+        <html><head><title>Business Development Representative at Nexta Security</title></head>
+        <body>
+          <h1>Business Development Representative</h1>
+          <div data-testid="company">Nexta Security</div>
+          <div data-testid="location">New York, NY</div>
+          <div class="salary">$125,000</div>
+          <main>This is a remote role supporting cybersecurity consulting sales.</main>
+        </body></html>
+    """
+
+    response = SimpleNamespace(status_code=200, text=html, url=url)
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda *_args, **_kwargs: response,
+    )
+
+    assert _direct_html_result(url) is None
 
 
 def test_inline_labeled_location_overrides_truncated_page_location():

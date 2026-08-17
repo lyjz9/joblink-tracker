@@ -183,7 +183,7 @@ curl --request POST \
 
 You can start from the ready-made tracker template: [templates/linc_tracker_template.xlsx](templates/linc_tracker_template.xlsx).
 
-The template is ready to use. It already includes the `Instructions`, `Input`, and `Applications` sheets with all required column names, so you do not need to create sheets or copy and paste headers.
+The template is ready to use with Linc. To add jobs to it, choose the template from the Tracker panel in Linc and select Update tracker. The optional Input sheet workflow requires the VBA setup described below.
 
 You can also upload your own existing `.xlsx` or `.xlsm` tracker in the web app. Linc matches recognizable column names and adds the selected results to that workbook instead of making you rebuild it from the template.
 

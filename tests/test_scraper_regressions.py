@@ -178,6 +178,36 @@ REGRESSION_CASES = (
         },
     },
     {
+        "name": "lever_new_york_city",
+        "url": "https://jobs.lever.co/nomadmktg/a949c205-eb76-4eeb-99be-4841d1e07dd5",
+        "html": """
+            <html><head><title>Nomad Marketing - Marketing Operations Analyst</title></head>
+            <body>
+              <div class="posting-headline">
+                <h2>Marketing Operations Analyst</h2>
+                <div class="posting-categories">
+                  <div class="posting-category location">Nomad HQ, New York City</div>
+                  <div class="posting-category department">Marketing Operations - Consulting Services</div>
+                  <div class="posting-category workplaceTypes">Hybrid</div>
+                </div>
+              </div>
+              <div class="posting-company">Nomad Marketing</div>
+              <div class="section-wrapper">
+                This analyst role builds campaigns, reporting, and marketing operations
+                processes for clients. The salary is $62,500 - $65,000 a year.
+              </div>
+            </body></html>
+        """,
+        "expected": {
+            "company": "Nomad Marketing",
+            "job_title": "Marketing Operations Analyst",
+            "location": "New York City, NY",
+            "work_type": "Hybrid",
+            "salary": "$62,500 - $65,000 a year",
+            "source": "Lever",
+        },
+    },
+    {
         "name": "ashby",
         "url": "https://jobs.ashbyhq.com/rho/18da5bcb-aabe-424e-a9d1-e2e1c5abc2b1",
         "html": """
@@ -376,6 +406,40 @@ def test_greenhouse_api_uses_canonical_company_instead_of_board_slug(monkeypatch
     assert result["job_title"] == "Visual Designer Graduate"
     assert result["location"] == "Gibraltar"
     assert result["work_type"] == "Remote"
+
+
+def test_greenhouse_api_decodes_escaped_salary_markup(monkeypatch):
+    payload = {
+        "company_name": "Fanatics Collectibles",
+        "title": "Associate, People Intelligence",
+        "location": {"name": "New York, NY, United States"},
+        "content": (
+            "&lt;div class=&quot;title&quot;&gt;NYC Salary Range&lt;/div&gt;"
+            "&lt;div class=&quot;pay-range&quot;&gt;"
+            "&lt;span&gt;$115,000&lt;/span&gt;"
+            "&lt;span class=&quot;divider&quot;&gt;&amp;mdash;&lt;/span&gt;"
+            "&lt;span&gt;$143,750 USD&lt;/span&gt;"
+            "&lt;/div&gt;"
+        ),
+    }
+
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return payload
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    result = _greenhouse_api_result(
+        "https://job-boards.greenhouse.io/fanaticscollectibles/jobs/4363369009"
+    )
+
+    assert result["salary"] == "$115,000 - $143,750"
 
 
 def test_oracle_candidate_experience_api_returns_official_job_fields(monkeypatch):

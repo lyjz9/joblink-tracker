@@ -15,8 +15,9 @@ anything here later becomes stale.
 - Current version target: **v0.1.0 beta**
 - Current branch: `main`
 - Latest code commit before this handoff update:
-  `81ead37` (`Improve cross-site scraper accuracy`)
+  `bc4d566` (`Update workbook handoff guidance`)
 - Recent focused commits:
+  - `bc4d566` (`Update workbook handoff guidance`)
   - `81ead37` (`Improve cross-site scraper accuracy`)
   - `f592ef7` (`Move discovery choice into result rows`)
   - `835c031` (`Split discovery and application sources`)
@@ -29,7 +30,8 @@ anything here later becomes stale.
   - `f9cdda0` (`Add local job history`)
   - `dde931c` (`Simplify workspace controls`)
   - `6307bec` (`Move tracker controls to header`)
-- Git state at handoff: clean; local `main` matches `origin/main`
+- Base state before the current Greenhouse/Lever fix: local `main` matched
+  `origin/main` at `bc4d566`.
 - Old branch: `local` is stale at `87b477e`. Do not switch to it or merge it
   into `main` without first understanding the large set of newer commits.
 - No Git tag exists locally yet.
@@ -53,6 +55,39 @@ commit focused, explain what changed in plain language, and do not include
 unrelated files.
 
 ## Immediate State At Session End
+
+The 2026-08-17 Greenhouse and Lever regression pass is complete locally:
+
+- A Fanatics Collectibles Greenhouse posting encoded its salary section as
+  escaped HTML inside the Greenhouse API response. Parsing that value only
+  once separated the two salary amounts with markup, so the scraper returned
+  `$115,000` instead of the full `$115,000 - $143,750` range. Decode the API
+  content before passing it to BeautifulSoup.
+- A Nomad Marketing Lever posting exposed `Nomad HQ, New York City` in its
+  location element and `Hybrid` in a separate `workplaceTypes` element. The
+  location cleaner originally discarded the city because it lacked a state,
+  then the broad fallback incorrectly used `Hybrid` as both the location clue
+  and work type. The final result keeps the geographic wording as
+  `New York City, NY`, drops the non-geographic `Nomad HQ` office label, and
+  reads `Hybrid` from Lever's explicit workplace metadata.
+- Do not normalize a bare `New York City` label to `New York, NY` when the
+  posting's wording matters to the reviewed tracker row. The first correction
+  did that and the user correctly reported that the location was still wrong.
+- The first parser-level retest passed while the visible app remained wrong
+  because two Flask processes on port `5050` had loaded the old Python module
+  with `--no-reload`. A browser refresh cannot reload backend code, and an
+  existing session row does not update itself. Identify and restart only the
+  verified project processes, confirm `/health`, then retry or rescrape the
+  affected row through the running `/scrape` endpoint.
+- Final live app verification returned Fanatics Collectibles with New York,
+  Onsite, and `$115,000 - $143,750`; Nomad Marketing returned
+  `New York City, NY`, Hybrid, and `$62,500 - $65,000 a year`.
+- Direct Greenhouse and Lever URLs establish `Application Portal`, not where
+  the user discovered the job. Keep `Found On` as `N/A` until the user selects
+  LinkedIn, Indeed, Google Jobs, a referral, or another supported source.
+- Full verification passed: 212 tests passed and 3 were skipped. In restricted
+  shells, use an ignored repository path with `--basetemp` because the default
+  Windows pytest temp root may reject access.
 
 The most recent work simplified the local web app and added durable local
 History. It is complete and pushed:

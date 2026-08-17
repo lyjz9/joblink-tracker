@@ -18,6 +18,12 @@ def test_application_portal_is_inferred_from_the_actual_job_url():
     assert application_portal_for_url(
         "https://blackrock.tal.net/vx/opp/12218/en-GB"
     ) == "TAL"
+    assert application_portal_for_url(
+        "https://job-boards.greenhouse.io/fanaticscollectibles/jobs/4363369009"
+    ) == "Greenhouse"
+    assert application_portal_for_url(
+        "https://jobs.lever.co/nomadmktg/a949c205-eb76-4eeb-99be-4841d1e07dd5"
+    ) == "Lever"
 
 
 def test_found_on_uses_the_user_choice_or_a_job_board_url():
@@ -25,6 +31,12 @@ def test_found_on_uses_the_user_choice_or_a_job_board_url():
     assert found_on_for_url(workday, "LinkedIn") == "LinkedIn"
     assert found_on_for_url(workday) == "N/A"
     assert found_on_for_url("https://www.linkedin.com/jobs/view/4443868424/") == "LinkedIn"
+    assert found_on_for_url(
+        "https://job-boards.greenhouse.io/fanaticscollectibles/jobs/4363369009"
+    ) == "N/A"
+    assert found_on_for_url(
+        "https://jobs.lever.co/nomadmktg/a949c205-eb76-4eeb-99be-4841d1e07dd5"
+    ) == "N/A"
 
 
 def test_found_on_uses_supported_tracking_parameters_without_guessing_unknown_values():

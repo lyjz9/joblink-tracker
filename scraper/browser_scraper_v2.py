@@ -371,7 +371,10 @@ def _greenhouse_api_result(url):
     company = _clean_company(payload.get('company_name') or _slug_to_name(board))
     company = re.sub(r'\s+Internships?$', '', company, flags=re.I).strip()
     location = _clean_location((payload.get('location') or {}).get('name', ''))
-    content_text = _normalize_text(BeautifulSoup(payload.get('content') or '', 'html.parser').get_text(' ', strip=True))
+    content_html = html_unescape(payload.get('content') or '')
+    content_text = _normalize_text(
+        BeautifulSoup(content_html, 'html.parser').get_text(' ', strip=True)
+    )
     title = _clean_title(payload.get('title', ''), company)
     title = re.sub(
         r'\s*[-|]\s*(?:Fully\s+)?(?:Remote|Hybrid|Onsite|On-site)(?:\s*[-,]\s*(?:US|USA|United States))?$',
@@ -941,6 +944,9 @@ def _clean_location(value):
         state = city_full_state.group(3) or _state_abbrev(city_full_state.group(2))
         if state:
             return f"{city_full_state.group(1)}, {state}"
+
+    if re.search(r'(?:^|,\s*)New York City$', value, flags=re.I):
+        return 'New York City, NY'
 
     blocked_exact = {
         'clear text', 'permanent', 'full', 'full time', 'full-time', 'contract',
@@ -2229,6 +2235,15 @@ def _extract_labeled_work_type(text):
 
 
 def _visible_labeled_work_type(soup):
+    for elem in soup.select(
+        '.posting-categories [class*="workplace" i], '
+        '[data-testid*="workplace-type" i], '
+        '[data-qa*="workplace-type" i]'
+    ):
+        work_type = _normalize_work_type(elem.get_text(' ', strip=True))
+        if work_type:
+            return work_type
+
     label_pattern = re.compile(
         r'^\s*(?:workplace\s+type|work\s*type|job\s+location\s+type|'
         r'location\s+type|workplace)\s*:?\s*$',

@@ -1,6 +1,6 @@
 # Linc
 
-[![Release: v0.1.0 beta](https://img.shields.io/badge/release-v0.1.0%20beta-F26B4B?style=flat-square)](docs/desktop_beta.md)
+[![Release: v0.1.0 Beta 1](https://img.shields.io/badge/release-v0.1.0%20Beta%201-F26B4B?style=flat-square)](https://github.com/lyjz9/joblink-tracker/releases/tag/v0.1.0-beta.1)
 [![Desktop build](https://github.com/lyjz9/joblink-tracker/actions/workflows/build-windows-desktop.yml/badge.svg?branch=main)](https://github.com/lyjz9/joblink-tracker/actions/workflows/build-windows-desktop.yml)
 [![Python: 3.11 or 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?style=flat-square&logo=python&logoColor=white)](#setup)
 [![Excel: XLSX and XLSM](https://img.shields.io/badge/excel-XLSX%20%7C%20XLSM-217346?style=flat-square&logo=microsoftexcel&logoColor=white)](#excel-workflow)
@@ -11,13 +11,13 @@ Linc is a small local app I built because copying the same details from job post
 
 Paste a few job links and Linc fills in the details people usually track by hand: company, job title, location, work type, salary, where the job was found, and the application portal. You can fix anything it gets wrong before adding the rows to your tracker.
 
-I made it with students, new grads, and anyone juggling a long application list in mind.
+I made it with students, new grads, and anyone managing a long application list in mind.
 
-> Status: v0.1.0 Windows beta. A portable build is available through GitHub Actions, so testers can run Linc without Python, PowerShell, Docker, or a hosting subscription.
+> Status: v0.1.0 Beta 1. A ready-to-run Windows build is available on the GitHub Releases page. macOS and Linux users can run Linc from source.
 
 ## Known Limitations
 
-Job scraping is messy, so Linc will not get every posting right. Company career pages and ATS links usually give the cleanest results. Login walls, Cloudflare checks, human verification, private APIs, and heavily scripted pages can still block the scraper or hide important fields.
+Job scraping can be inconsistent, so Linc will not get every posting right. Company career pages and ATS links usually give the cleanest results. Login walls, Cloudflare checks, human verification, private APIs, and heavily scripted pages can still block the scraper or hide important fields.
 
 Check any row marked `Review` before you save it. Salary, work type, and location deserve an extra look because every site formats them differently.
 
@@ -62,7 +62,7 @@ Linc is currently tested with Python 3.11 and 3.12.
 
 ### Windows
 
-For beta testing, the easiest option is the portable desktop build. Extract `Linc-v0.1.0-Windows.zip`, open the `Linc` folder, and double-click `Linc.exe`. Python and PowerShell are not required. See [docs/desktop_beta.md](docs/desktop_beta.md) for the desktop instructions and [docs/beta_testing.md](docs/beta_testing.md) for a short tester checklist.
+For beta testing, the easiest option is the Windows release. Download `Linc-v0.1.0-beta.1-Windows.zip` from the Releases page, extract the ZIP, open the `Linc` folder, and double-click `Linc.exe`. Python and PowerShell are not required. See [docs/desktop_beta.md](docs/desktop_beta.md) for the desktop instructions and [docs/beta_testing.md](docs/beta_testing.md) for a short tester checklist.
 
 To run the project from source instead:
 
@@ -231,7 +231,7 @@ python process_excel_links.py "./Job_Application_Tracker.xlsx"
 
 ## Windows Desktop Beta
 
-The portable Windows build works without Python. Double-click `Linc.exe` and it opens the same local app with the browser files the scraper needs. See [docs/desktop_beta.md](docs/desktop_beta.md) for build and testing instructions.
+The portable Windows build works without Python and is available from the GitHub Releases page. Download the ZIP, extract it, and double-click `Linc.exe`. See [docs/desktop_beta.md](docs/desktop_beta.md) for more details.
 
 Developers who already have the project environment can still double-click `Open_Linc_Beta.vbs` during local development.
 

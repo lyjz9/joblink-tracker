@@ -1,6 +1,6 @@
 # Job Tracker Project Development Handoff
 
-Last updated: 2026-08-13
+Last updated: 2026-08-17
 
 This document is for a new development session with no prior conversation
 context. Read it before changing code. The repository is the source of truth if
@@ -14,10 +14,12 @@ anything here later becomes stale.
   the final product name.
 - Current version target: **v0.1.0 beta**
 - Current branch: `main`
-- Latest commit before the 2026-08-13 proactive scraper audit:
-  `f592ef7` (`Move discovery choice into result rows`)
+- Latest code commit before this handoff update:
+  `81ead37` (`Improve cross-site scraper accuracy`)
 - Recent focused commits:
+  - `81ead37` (`Improve cross-site scraper accuracy`)
   - `f592ef7` (`Move discovery choice into result rows`)
+  - `835c031` (`Split discovery and application sources`)
   - `d1a98cb` (`Fix six-site job extraction patterns`)
   - `5120e70` (`Reject unavailable job page shells`)
   - `9722386` (`Fix multi-site job field extraction`)
@@ -72,6 +74,27 @@ History. It is complete and pushed:
 
 The earlier Original, Hourly, and Yearly salary modes remain intact, including
 part-time Hours/week estimates and Excel export in the selected format.
+
+The 2026-08-14 private workbook QA is complete. This was local artifact work,
+not a repository feature change, and no tracker workbook was committed:
+
+- The user prefers the plain, compact formatting of the original tracker over
+  a decorative peach table or an extra merge-report sheet. When a user provides
+  a tracker as a visual reference, preserve that workbook's fonts, widths, row
+  heights, gridlines, and overall simplicity instead of redesigning it.
+- The checked private workbook retained all application rows while normalizing
+  work types to `Onsite`, `Hybrid`, or `Remote`, standardizing salary and source
+  labels, and correcting only fields supported by clear evidence.
+- Blank Status and Follow-up cells were preserved because they are user-managed
+  tracking fields, not scraper failures.
+- Seven legacy ZipRecruiter rows still point to `jobseeker/home` or
+  `jobs-search` pages. Those URLs do not contain enough trustworthy information
+  to reconstruct the original posting, so they were left unchanged.
+- Excel had the source workbook open and Windows rejected in-place replacement.
+  The safe response was to write a clearly named sibling copy, never force-close
+  Excel or risk unsaved user edits.
+- Generated workbooks, audits, previews, and application data remain private
+  local artifacts. They must stay ignored and must never be staged or pushed.
 
 The 2026-08-13 proactive live audit is complete:
 
@@ -875,6 +898,17 @@ run from source. Do not promise packaged macOS/Linux builds yet.
 - **Workbook formatting can look like used rows:** Do not append after
   formatting-only space. Find the first real empty application row, preserve
   nearby styles, extend table ranges, and test both `.xlsx` and `.xlsm`.
+- **An open workbook can be locked by Excel:** Do not force-close Excel or
+  overwrite around the lock. Save a clearly named sibling copy, explain why,
+  and let the user close or reconcile the original safely.
+- **The user's workbook is the formatting reference:** Do not add decorative
+  tables, colored title bands, report sheets, or dashboard styling when the
+  supplied tracker is intentionally plain. Preserve the original visual
+  language while keeping data normalization separate from presentation.
+- **Generic ZipRecruiter links may not identify one posting:** URLs ending at
+  `jobseeker/home` or `jobs-search` can contain opaque tracking tokens without a
+  recoverable public job URL. Do not invent a replacement; keep the original
+  link and surface the limitation for manual review.
 - **The running Flask app can serve stale code and templates:** After backend
   or template changes, identify the exact process listening on port `5050`,
   restart only that project process, and confirm `/health` starts with a fresh
@@ -911,14 +945,17 @@ run from source. Do not promise packaged macOS/Linux builds yet.
 2. Perform true mobile visual QA of the simplified Workspace, History, Tracker,
    and Feedback panels.
 3. Exercise the native workbook picker from the header before scraping, then
-   verify original `.xlsx` and `.xlsm` updates plus downloaded-copy fallback.
-4. Build a fresh Windows ZIP and run the clean-folder desktop checklist.
-5. Continue the proactive live audit with fresh employer, LinkedIn, Indeed,
+   verify original `.xlsx` and `.xlsm` updates, locked-file handling, formatting
+   preservation, and downloaded-copy fallback.
+4. Add a focused regression for generic ZipRecruiter account/search URLs so
+   they are not treated as stable individual posting links.
+5. Build a fresh Windows ZIP and run the clean-folder desktop checklist.
+6. Continue the proactive live audit with fresh employer, LinkedIn, Indeed,
    and ATS links; prioritize repeatable false Ready patterns and preserve each
    one as a synthetic fixture.
-6. Run the small private beta, review intentionally submitted feedback, and
+7. Run the small private beta, review intentionally submitted feedback, and
    repeat the focused regression loop.
-7. Create `v0.1.0` only after the packaged beta and workbook workflows pass.
+8. Create `v0.1.0` only after the packaged beta and workbook workflows pass.
 
 ### Phase 0: Choose and apply the final name
 
@@ -1068,6 +1105,10 @@ After the packaged release and private beta are stable:
 - Do not strip macros from `.xlsm`.
 - Do not change the canonical columns in only one writer.
 - Do not assume every browser can overwrite the selected original file.
+- Do not force-close Excel or overwrite a locked workbook around unsaved user
+  changes; use a clearly named sibling-copy fallback.
+- Do not restyle a plain user tracker into a decorative workbook unless the
+  user explicitly requests a redesign.
 - Do not write follow-up dates automatically.
 - Do not replace the original hyperlink with a generated or redirected URL.
 

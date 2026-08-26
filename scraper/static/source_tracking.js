@@ -46,8 +46,11 @@
     const source = job && typeof job === 'object' ? job : {};
     const normalized = { ...source };
     delete normalized.found_on;
-    const portal = normalizePortal(source.application_portal)
-      || inferApplicationPortal(source.job_link, source.source);
+    const currentPortal = normalizePortal(source.application_portal);
+    const detectedPortal = inferApplicationPortal(source.job_link, source.source);
+    const portal = !currentPortal || (currentPortal === 'Company Website' && detectedPortal !== currentPortal)
+      ? detectedPortal
+      : currentPortal;
     return {
       ...normalized,
       application_portal: portal,

@@ -95,8 +95,9 @@ def enrich_source_tracking(result: dict, url: object = "") -> dict:
     job_url = str(url or enriched.get("job_link") or "").strip()
     legacy_source = enriched.get("source", "")
     portal = normalize_source_label(enriched.get("application_portal"))
-    if not portal:
-        portal = application_portal_for_url(job_url, legacy_source)
+    detected_portal = application_portal_for_url(job_url, legacy_source)
+    if not portal or (portal == "Company Website" and detected_portal != portal):
+        portal = detected_portal
 
     enriched["application_portal"] = portal
     # Keep the internal alias while older sessions and reliability code migrate.

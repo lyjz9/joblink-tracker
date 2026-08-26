@@ -859,7 +859,9 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   original company domain.
 - **Job-board portal labels are host-specific:** Show `Built In NYC` for
   `builtinnyc.com` and `Hiring Cafe` for `hiringcafe.com`, including the
-  browser-side normalization used for restored sessions and manual rows.
+  browser-side normalization used for restored sessions and manual rows. A
+  recognized host must replace a generic `Company Website` fallback from an
+  earlier extraction pass.
 - **Discovery tracking is retired:** Do not restore a discovery selector,
   payload field, database field, export column, or automated inference.
 - **ATS employer names can contain internal codes:** Workday and similar

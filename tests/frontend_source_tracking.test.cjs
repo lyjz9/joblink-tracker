@@ -19,5 +19,17 @@ assert.deepStrictEqual(
     application_portal: 'Workday',
   },
 );
+assert.deepStrictEqual(
+  normalizeJobSources({
+    job_link: 'https://hiringcafe.com/job/task-associate-ulta-beauty-mobile-alabama-5zqvmbrvot7v5jsp',
+    application_portal: 'Company Website',
+    source: 'Company Website',
+  }),
+  {
+    job_link: 'https://hiringcafe.com/job/task-associate-ulta-beauty-mobile-alabama-5zqvmbrvot7v5jsp',
+    application_portal: 'Hiring Cafe',
+    source: 'Hiring Cafe',
+  },
+);
 
 console.log('Frontend source-tracking tests passed');

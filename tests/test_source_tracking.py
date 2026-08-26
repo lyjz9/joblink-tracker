@@ -45,3 +45,20 @@ def test_result_uses_the_url_for_its_portal_and_removes_retired_discovery_data()
     assert "found_on" not in job
     assert job["application_portal"] == "Ashby"
     assert job["source"] == "Ashby"
+
+
+def test_known_job_board_hosts_replace_a_generic_company_website_fallback():
+    for url, expected_portal in (
+        ("https://www.builtinnyc.com/job/data-analyst/10804121", "Built In NYC"),
+        (
+            "https://hiringcafe.com/job/business-operations-analyst-hometap-boston-massachusetts-q3y3y9pl0rk2sdmy",
+            "Hiring Cafe",
+        ),
+    ):
+        job = enrich_source_tracking({
+            "job_link": url,
+            "application_portal": "Company Website",
+            "source": "Company Website",
+        })
+        assert job["application_portal"] == expected_portal
+        assert job["source"] == expected_portal

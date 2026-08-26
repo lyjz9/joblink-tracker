@@ -1765,6 +1765,26 @@ def test_inline_labeled_location_overrides_truncated_page_location():
     assert result["salary"] == "$45,125 - $75,208"
 
 
+def test_hiring_cafe_url_location_replaces_a_generic_work_type_label():
+    url = "https://hiringcafe.com/job/task-associate-ulta-beauty-mobile-alabama-5zqvmbrvot7v5jsp"
+    html = """
+        <html><body>
+          <h1>Task Associate</h1>
+          <div data-testid="company">Ulta Beauty</div>
+          <div data-testid="location">Remote</div>
+          <main>This role has a hybrid schedule and supports store operations.</main>
+        </body></html>
+    """
+
+    result = _public_result(
+        _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
+    )
+
+    assert result["company"] == "Ulta Beauty"
+    assert result["location"] == "Mobile, AL"
+    assert result["work_type"] == "Hybrid"
+
+
 def test_linkedin_hybrid_posting_remains_unchanged():
     url = "https://www.linkedin.com/jobs/view/4440321514/"
     html = """

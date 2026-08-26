@@ -862,6 +862,10 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   browser-side normalization used for restored sessions and manual rows. A
   recognized host must replace a generic `Company Website` fallback from an
   earlier extraction pass.
+- **Hiring Cafe can mislabel locations:** Its job pages may expose `Remote` or
+  `Hybrid` as location text. For a `/job/...-city-state-id` link, use the
+  trailing city/state slug only when the extracted location is a work-type
+  label; do not overwrite a genuine page location.
 - **Discovery tracking is retired:** Do not restore a discovery selector,
   payload field, database field, export column, or automated inference.
 - **ATS employer names can contain internal codes:** Workday and similar

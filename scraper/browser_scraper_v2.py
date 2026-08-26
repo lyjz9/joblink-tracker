@@ -1791,6 +1791,15 @@ def _extract_url_hints(url, platform=''):
                 hints['company'] = _company_from_slug(company_slug)
             else:
                 hints['job_title'] = _title_from_slug(slug)
+    elif host == 'hiringcafe.com' and len(parts) >= 2 and parts[0].casefold() == 'job':
+        slug = re.sub(r'-[a-z0-9]{12,}$', '', parts[1], flags=re.I)
+        tokens = [token for token in slug.casefold().split('-') if token]
+        state_match = _state_match_ending_at(tokens, len(tokens))
+        if state_match:
+            state_start, _, state_abbr = state_match
+            city_words = _city_words_before(tokens, state_start)
+            if city_words:
+                hints['location'] = f"{' '.join(word.title() for word in city_words)}, {state_abbr}"
     elif host == 'jobs.talhealthcare.com' and 'jb' in parts:
         index = parts.index('jb')
         if index + 1 < len(parts):
@@ -1865,7 +1874,12 @@ def _apply_url_hints(data, url):
             data[key] = value
         elif key == 'job_title' and _looks_generic_title(data.get(key, '')):
             data[key] = value
-        elif key == 'location' and not _clean_location(data.get(key, '')):
+        elif key == 'location' and (
+            not _clean_location(data.get(key, ''))
+            or str(data.get(key, '')).strip().casefold() in {
+                'remote', 'hybrid', 'onsite', 'on-site',
+            }
+        ):
             data[key] = value
     return data
 
@@ -2592,6 +2606,10 @@ def _extract_from_soup(soup, url, original_url=None):
         or (host == 'cityjobs.nyc.gov' and _location_is_broad(data['location']))
     ):
         data['location'] = url_location
+    elif url_hints.get('location') and str(data['location']).strip().lower() in {
+        'remote', 'hybrid', 'onsite', 'on-site',
+    }:
+        data['location'] = url_hints['location']
     if url_hints.get('location') and not data['location']:
         data['location'] = url_hints['location']
     location_title = _clean_title(data.get('job_title', ''), data.get('company', ''))

@@ -29,6 +29,7 @@ from scraper.security import validate_public_url, validate_workbook_upload
 from scraper.scraper import parse_job_from_html
 from scraper.browser_scraper_v2 import (
     parse_job_with_browser,
+    _apply_url_hints,
     _detect_platform,
     _source_label,
 )
@@ -226,6 +227,7 @@ def _scrape_url(
         result = merged
     else:
         result = _public_scrape_result(result)
+    result = _apply_url_hints(result, url)
     result = enrich_source_tracking(result, url)
     issues = _quality_issues(result)
     if 'job_search_page' in issues:

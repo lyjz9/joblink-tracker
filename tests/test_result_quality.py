@@ -118,6 +118,29 @@ def test_linkedin_missing_work_type_is_sent_for_review():
     assert result["review_details"][0]["action"]
 
 
+def test_scrape_uses_hiring_cafe_url_location_when_page_returns_remote(monkeypatch, tmp_path):
+    url = "https://hiringcafe.com/job/task-associate-ulta-beauty-mobile-alabama-5zqvmbrvot7v5jsp"
+    monkeypatch.setattr(
+        app_module,
+        "parse_job_with_browser",
+        lambda *_args, **_kwargs: {
+            "company": "Ulta Beauty",
+            "job_title": "Task Associate",
+            "job_link": url,
+            "location": "Remote",
+            "work_type": "Hybrid",
+            "salary": "n/a",
+            "source": "Company Website",
+        },
+    )
+
+    result = app_module._scrape_url(url, issue_log=tmp_path / "issues.jsonl")
+
+    assert result["location"] == "Mobile, AL"
+    assert result["work_type"] == "Hybrid"
+    assert result["application_portal"] == "Hiring Cafe"
+
+
 def test_scrape_discards_fields_from_redirected_search_page(monkeypatch, tmp_path):
     monkeypatch.setattr(
         app_module,

@@ -14,7 +14,6 @@ def _job(**overrides):
         "location": "New York, NY",
         "work_type": "Hybrid",
         "salary": "$70,000 - $80,000 per year",
-        "found_on": "LinkedIn",
         "application_portal": "Company Website",
         "source": "Company Website",
         "confidence": "High",
@@ -46,7 +45,7 @@ def test_history_upserts_tracking_variants_without_storing_private_page_content(
     assert result["all_count"] == 1
     assert result["items"][0]["status"] == "review"
     assert result["items"][0]["job"]["salary"] == "$75,000 per year"
-    assert result["items"][0]["job"]["found_on"] == "LinkedIn"
+    assert "found_on" not in result["items"][0]["job"]
     assert result["items"][0]["job"]["application_portal"] == "Company Website"
     assert "description" not in result["items"][0]["job"]
     assert "selected" not in result["items"][0]["job"]
@@ -119,7 +118,7 @@ def test_history_routes_reject_invalid_payloads(tmp_path):
         assert response.status_code == 400
 
 
-def test_history_migrates_legacy_source_into_separate_fields(tmp_path):
+def test_history_migrates_legacy_source_to_application_portal(tmp_path):
     import json
     import sqlite3
 
@@ -128,7 +127,6 @@ def test_history_migrates_legacy_source_into_separate_fields(tmp_path):
         job_link="https://example.wd5.myworkdayjobs.com/job/Analyst_R123",
         source="LinkedIn",
     )
-    legacy_job.pop("found_on")
     legacy_job.pop("application_portal")
     with sqlite3.connect(database) as connection:
         connection.execute(
@@ -174,6 +172,6 @@ def test_history_migrates_legacy_source_into_separate_fields(tmp_path):
 
     store = HistoryStore(database)
     item = store.list_entries()["items"][0]["job"]
-    assert item["found_on"] == "LinkedIn"
+    assert "found_on" not in item
     assert item["application_portal"] == "Workday"
     assert store.list_entries(query="Workday")["total"] == 1

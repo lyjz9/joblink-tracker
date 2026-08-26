@@ -39,10 +39,6 @@ def test_source_tracking_helpers_load_before_the_application_script():
 
     assert template.index("../static/source_tracking.js") < template.index("../static/app.js")
     assert 'id="foundOn"' not in template
-    assert '<th scope="col">Found on</th>' in template
-    assert template.index('<th scope="col">Found on</th>') < template.index(
-        '<th scope="col">Company</th>'
-    )
-    assert "function foundOnCell(job)" in application
-    assert 'class="source-select"' in application
-    assert "selectedFoundOn" not in application
+    assert "Found on" not in template
+    assert "found_on" not in application
+    assert "inferFoundOn" not in application

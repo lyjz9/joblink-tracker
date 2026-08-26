@@ -61,7 +61,6 @@ def test_create_job_returns_pollable_results_with_application_date(job_api):
         json={
             "urls": ["https://example.com/jobs/one", "https://example.com/jobs/two"],
             "date_applied": "2026-07-01",
-            "found_on": "LinkedIn",
         },
     )
 
@@ -74,7 +73,7 @@ def test_create_job_returns_pollable_results_with_application_date(job_api):
         "07/01/2026",
         "07/01/2026",
     ]
-    assert {item["result"]["found_on"] for item in snapshot["items"]} == {"LinkedIn"}
+    assert all("found_on" not in item["result"] for item in snapshot["items"])
     assert {item["result"]["application_portal"] for item in snapshot["items"]} == {
         "Company Website"
     }

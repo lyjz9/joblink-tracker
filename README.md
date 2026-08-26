@@ -9,7 +9,7 @@
 
 Linc is a small local app I built because copying the same details from job postings into Excel gets old fast.
 
-Paste a few job links and Linc fills in the details people usually track by hand: company, job title, location, work type, salary, where the job was found, and the application portal. You can fix anything it gets wrong before adding the rows to your tracker.
+Paste a few job links and Linc fills in the details people usually track by hand: company, job title, location, work type, salary, and the application portal. You can fix anything it gets wrong before adding the rows to your tracker.
 
 I made it with students, new grads, and anyone managing a long application list in mind.
 
@@ -33,7 +33,7 @@ Linc handles the repetitive part and leaves the judgment to you. Nothing goes in
 ## Features
 
 - Pull company, job title, location, salary, and work type from job posting links.
-- Keep where you found a job separate from the site where you applied.
+- Identify the application portal from the job link.
 - Save results in an Excel-friendly application tracker format.
 - Work through up to 20 links in the background while showing progress and letting you cancel.
 - Keep a searchable job history on your computer and restore earlier results when you need them.
@@ -43,17 +43,16 @@ Linc handles the repetitive part and leaves the judgment to you. Nothing goes in
 ## How It Works
 
 1. Paste job posting links into the local app, command line, or Excel input sheet.
-2. Choose where you found the jobs, or leave `Auto from link` selected.
-3. Linc reads each posting, detects its application portal, and pulls out the fields it can trust.
-4. Check the rows it flags and fix anything that looks off.
-5. Add the reviewed rows to a new or existing Excel tracker.
+2. Linc reads each posting, detects its application portal, and pulls out the fields it can trust.
+3. Check the rows it flags and fix anything that looks off.
+4. Add the reviewed rows to a new or existing Excel tracker.
 
 ## Included Tracker Columns
 
 For reference, the template already contains these columns. You do not need to copy and paste them:
 
 ```text
-Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary Range, Follow-up, Found On, Application Portal
+Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary Range, Follow-up, Application Portal
 ```
 
 ## Setup
@@ -269,8 +268,7 @@ Capture gives Linc more page text to work with, but it can still make mistakes. 
 - Monster search pages and many Monster job-detail links are not reliable scraper inputs. If Monster opens or links to the employer/company job page, use that employer link instead.
 - Site reliability labels are a quick heads-up: `Good` is usually clean, `Okay` deserves a look, and `Limited` often needs capture or manual edits.
 - Captured rows may show suggested values under fields; selecting one replaces the current value.
-- `Found On` records where you discovered each job, such as LinkedIn, Indeed, a referral, or a company website. The app starts with what it can infer from the link, then lets you choose a different value in that result row. If there is no evidence, it uses `N/A`.
-- `Application Portal` comes from the actual job URL, so a job found on LinkedIn can still show Workday, Ashby, Greenhouse, or Company Website as the place where you applied.
+- `Application Portal` comes from the actual job URL and can show Workday, Ashby, Greenhouse, or Company Website as the place where you applied.
 - Work Type should be Remote, Hybrid, Onsite, or n/a. A successfully identified posting defaults to Onsite when no work type is stated; errors and incomplete rows keep n/a.
 - Salary should show n/a when no trustworthy salary is found.
 

@@ -1,7 +1,6 @@
 from scraper.source_tracking import (
     application_portal_for_url,
     enrich_source_tracking,
-    found_on_for_url,
 )
 
 
@@ -24,34 +23,18 @@ def test_application_portal_is_inferred_from_the_actual_job_url():
     assert application_portal_for_url(
         "https://jobs.lever.co/nomadmktg/a949c205-eb76-4eeb-99be-4841d1e07dd5"
     ) == "Lever"
+    assert application_portal_for_url(
+        "https://www.builtinnyc.com/job/data-analyst/10804121"
+    ) == "Built In NYC"
+    assert application_portal_for_url(
+        "https://hiringcafe.com/job/business-operations-analyst-hometap-boston-massachusetts-q3y3y9pl0rk2sdmy"
+    ) == "Hiring Cafe"
+    assert application_portal_for_url(
+        "https://hiringcafe.com/job/task-associate-ulta-beauty-mobile-alabama-5zqvmbrvot7v5jsp"
+    ) == "Hiring Cafe"
 
 
-def test_found_on_uses_the_user_choice_or_a_job_board_url():
-    workday = "https://example.wd5.myworkdayjobs.com/en-US/jobs/job/Analyst_R123"
-    assert found_on_for_url(workday, "LinkedIn") == "LinkedIn"
-    assert found_on_for_url(workday) == "N/A"
-    assert found_on_for_url("https://www.linkedin.com/jobs/view/4443868424/") == "LinkedIn"
-    assert found_on_for_url(
-        "https://job-boards.greenhouse.io/fanaticscollectibles/jobs/4363369009"
-    ) == "N/A"
-    assert found_on_for_url(
-        "https://jobs.lever.co/nomadmktg/a949c205-eb76-4eeb-99be-4841d1e07dd5"
-    ) == "N/A"
-
-
-def test_found_on_uses_supported_tracking_parameters_without_guessing_unknown_values():
-    assert found_on_for_url(
-        "https://example.wd5.myworkdayjobs.com/job/Analyst_R123?source=LinkedIn"
-    ) == "LinkedIn"
-    assert found_on_for_url(
-        "https://apply.workable.com/example/j/123/?utm_source=google_jobs_apply"
-    ) == "Google Jobs"
-    assert found_on_for_url(
-        "https://careers.example.com/job/123?source=opaque-code"
-    ) == "N/A"
-
-
-def test_legacy_source_can_represent_discovery_while_url_sets_portal():
+def test_result_uses_the_url_for_its_portal_and_removes_retired_discovery_data():
     job = enrich_source_tracking(
         {
             "job_link": "https://jobs.ashbyhq.com/example/123",
@@ -59,6 +42,6 @@ def test_legacy_source_can_represent_discovery_while_url_sets_portal():
         }
     )
 
-    assert job["found_on"] == "LinkedIn"
+    assert "found_on" not in job
     assert job["application_portal"] == "Ashby"
     assert job["source"] == "Ashby"

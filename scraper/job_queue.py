@@ -61,7 +61,6 @@ class BackgroundJobManager:
         self,
         urls: list[str],
         date_applied: str = "",
-        found_on: str = "",
     ) -> dict:
         if not urls:
             raise ValueError("At least one job link is required.")
@@ -83,7 +82,6 @@ class BackgroundJobManager:
                 "id": job_id,
                 "status": "queued",
                 "date_applied": date_applied,
-                "found_on": found_on,
                 "created_at": now,
                 "updated_at": now,
                 "finished_at": None,
@@ -186,7 +184,6 @@ class BackgroundJobManager:
             job["updated_at"] = self._clock()
             url = item["url"]
             date_applied = job["date_applied"]
-            found_on = job["found_on"]
 
         try:
             self._capacity.acquire()
@@ -213,7 +210,7 @@ class BackgroundJobManager:
         result.setdefault("job_link", url)
         if date_applied:
             result["date_applied"] = date_applied
-        result = enrich_source_tracking(result, url, found_on=found_on)
+        result = enrich_source_tracking(result, url)
 
         with self._lock:
             job = self._jobs.get(job_id)

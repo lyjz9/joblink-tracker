@@ -237,7 +237,7 @@ def _annotate_result(result, url='', issues=None):
 def _public_scrape_result(result):
     public_keys = [
         'date_applied', 'company', 'job_title', 'job_link', 'status',
-        'location', 'work_type', 'salary', 'follow_up', 'found_on',
+        'location', 'work_type', 'salary', 'follow_up',
         'application_portal', 'source', 'error',
         'preferred_job_link',
     ]

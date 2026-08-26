@@ -23,7 +23,6 @@ CANONICAL_HEADERS = [
     "Work Type",
     "Salary Range",
     "Follow-up",
-    "Found On",
     "Application Portal",
 ]
 
@@ -37,7 +36,6 @@ HEADER_ALIASES = {
     "Work Type": {"worktype", "workstyle", "remotehybridonsite", "remote"},
     "Salary Range": {"salaryrange", "salary", "pay", "compensation"},
     "Follow-up": {"followup", "followupdate", "followupdate"},
-    "Found On": {"foundon", "discoveredon", "discoverysource", "jobboard", "wherefound"},
     "Application Portal": {
         "applicationportal", "appliedthrough", "applicationsite", "portal",
         "source", "platform", "website",
@@ -54,7 +52,6 @@ JOB_KEYS = {
     "Work Type": "work_type",
     "Salary Range": "salary",
     "Follow-up": "follow_up",
-    "Found On": "found_on",
     "Application Portal": "application_portal",
 }
 
@@ -101,8 +98,9 @@ def append_jobs_to_workbook(
                 skipped += 1
             continue
         row_number = _first_empty_row(worksheet, columns, header_row)
-        if row_number > header_row + 1:
-            _copy_row_style(worksheet, row_number - 1, row_number)
+        style_source = _nearest_style_row(worksheet, row_number, columns, header_row)
+        if style_source:
+            _copy_row_style(worksheet, style_source, row_number)
         _write_job_row(worksheet, row_number, columns, job)
         if link_key:
             existing_links[link_key] = row_number
@@ -234,9 +232,8 @@ def _migrate_source_columns(
     legacy_source_column: int | None,
 ) -> None:
     link_column = columns.get("Job link")
-    found_on_column = columns.get("Found On")
     portal_column = columns.get("Application Portal")
-    if not found_on_column or not portal_column:
+    if not portal_column:
         return
 
     identifying_columns = [
@@ -253,7 +250,6 @@ def _migrate_source_columns(
             if link_cell and link_cell.hyperlink
             else link_cell.value if link_cell else ""
         )
-        found_on = _clean_text(worksheet.cell(row=row_number, column=found_on_column).value)
         portal = _clean_text(worksheet.cell(row=row_number, column=portal_column).value)
         if legacy_source_column:
             tracked = enrich_source_tracking({
@@ -265,16 +261,9 @@ def _migrate_source_columns(
         else:
             tracked = enrich_source_tracking({
                 "job_link": link,
-                "found_on": found_on,
                 "application_portal": portal,
                 "source": portal,
             }, link)
-        if not found_on:
-            worksheet.cell(
-                row=row_number,
-                column=found_on_column,
-                value=tracked["found_on"],
-            )
         if legacy_source_column or not portal:
             worksheet.cell(
                 row=row_number,
@@ -310,6 +299,23 @@ def _first_empty_row(worksheet, columns: dict[str, int], header_row: int) -> int
     return worksheet.max_row + 1
 
 
+def _nearest_style_row(worksheet, target_row: int, columns: dict[str, int], header_row: int) -> int | None:
+    watched_columns = sorted(set(columns.values()))
+    for row_number in range(target_row - 1, header_row, -1):
+        if any(
+            _clean_text(worksheet.cell(row=row_number, column=column).value)
+            for column in watched_columns
+        ):
+            return row_number
+    for row_number in range(target_row - 1, header_row, -1):
+        if any(
+            worksheet.cell(row=row_number, column=column).has_style
+            for column in range(1, worksheet.max_column + 1)
+        ):
+            return row_number
+    return None
+
+
 def _write_job_row(worksheet, row_number: int, columns: dict[str, int], job: dict) -> None:
     job = enrich_source_tracking(job, job.get("job_link"))
     for header, key in JOB_KEYS.items():
@@ -323,8 +329,6 @@ def _write_job_row(worksheet, row_number: int, columns: dict[str, int], job: dic
             value = ""
         elif header in {"Company", "Job Title", "Location", "Work Type", "Salary Range"} and not value:
             value = "n/a"
-        elif header == "Found On" and not value:
-            value = "N/A"
         elif header == "Application Portal" and not value:
             value = "Company Website"
         worksheet.cell(row=row_number, column=column, value=value)
@@ -334,7 +338,8 @@ def _write_job_row(worksheet, row_number: int, columns: dict[str, int], job: dic
         link_cell = worksheet.cell(row=row_number, column=columns["Job link"])
         link_cell.value = link
         link_cell.hyperlink = link
-        link_cell.style = "Hyperlink"
+        if not link_cell.has_style:
+            link_cell.style = "Hyperlink"
 
     for header in ("Date Applied", "Follow-up"):
         column = columns.get(header)
@@ -359,12 +364,7 @@ def _excel_date(value: object) -> date:
 def _copy_cell_style(source, target) -> None:
     if not source.has_style:
         return
-    target.font = copy(source.font)
-    target.fill = copy(source.fill)
-    target.border = copy(source.border)
-    target.alignment = copy(source.alignment)
-    target.number_format = source.number_format
-    target.protection = copy(source.protection)
+    target._style = copy(source._style)
 
 
 def _copy_row_style(worksheet, source_row: int, target_row: int) -> None:
@@ -372,7 +372,14 @@ def _copy_row_style(worksheet, source_row: int, target_row: int) -> None:
         return
     for column in range(1, worksheet.max_column + 1):
         _copy_cell_style(worksheet.cell(row=source_row, column=column), worksheet.cell(row=target_row, column=column))
-    worksheet.row_dimensions[target_row].height = worksheet.row_dimensions[source_row].height
+    source_dimension = worksheet.row_dimensions[source_row]
+    target_dimension = worksheet.row_dimensions[target_row]
+    target_dimension.height = source_dimension.height
+    target_dimension.hidden = source_dimension.hidden
+    target_dimension.outlineLevel = source_dimension.outlineLevel
+    target_dimension.collapsed = source_dimension.collapsed
+    target_dimension.thickTop = source_dimension.thickTop
+    target_dimension.thickBot = source_dimension.thickBot
 
 
 def _extend_tables(
@@ -412,7 +419,6 @@ def _tidy_columns(worksheet, columns: dict[str, int]) -> None:
         "Company": 24,
         "Location": 28,
         "Work Type": 14,
-        "Found On": 18,
         "Application Portal": 22,
     }
     for header, width in preferred.items():

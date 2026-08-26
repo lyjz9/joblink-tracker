@@ -82,9 +82,9 @@ The 2026-08-17 Greenhouse and Lever regression pass is complete locally:
 - Final live app verification returned Fanatics Collectibles with New York,
   Onsite, and `$115,000 - $143,750`; Nomad Marketing returned
   `New York City, NY`, Hybrid, and `$62,500 - $65,000 a year`.
-- Direct Greenhouse and Lever URLs establish `Application Portal`, not where
-  the user discovered the job. Keep `Found On` as `N/A` until the user selects
-  LinkedIn, Indeed, Google Jobs, a referral, or another supported source.
+- Direct Greenhouse and Lever URLs establish `Application Portal`. Discovery
+  tracking was retired from the product, so do not reintroduce a separate
+  discovery field.
 - Full verification passed: 212 tests passed and 3 were skipped. In restricted
   shells, use an ignored repository path with `--basetemp` because the default
   Windows pytest temp root may reject access.
@@ -286,9 +286,7 @@ The main workflow is:
 3. Paste up to 20 individual job-posting links.
 4. Scrape the links in a bounded background queue; the application portal is
    inferred from each URL.
-5. Review company, title, location, work type, salary, Found On, and
-   Application Portal. Choose Found On separately in each result row because
-   one batch may contain jobs discovered on different websites.
+5. Review company, title, location, work type, salary, and Application Portal.
 6. Correct uncertain fields inline or add a row manually.
 7. Use the header Tracker panel to download a new tracker or update an
    existing `.xlsx` or `.xlsm` tracker.
@@ -311,7 +309,7 @@ not need any personal account data.
 
 ### Canonical tracker columns
 
-Keep these 11 fields compatible across every Excel workflow:
+Keep these 10 fields compatible across every Excel workflow:
 
 1. Date Applied
 2. Company
@@ -322,8 +320,7 @@ Keep these 11 fields compatible across every Excel workflow:
 7. Work Type
 8. Salary Range
 9. Follow-up
-10. Found On
-11. Application Portal
+10. Application Portal
 
 There is no Description, AI Notes, or Skills column. The user explicitly
 removed those fields.
@@ -345,9 +342,6 @@ removed those fields.
 - All-caps locations should be display-normalized while preserving abbreviations
   such as NY, NJ, NYC, USA, and EMEA.
 - `follow_up` must be blank by default. Do not fill it with a future date.
-- `found_on` records discovery, such as LinkedIn, Indeed, Google Jobs, a
-  referral, or Company Website. Auto mode may infer it from a job-board URL or
-  a recognized tracking parameter. If there is no evidence, use `N/A`.
 - `application_portal` is inferred from the actual job URL and must be a
   readable label such as Workday, Ashby, Greenhouse, LinkedIn, or Company
   Website, never the URL itself.
@@ -425,8 +419,8 @@ The results table has `Original`, `Hourly`, and `Yearly` modes.
 - Prefer an `Applications` sheet, but support other sheets with recognizable
   header aliases.
 - Add missing recognized headers rather than rebuilding the workbook.
-- Older `Source` columns migrate to `Application Portal`; add `Found On` and
-  backfill it only when the old value or URL contains clear discovery evidence.
+- Older `Source` columns migrate to `Application Portal`. A legacy discovery
+  column in a user workbook is preserved untouched, but new appends leave it blank.
 - Support duplicate modes `skip` and `update`.
 - Use the first real empty application row; do not append after large amounts
   of formatting-only empty space.
@@ -438,9 +432,9 @@ selected original workbook. Browsers without that API receive an updated
 downloaded copy and leave the original unchanged. Do not promise in-place
 editing in every browser.
 
-Do not collapse `Found On` and `Application Portal` back into one `Source`
-column. They answer different questions, and a normal row may intentionally be
-`LinkedIn` plus `Workday`.
+Do not add a separate discovery field back to the UI, scraper payloads,
+History, exports, VBA, or new tracker templates. Keep legacy `Source` as the
+internal compatibility alias for `Application Portal`.
 
 ## What Has Been Completed
 
@@ -473,14 +467,9 @@ column. They answer different questions, and a normal row may intentionally be
 - Expired postings have distinct review guidance instead of generic retry
   instructions.
 - Conservative company, title, location, work-type, and salary cleanup.
-- Separate `Found On` and `Application Portal` fields across synchronous and
-  background scraping, capture, retry, manual entry, History, and Excel.
-- Auto discovery detection for job-board links and recognized tracking values
-  such as LinkedIn, Indeed, Google Jobs, and Jooble; unknown codes remain
-  `N/A`.
 - Legacy History and workbook migration from one `Source` field without
   discarding the original job URL.
-- Blank tracker template updated with both source-tracking columns and concise
+- Blank tracker template updated with the application portal column and concise
   instructions.
 - Regression fixtures for the major supported patterns.
 
@@ -868,12 +857,11 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   Lever, Greenhouse, or another ATS. ATS detection may guide extraction, but
   it must not rewrite the portal or prevent employer inference from the
   original company domain.
-- **Found On requires discovery evidence:** A Workday or Ashby URL does not
-  prove where the user discovered the job. Infer discovery only from a known
-  job-board URL, a recognized query value such as `source=LinkedIn`, or the
-  user's per-result selection. Keep unknown tracking codes as `N/A`. Do not
-  restore a batch-wide Found On control; mixed-source batches made it
-  misleading.
+- **Job-board portal labels are host-specific:** Show `Built In NYC` for
+  `builtinnyc.com` and `Hiring Cafe` for `hiringcafe.com`, including the
+  browser-side normalization used for restored sessions and manual rows.
+- **Discovery tracking is retired:** Do not restore a discovery selector,
+  payload field, database field, export column, or automated inference.
 - **ATS employer names can contain internal codes:** Workday and similar
   systems may prefix the real company with values such as `02B` or `LE2201`.
   Remove a compact uppercase alphanumeric token only when it contains both a
@@ -1052,7 +1040,7 @@ For each repeated failure pattern:
 
 1. Identify the extraction layer that produced the wrong value.
 2. Save a minimal synthetic fixture with no private data.
-3. Add the expected company, title, location, work type, salary, Found On, and
+3. Add the expected company, title, location, work type, salary, and
    Application Portal to
    `tests/test_scraper_regressions.py` or the closest focused test.
 4. Make a narrow platform or evidence-priority fix.

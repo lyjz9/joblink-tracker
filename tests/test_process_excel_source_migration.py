@@ -3,7 +3,7 @@ from openpyxl import Workbook
 from process_excel_links import APPLICATION_HEADERS, ensure_headers, header_map
 
 
-def test_legacy_excel_workflow_splits_source_column():
+def test_legacy_excel_workflow_renames_source_to_application_portal():
     workbook = Workbook()
     worksheet = workbook.active
     worksheet.title = "Applications"
@@ -21,5 +21,4 @@ def test_legacy_excel_workflow_splits_source_column():
     columns = header_map(worksheet)
 
     assert "source" not in columns
-    assert worksheet.cell(2, columns["found on"]).value == "LinkedIn"
     assert worksheet.cell(2, columns["application portal"]).value == "Ashby"

@@ -45,7 +45,7 @@ from scraper.capture_parser import _capture_payload_has_content, _parse_captured
 from scraper.job_queue import ScrapeCapacityFull
 from scraper.job_routes import create_job_blueprint
 from scraper.history import HistoryStore, create_history_blueprint
-from scraper.source_tracking import enrich_source_tracking, normalize_source_label
+from scraper.source_tracking import enrich_source_tracking
 
 
 web = Blueprint('web', __name__)
@@ -328,7 +328,7 @@ def _record_issue(
             key: _bounded_log_value(result.get(key, ''))
             for key in (
                 'company', 'job_title', 'location', 'work_type', 'salary',
-                'found_on', 'application_portal', 'source',
+                'application_portal', 'source',
             )
         },
         'technical_error': str(raw_error)[:2000],
@@ -392,7 +392,7 @@ def report_issue():
         key: _bounded_log_value(job.get(key, ''), 1000)
         for key in (
             'date_applied', 'company', 'job_title', 'job_link', 'location',
-            'work_type', 'salary', 'found_on', 'application_portal', 'source',
+            'work_type', 'salary', 'application_portal', 'source',
             'status', 'manual',
             'source_reliability_label', 'source_reliability_note',
             'confidence', 'confidence_score', 'error', 'review_notes',
@@ -584,11 +584,7 @@ def scrape():
 
     try:
         result = get_runtime().job_manager.run_sync(url)
-        return jsonify(enrich_source_tracking(
-            result,
-            url,
-            found_on=normalize_source_label(data.get('found_on')),
-        ))
+        return jsonify(enrich_source_tracking(result, url))
     except ScrapeCapacityFull:
         return jsonify({'error': 'Linc is busy with another page. Wait for it to finish, then try again.'}), 503
     except Exception:

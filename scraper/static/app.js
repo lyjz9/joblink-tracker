@@ -38,11 +38,6 @@ const {
   inferApplicationPortal,
   normalizeJobSources,
 } = window.JobSourceTracking;
-const FOUND_ON_OPTIONS = [
-  'N/A', 'LinkedIn', 'Indeed', 'Glassdoor', 'ZipRecruiter', 'Google Jobs',
-  'Handshake', 'Monster', 'Wellfound', 'Upwork', 'SimplyHired', 'Dice', 'Jooble',
-  'Company Website', 'Referral', 'Other',
-];
 const linkPasteHistory = [];
 const linkPasteRedo = [];
 let changingLinksProgrammatically = false;
@@ -75,7 +70,6 @@ const elements = {
   manualLocation: document.querySelector('#manualLocation'),
   manualWorkType: document.querySelector('#manualWorkType'),
   manualSalary: document.querySelector('#manualSalary'),
-  manualFoundOn: document.querySelector('#manualFoundOn'),
   manualApplicationPortal: document.querySelector('#manualApplicationPortal'),
   manualLink: document.querySelector('#manualLink'),
   download: document.querySelector('#downloadButton'),
@@ -162,8 +156,8 @@ function selectedAppliedDate() {
   return `${month}/${day}/${year}`;
 }
 
-function trackedJob(job, foundOn = '') {
-  return normalizeJobSources(job || {}, foundOn);
+function trackedJob(job) {
+  return normalizeJobSources(job || {});
 }
 
 function missingValue(value) {
@@ -416,19 +410,6 @@ function editableCell(job, key) {
   return `<div class="editable${muted}" contenteditable="true" data-key="${key}" spellcheck="false">${escapeHtml(value)}</div>${fieldOptions(job, key)}`;
 }
 
-function foundOnCell(job) {
-  const current = job.found_on || 'N/A';
-  const options = FOUND_ON_OPTIONS.includes(current)
-    ? FOUND_ON_OPTIONS
-    : [current, ...FOUND_ON_OPTIONS];
-  return `
-    <select class="source-select" data-key="found_on" aria-label="Found on">
-      ${options.map((value) => (
-        `<option value="${escapeHtml(value)}" ${value === current ? 'selected' : ''}>${escapeHtml(value)}</option>`
-      )).join('')}
-    </select>`;
-}
-
 function salaryCell(job) {
   const original = job.salary || 'n/a';
   if (state.salaryMode === 'original') return editableCell(job, 'salary');
@@ -508,7 +489,6 @@ function render() {
             ${reviewList(job)}
           </div>
         </td>
-        <td>${foundOnCell(job)}</td>
         <td>${editableCell(job, 'company')}</td>
         <td>${editableCell(job, 'job_title')}</td>
         <td>${editableCell(job, 'location')}</td>
@@ -660,7 +640,6 @@ function renderHistory() {
         <td>${escapeHtml(job.location || 'n/a')}</td>
         <td>${escapeHtml(job.work_type || 'n/a')}</td>
         <td>${escapeHtml(job.salary || 'n/a')}</td>
-        <td><div class="history-cell-main"><strong>${escapeHtml(job.found_on || 'N/A')}</strong></div></td>
         <td><div class="history-cell-main"><strong>${escapeHtml(job.application_portal || job.source || 'Company Website')}</strong></div></td>
         <td>
           ${jobLink ? `<a class="icon-button" href="${escapeHtml(jobLink)}" target="_blank" rel="noopener noreferrer" title="Open job posting" aria-label="Open job posting">${icon('external-link')}</a>` : ''}
@@ -902,11 +881,11 @@ async function clearAllHistory() {
   }
 }
 
-async function scrapeOne(url, foundOn = '') {
+async function scrapeOne(url) {
   const response = await fetch('/scrape', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, found_on: foundOn }),
+    body: JSON.stringify({ url }),
   });
   const result = await response.json().catch(() => ({ error: 'Linc received a response it could not read.' }));
   if (!response.ok && !result.error) result.error = `Linc could not finish that request (${response.status}).`;
@@ -914,7 +893,7 @@ async function scrapeOne(url, foundOn = '') {
     ...result,
     job_link: result.job_link || url,
     date_applied: selectedAppliedDate() || result.date_applied,
-  }, foundOn);
+  });
 }
 
 function wait(milliseconds) {
@@ -964,13 +943,10 @@ function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
     if (!['completed', 'failed'].includes(item.status) || appliedItems.has(index)) return;
     const target = plan[index];
     if (!target) return;
-    const previousFoundOn = target.action === 'update'
-      ? state.jobs[target.index]?.found_on || ''
-      : '';
     const result = trackedJob({
       ...(item.result || { error: 'Linc could not read this job page.' }),
       job_link: item.result?.job_link || target.url,
-    }, previousFoundOn);
+    });
     if (dateApplied) result.date_applied = dateApplied;
     if (target.action === 'update') {
       result.selected = Boolean(state.jobs[target.index]?.selected);
@@ -1079,7 +1055,7 @@ async function retryJob(index) {
   state.processing = true;
   render();
   try {
-    const retried = await scrapeOne(current.job_link, current.found_on);
+    const retried = await scrapeOne(current.job_link);
     retried.selected = Boolean(current.selected);
     state.jobs[index] = retried;
     await saveJobsToHistory([retried]);
@@ -1105,7 +1081,7 @@ async function retryAllErrors() {
       const current = state.jobs[index];
       if (!current.job_link) continue;
       try {
-        const retried = await scrapeOne(current.job_link, current.found_on);
+        const retried = await scrapeOne(current.job_link);
         retried.selected = Boolean(current.selected);
         state.jobs[index] = retried;
         updatedJobs.push(retried);
@@ -1513,7 +1489,6 @@ function toggleManualPanel(show = elements.manualPanel.hidden) {
 function resetManualForm() {
   elements.manualPanel.reset();
   elements.manualWorkType.value = 'n/a';
-  elements.manualFoundOn.value = '';
   elements.manualApplicationPortal.dataset.autofilled = 'true';
   elements.manualValidation.textContent = '';
 }
@@ -1529,13 +1504,12 @@ function manualJobFromForm() {
     work_type: elements.manualWorkType.value || 'n/a',
     salary: elements.manualSalary.value.trim() || 'n/a',
     follow_up: '',
-    found_on: elements.manualFoundOn.value,
     application_portal: elements.manualApplicationPortal.value.trim(),
     confidence: 'Manual',
     confidence_score: 100,
     manual: true,
   };
-  return trackedJob(job, elements.manualFoundOn.value);
+  return trackedJob(job);
 }
 
 function refreshManualApplicationPortal() {
@@ -1722,16 +1696,6 @@ elements.body.addEventListener('click', (event) => {
   render();
 });
 elements.body.addEventListener('change', (event) => {
-  const sourceSelect = event.target.closest('.source-select');
-  if (sourceSelect) {
-    const row = sourceSelect.closest('tr');
-    const job = state.jobs[Number(row.dataset.index)];
-    if (!job) return;
-    job.found_on = sourceSelect.value || 'N/A';
-    saveSession();
-    void saveJobsToHistory([job]);
-    return;
-  }
   const checkbox = event.target.closest('.select-row');
   if (!checkbox) return;
   const row = checkbox.closest('tr');

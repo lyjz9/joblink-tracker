@@ -1,56 +1,15 @@
-"""Keep job discovery and application destinations as separate fields."""
+"""Normalize application portals while retaining the legacy ``source`` alias."""
 
 from __future__ import annotations
 
-from urllib.parse import parse_qsl, urlparse
+from urllib.parse import urlparse
 
 from scraper.browser_scraper_v2 import _detect_platform, _source_label
 
 
-DISCOVERY_LABELS = {
-    "LinkedIn",
-    "Indeed",
-    "Glassdoor",
-    "ZipRecruiter",
-    "Monster",
-    "Wellfound",
-    "Upwork",
-    "SimplyHired",
-    "Dice",
-    "Handshake",
-    "Google Jobs",
-    "Jooble",
-}
-
-DISCOVERY_QUERY_ALIASES = (
-    ("linkedin", "LinkedIn"),
-    ("indeed", "Indeed"),
-    ("glassdoor", "Glassdoor"),
-    ("ziprecruiter", "ZipRecruiter"),
-    ("monster", "Monster"),
-    ("wellfound", "Wellfound"),
-    ("angellist", "Wellfound"),
-    ("upwork", "Upwork"),
-    ("simplyhired", "SimplyHired"),
-    ("dice", "Dice"),
-    ("handshake", "Handshake"),
-    ("google_jobs", "Google Jobs"),
-    ("google jobs", "Google Jobs"),
-    ("jooble", "Jooble"),
-)
-
-DISCOVERY_QUERY_KEYS = {
-    "utm_source",
-    "source",
-    "src",
-    "ref",
-    "referrer",
-    "lever-source",
-    "__jvsd",
-    "__jvst",
-}
-
 PORTAL_DOMAIN_LABELS = (
+    ("builtinnyc.com", "Built In NYC"),
+    ("hiringcafe.com", "Hiring Cafe"),
     ("joinhandshake.com", "Handshake"),
     ("oraclecloud.com", "Oracle Recruiting"),
     ("taleo.net", "Taleo"),
@@ -60,14 +19,12 @@ PORTAL_DOMAIN_LABELS = (
     ("successfactors.com", "SAP SuccessFactors"),
 )
 
-KNOWN_LABELS = {
+KNOWN_PORTAL_LABELS = {
     label.casefold(): label
     for label in {
-        *DISCOVERY_LABELS,
-        "N/A",
         "Company Website",
-        "Referral",
-        "Other",
+        "Built In NYC",
+        "Hiring Cafe",
         "Greenhouse",
         "Lever",
         "Workday",
@@ -85,17 +42,30 @@ KNOWN_LABELS = {
         "Eploy",
         "Eightfold",
         "SAP SuccessFactors",
+        "Handshake",
+        "LinkedIn",
+        "Indeed",
+        "Glassdoor",
+        "ZipRecruiter",
+        "Monster",
+        "Wellfound",
+        "Upwork",
+        "SimplyHired",
+        "Dice",
+        "Google Jobs",
+        "Jooble",
     }
 }
 
 
 def normalize_source_label(value: object) -> str:
+    """Normalize portal labels, including values from legacy ``Source`` cells."""
     text = " ".join(str(value or "").split()).strip()
     if not text or text.casefold() in {"auto", "auto from link"}:
         return ""
     if text.casefold() in {"n/a", "na", "none", "null"}:
-        return "N/A"
-    return KNOWN_LABELS.get(text.casefold(), text[:80])
+        return ""
+    return KNOWN_PORTAL_LABELS.get(text.casefold(), text[:80])
 
 
 def application_portal_for_url(url: object, legacy_source: object = "") -> str:
@@ -115,64 +85,20 @@ def application_portal_for_url(url: object, legacy_source: object = "") -> str:
                 return label
         return "Company Website"
 
-    legacy = normalize_source_label(legacy_source)
-    return legacy if legacy and legacy != "N/A" else "Company Website"
+    return normalize_source_label(legacy_source) or "Company Website"
 
 
-def found_on_for_url(
-    url: object,
-    selected: object = "",
-    legacy_source: object = "",
-) -> str:
-    explicit = normalize_source_label(selected)
-    if explicit:
-        return explicit
-
-    try:
-        query_values = (
-            str(value).casefold()
-            for key, value in parse_qsl(urlparse(str(url or "")).query)
-            if key.casefold() in DISCOVERY_QUERY_KEYS
-        )
-        for value in query_values:
-            for marker, label in DISCOVERY_QUERY_ALIASES:
-                if marker in value:
-                    return label
-            if value in {"careersite", "career site", "company website"}:
-                return "Company Website"
-    except ValueError:
-        pass
-
-    legacy = normalize_source_label(legacy_source)
-    if legacy in DISCOVERY_LABELS:
-        return legacy
-
-    portal = application_portal_for_url(url, legacy_source)
-    return portal if portal in DISCOVERY_LABELS else "N/A"
-
-
-def enrich_source_tracking(
-    result: dict,
-    url: object = "",
-    *,
-    found_on: object = "",
-) -> dict:
+def enrich_source_tracking(result: dict, url: object = "") -> dict:
+    """Return portal-only job data and discard the retired discovery field."""
     enriched = dict(result or {})
+    enriched.pop("found_on", None)
     job_url = str(url or enriched.get("job_link") or "").strip()
     legacy_source = enriched.get("source", "")
     portal = normalize_source_label(enriched.get("application_portal"))
-    if not portal or portal == "N/A":
+    if not portal:
         portal = application_portal_for_url(job_url, legacy_source)
 
-    selected_found_on = normalize_source_label(found_on)
-    stored_found_on = normalize_source_label(enriched.get("found_on"))
-    discovery = selected_found_on or stored_found_on or found_on_for_url(
-        job_url,
-        legacy_source=legacy_source,
-    )
-
-    enriched["found_on"] = discovery
     enriched["application_portal"] = portal
-    # Keep the legacy field while older sessions and reliability code migrate.
+    # Keep the internal alias while older sessions and reliability code migrate.
     enriched["source"] = portal
     return enriched

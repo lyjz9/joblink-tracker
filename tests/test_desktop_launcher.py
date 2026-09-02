@@ -49,6 +49,23 @@ def test_windowed_build_redirects_missing_output_streams(monkeypatch, tmp_path):
         monkeypatch.setattr(desktop_launcher.sys, "stderr", io.StringIO())
 
 
+def test_startup_errors_are_appended_to_a_durable_log(tmp_path):
+    try:
+        raise RuntimeError("first startup failure")
+    except RuntimeError:
+        first_path = desktop_launcher.write_startup_error(tmp_path)
+
+    try:
+        raise RuntimeError("second startup failure")
+    except RuntimeError:
+        second_path = desktop_launcher.write_startup_error(tmp_path)
+
+    assert first_path == second_path
+    error_text = first_path.read_text(encoding="utf-8")
+    assert "first startup failure" in error_text
+    assert "second startup failure" in error_text
+
+
 def test_packaging_spec_includes_web_assets_and_project_modules():
     root = Path(__file__).resolve().parents[1]
     spec = (root / "packaging" / "linc.spec").read_text(encoding="utf-8")
@@ -59,3 +76,11 @@ def test_packaging_spec_includes_web_assets_and_project_modules():
     assert '"scraper/templates"' in spec
     assert '"scraper/static"' in spec
     assert 'name="Linc"' in spec
+
+
+def test_source_server_script_uses_the_project_python_module():
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "run_server.bat").read_text(encoding="utf-8")
+
+    assert '"%PYTHON_EXE%" -m scraper.app' in script
+    assert "python scraper\\app.py" not in script

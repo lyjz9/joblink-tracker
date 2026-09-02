@@ -1,5 +1,26 @@
 # Troubleshooting
 
+## Linc Does Not Open
+
+Linc runs only while its local launcher is open. If `http://127.0.0.1:5050/`
+does not open, first double-click `Open_Linc_Beta.vbs` from this project folder
+and wait a few seconds for the Linc window to appear.
+
+When working from the source project, always use `Open_Linc_Beta.vbs`. It uses
+the project's own Python environment. Avoid starting Linc with a bare `python`
+command, because Windows can choose a different Python installation that does
+not have the packages Linc needs.
+
+If the launcher says packages are missing, finish the local setup again so the
+`.venv` folder is rebuilt. The technical startup details are saved at:
+
+```text
+%LOCALAPPDATA%\Linc\logs\desktop_startup_error.log
+```
+
+For the portable Windows beta, use the `Linc.exe` included in the extracted
+release folder instead. It does not need a separate Python installation.
+
 ## Playwright Browser Is Missing
 
 Install the Chromium files Linc uses:

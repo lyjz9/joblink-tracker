@@ -95,23 +95,44 @@ def write_startup_error(data_dir: Path) -> Path:
     log_dir = data_dir / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     path = log_dir / "desktop_startup_error.log"
-    path.write_text(traceback.format_exc(), encoding="utf-8")
+    with path.open("a", encoding="utf-8") as log_file:
+        log_file.write(f"\n{'=' * 72}\n")
+        log_file.write(traceback.format_exc())
     return path
 
 
-def show_existing_app() -> int:
-    from tkinter import messagebox
+def show_message(kind: str, message: str) -> None:
+    """Show an error even when the optional desktop window cannot load."""
+    try:
+        from tkinter import messagebox
 
+        getattr(messagebox, kind)(APP_NAME, message)
+        return
+    except Exception:
+        pass
+
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            style = 0x10 if kind == "showerror" else 0x40
+            ctypes.windll.user32.MessageBoxW(None, message, APP_NAME, style)
+            return
+        except Exception:
+            pass
+
+    print(f"{APP_NAME}: {message}", file=sys.stderr)
+
+
+def show_existing_app() -> int:
     webbrowser.open(APP_URL, new=2)
-    messagebox.showinfo(APP_NAME, "Linc is already running, so I opened it in your browser.")
+    show_message("showinfo", "Linc is already running, so I opened it in your browser.")
     return 0
 
 
 def show_port_error() -> int:
-    from tkinter import messagebox
-
-    messagebox.showerror(
-        APP_NAME,
+    show_message(
+        "showerror",
         "Linc needs local port 5050, but another program is using it. Close that program and try again.",
     )
     return 1
@@ -226,8 +247,6 @@ def run_control_window(server, flask_app, shutdown_app) -> None:
 
 
 def main() -> int:
-    from tkinter import messagebox
-
     data_dir = configure_environment()
     configure_output_streams(data_dir)
     try:
@@ -252,9 +271,12 @@ def main() -> int:
         return 0
     except Exception:
         error_path = write_startup_error(data_dir)
-        messagebox.showerror(
-            APP_NAME,
-            f"Linc could not start. I saved the technical details here:\n{error_path}",
+        show_message(
+            "showerror",
+            "Linc could not start. Make sure you open the source-project "
+            "launcher (Open_Linc_Beta.vbs), not a terminal command that uses "
+            "a different Python installation. I saved the technical details here:\n"
+            f"{error_path}",
         )
         return 1
 

@@ -27,6 +27,8 @@ HISTORY_JOB_KEYS = {
     "work_type",
     "salary",
     "follow_up",
+    "found_on",
+    "job_id",
     "application_portal",
     "source",
     "error",
@@ -80,6 +82,8 @@ class HistoryStore:
                     salary TEXT NOT NULL DEFAULT '',
                     application_portal TEXT NOT NULL DEFAULT '',
                     source TEXT NOT NULL DEFAULT '',
+                    found_on TEXT NOT NULL DEFAULT '',
+                    job_id TEXT NOT NULL DEFAULT '',
                     history_status TEXT NOT NULL DEFAULT 'review',
                     is_manual INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
@@ -100,8 +104,16 @@ class HistoryStore:
                 connection.execute(
                     "ALTER TABLE history_entries ADD COLUMN application_portal TEXT NOT NULL DEFAULT ''"
                 )
+            if "found_on" not in columns:
+                connection.execute(
+                    "ALTER TABLE history_entries ADD COLUMN found_on TEXT NOT NULL DEFAULT ''"
+                )
+            if "job_id" not in columns:
+                connection.execute(
+                    "ALTER TABLE history_entries ADD COLUMN job_id TEXT NOT NULL DEFAULT ''"
+                )
             self._backfill_application_portals(connection)
-            connection.execute("PRAGMA user_version = 3")
+            connection.execute("PRAGMA user_version = 4")
 
     @staticmethod
     def _backfill_application_portals(connection: sqlite3.Connection) -> None:
@@ -155,8 +167,9 @@ class HistoryStore:
                     INSERT INTO history_entries (
                         identity_key, date_applied, company, job_title, job_link,
                         location, work_type, salary, application_portal, source,
+                        found_on, job_id,
                         history_status, is_manual, created_at, updated_at, job_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(identity_key) DO UPDATE SET
                         date_applied = excluded.date_applied,
                         company = excluded.company,
@@ -167,6 +180,8 @@ class HistoryStore:
                         salary = excluded.salary,
                         application_portal = excluded.application_portal,
                         source = excluded.source,
+                        found_on = excluded.found_on,
+                        job_id = excluded.job_id,
                         history_status = excluded.history_status,
                         is_manual = excluded.is_manual,
                         updated_at = excluded.updated_at,
@@ -183,6 +198,8 @@ class HistoryStore:
                         job.get("salary", ""),
                         job.get("application_portal", ""),
                         job.get("source", ""),
+                        job.get("found_on", ""),
+                        job.get("job_id", ""),
                         history_status,
                         int(bool(job.get("manual"))),
                         now,
@@ -217,12 +234,12 @@ class HistoryStore:
                     f"{column} LIKE ? ESCAPE '\\' COLLATE NOCASE"
                     for column in (
                         "company", "job_title", "location", "work_type",
-                        "salary", "application_portal", "source",
+                        "salary", "application_portal", "source", "found_on", "job_id",
                         "job_link", "date_applied",
                     )
                 ) + ")"
             )
-            parameters.extend([pattern] * 9)
+            parameters.extend([pattern] * 11)
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         with self._connect() as connection:
@@ -412,11 +429,14 @@ def _row_to_entry(row: sqlite3.Row) -> dict:
     except (TypeError, json.JSONDecodeError):
         job = {}
     row_keys = set(row.keys())
-    job.pop("found_on", None)
     if not job.get("application_portal") and "application_portal" in row_keys:
         job["application_portal"] = row["application_portal"]
     if not job.get("source") and "source" in row_keys:
         job["source"] = row["source"]
+    if not job.get("found_on") and "found_on" in row_keys:
+        job["found_on"] = row["found_on"]
+    if not job.get("job_id") and "job_id" in row_keys:
+        job["job_id"] = row["job_id"]
     job = enrich_source_tracking(job, job.get("job_link"))
     return {
         "id": row["id"],

@@ -45,7 +45,6 @@
   function normalizeJobSources(job) {
     const source = job && typeof job === 'object' ? job : {};
     const normalized = { ...source };
-    delete normalized.found_on;
     const currentPortal = normalizePortal(source.application_portal);
     const detectedPortal = inferApplicationPortal(source.job_link, source.source);
     const portal = !currentPortal || (currentPortal === 'Company Website' && detectedPortal !== currentPortal)
@@ -53,9 +52,34 @@
       : currentPortal;
     return {
       ...normalized,
+      job_id: String(source.job_id || inferJobId(source.job_link) || '').trim(),
+      found_on: String(source.found_on || '').trim(),
       application_portal: portal,
       source: portal,
     };
+  }
+
+  function inferJobId(url) {
+    try {
+      const parsed = new URL(String(url || ''));
+      for (const key of ['jobId', 'job_id', 'job', 'gh_jid', 'requisitionId', 'reqId']) {
+        const match = (parsed.searchParams.get(key) || '').match(/(?:JR|R)?\d{5,}/i);
+        if (match) return match[0].toUpperCase();
+      }
+      const path = decodeURIComponent(parsed.pathname);
+      const patterns = [
+        /(?:^|[_/-])(JR\d{5,})(?:$|[./_-])/i,
+        /\/(?:jobs?\/)(\d{6,})(?:\/|$)/i,
+        /\/(?:jobs?\/)([0-9a-f]{8}-[0-9a-f-]{27,})(?:\/|$)/i,
+      ];
+      for (const pattern of patterns) {
+        const match = path.match(pattern);
+        if (match) return match[1].toUpperCase();
+      }
+    } catch (_error) {
+      return '';
+    }
+    return '';
   }
 
   window.JobSourceTracking = {

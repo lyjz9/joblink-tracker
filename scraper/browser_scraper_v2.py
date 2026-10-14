@@ -446,7 +446,9 @@ def _workday_api_result(url):
     if not isinstance(hiring_organization, dict):
         hiring_organization = {}
 
-    location = _clean_location(info.get('location', ''))
+    location = _choose_workday_location(
+        info.get('locations') or info.get('location', '')
+    )
     if not location:
         country = requisition_location.get('country') or {}
         if not isinstance(country, dict):
@@ -833,6 +835,11 @@ def _clean_company(value):
     if re.search(r'\b(?:MS\s+Smith\s+Barney|Morgan\s+Stanley)\b', value, flags=re.I):
         return 'Morgan Stanley'
     known = {
+        'broadridge': 'Broadridge',
+        'broadridge broadridge': 'Broadridge',
+        'broadridge financial solutions': 'Broadridge',
+        'broadridge financial solutions inc': 'Broadridge',
+        'broadridge financial solutions inc.': 'Broadridge',
         'jpmc': 'JPMorgan Chase & Co.',
         'burberry': 'Burberry',
         'burberrycareers': 'Burberry',
@@ -2046,12 +2053,72 @@ def _extract_talnet_countries(text):
 
 
 def _visible_workday_location(soup):
+    locations = []
     for selector in ('[data-automation-id="locations"]', '[data-automation-id="jobPostingLocation"]'):
         for elem in soup.select(selector):
-            location = _clean_location(elem.get_text(' ', strip=True))
+            location = elem.get_text(' ', strip=True)
             if location:
-                return location
-    return ''
+                locations.append(location)
+    return _choose_workday_location(locations)
+
+
+def _choose_workday_location(value):
+    if isinstance(value, dict):
+        value = value.get('name') or value.get('descriptor') or value.get('address') or ''
+    if isinstance(value, (list, tuple, set)):
+        raw_candidates = []
+        for item in value:
+            if isinstance(item, dict):
+                item = item.get('name') or item.get('descriptor') or item.get('city') or ''
+            raw_candidates.extend(re.split(r'\s*[;|\n]\s*', str(item or '')))
+    else:
+        raw_candidates = re.split(r'\s*[;|\n]\s*', str(value or ''))
+
+    candidates = []
+    for raw in raw_candidates:
+        location = _clean_location(raw)
+        if location and location.casefold() not in {item.casefold() for item in candidates}:
+            candidates.append(location)
+    if len(candidates) < 2:
+        return candidates[0] if candidates else ''
+
+    new_york = [
+        location for location in candidates
+        if re.search(r',\s*NY\b|\bNew York(?:\s*,\s*United States)?$', location, flags=re.I)
+    ]
+    if not new_york:
+        return candidates[0]
+
+    coordinates = {
+        'new york': (40.7128, -74.0060),
+        'new york city': (40.7128, -74.0060),
+        'long island city': (40.7447, -73.9485),
+        'brooklyn': (40.6782, -73.9442),
+        'bronx': (40.8448, -73.8648),
+        'queens': (40.7282, -73.7949),
+        'staten island': (40.5795, -74.1502),
+        'yonkers': (40.9312, -73.8987),
+        'new rochelle': (40.9115, -73.7824),
+        'white plains': (41.0330, -73.7629),
+        'mineola': (40.7493, -73.6407),
+        'garden city': (40.7268, -73.6343),
+        'hicksville': (40.7684, -73.5251),
+        'melville': (40.7934, -73.4151),
+        'edgewood': (40.6890, -73.3400),
+        'albany': (42.6526, -73.7562),
+        'syracuse': (43.0481, -76.1474),
+        'rochester': (43.1566, -77.6084),
+        'buffalo': (42.8864, -78.8784),
+    }
+
+    def distance_from_nyc(location):
+        city = location.split(',', 1)[0].strip().casefold()
+        point = coordinates.get(city)
+        if not point:
+            return float('inf')
+        return ((point[0] - 40.7128) ** 2 + (point[1] + 74.0060) ** 2) ** 0.5
+
+    return min(new_york, key=distance_from_nyc)
 
 
 def _visible_labeled_location(soup):

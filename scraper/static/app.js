@@ -35,7 +35,6 @@ const {
   normalizeSalaryMode,
 } = window.JobSalaryDisplay;
 const {
-  inferApplicationPortal,
   normalizeJobSources,
 } = window.JobSourceTracking;
 const linkPasteHistory = [];
@@ -46,6 +45,7 @@ let historySearchTimer = null;
 const elements = {
   links: document.querySelector('#jobLinks'),
   appliedDate: document.querySelector('#appliedDate'),
+  foundOnSource: document.querySelector('#foundOnSource'),
   counter: document.querySelector('#linkCounter'),
   validation: document.querySelector('#validationMessage'),
   extract: document.querySelector('#extractButton'),
@@ -70,7 +70,7 @@ const elements = {
   manualLocation: document.querySelector('#manualLocation'),
   manualWorkType: document.querySelector('#manualWorkType'),
   manualSalary: document.querySelector('#manualSalary'),
-  manualApplicationPortal: document.querySelector('#manualApplicationPortal'),
+  manualFoundOn: document.querySelector('#manualFoundOn'),
   manualLink: document.querySelector('#manualLink'),
   download: document.querySelector('#downloadButton'),
   chooseWorkbook: document.querySelector('#chooseWorkbookButton'),
@@ -447,12 +447,12 @@ function reliabilityBadge(job) {
   return `<span class="reliability reliability-${level}">${escapeHtml(label)}</span>`;
 }
 
-function sourceCell(job) {
+function foundOnCell(job) {
   const note = job.source_reliability_note || job.source_reliability?.note || '';
   const preferred = job.preferred_job_link || '';
   return `
     <div class="source-cell">
-      ${editableCell(job, 'application_portal')}
+      ${editableCell(job, 'found_on')}
       ${reliabilityBadge(job)}
       ${note ? `<small>${escapeHtml(note)}</small>` : ''}
       ${preferred ? `<a href="${escapeHtml(preferred)}" target="_blank" rel="noopener noreferrer">Employer link</a>` : ''}
@@ -494,7 +494,8 @@ function render() {
         <td>${editableCell(job, 'location')}</td>
         <td>${editableCell(job, 'work_type')}</td>
         <td data-field="salary">${salaryCell(job)}</td>
-        <td>${sourceCell(job)}</td>
+        <td>${foundOnCell(job)}</td>
+        <td>${editableCell(job, 'job_id')}</td>
         <td>
           <div class="row-actions">
             <button class="icon-button retry-row" type="button" title="Retry extraction" aria-label="Retry extraction">${icon('rotate-cw')}</button>
@@ -640,7 +641,8 @@ function renderHistory() {
         <td>${escapeHtml(job.location || 'n/a')}</td>
         <td>${escapeHtml(job.work_type || 'n/a')}</td>
         <td>${escapeHtml(job.salary || 'n/a')}</td>
-        <td><div class="history-cell-main"><strong>${escapeHtml(job.application_portal || job.source || 'Company Website')}</strong></div></td>
+        <td>${escapeHtml(job.found_on || 'n/a')}</td>
+        <td>${escapeHtml(job.job_id || 'n/a')}</td>
         <td>
           ${jobLink ? `<a class="icon-button" href="${escapeHtml(jobLink)}" target="_blank" rel="noopener noreferrer" title="Open job posting" aria-label="Open job posting">${icon('external-link')}</a>` : ''}
         </td>
@@ -900,11 +902,11 @@ function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
-async function createScrapeJob(urls, dateApplied) {
+async function createScrapeJob(urls, dateApplied, foundOn) {
   const response = await fetch('/api/jobs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ urls, date_applied: dateApplied }),
+    body: JSON.stringify({ urls, date_applied: dateApplied, found_on: foundOn }),
   });
   const payload = await response.json().catch(() => ({ error: 'Linc received a response it could not read.' }));
   if (!response.ok) throw new Error(payload.error || `Linc could not finish that request (${response.status}).`);
@@ -964,6 +966,14 @@ function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
 async function processLinks() {
   const urls = validateInput();
   if (!urls.length || state.processing) return;
+  const foundOn = elements.foundOnSource.value === 'Other'
+    ? window.prompt('Where did you find these jobs?')?.trim()
+    : elements.foundOnSource.value.trim();
+  if (!foundOn) {
+    elements.validation.textContent = 'Choose where you found these jobs before scraping.';
+    elements.foundOnSource.focus();
+    return;
+  }
   const plan = [];
   let skipped = 0;
   urls.forEach((url) => {
@@ -993,7 +1003,7 @@ async function processLinks() {
   const dateApplied = selectedAppliedDate();
   let finalStatus = 'stopped';
   try {
-    let snapshot = await createScrapeJob(plan.map(({ url }) => url), dateApplied);
+    let snapshot = await createScrapeJob(plan.map(({ url }) => url), dateApplied, foundOn);
     state.activeJobId = snapshot.job_id;
     elements.cancelJob.hidden = false;
     while (true) {
@@ -1481,7 +1491,6 @@ function toggleManualPanel(show = elements.manualPanel.hidden) {
   if (show) {
     elements.manualValidation.textContent = '';
     if (!elements.manualWorkType.value) elements.manualWorkType.value = 'n/a';
-    refreshManualApplicationPortal();
     elements.manualCompany.focus();
   }
 }
@@ -1489,7 +1498,6 @@ function toggleManualPanel(show = elements.manualPanel.hidden) {
 function resetManualForm() {
   elements.manualPanel.reset();
   elements.manualWorkType.value = 'n/a';
-  elements.manualApplicationPortal.dataset.autofilled = 'true';
   elements.manualValidation.textContent = '';
 }
 
@@ -1504,22 +1512,12 @@ function manualJobFromForm() {
     work_type: elements.manualWorkType.value || 'n/a',
     salary: elements.manualSalary.value.trim() || 'n/a',
     follow_up: '',
-    application_portal: elements.manualApplicationPortal.value.trim(),
+    found_on: elements.manualFoundOn.value.trim() || elements.foundOnSource.value.trim(),
     confidence: 'Manual',
     confidence_score: 100,
     manual: true,
   };
   return trackedJob(job);
-}
-
-function refreshManualApplicationPortal() {
-  if (!elements.manualLink || !elements.manualApplicationPortal) return;
-  const shouldAutofill = !elements.manualApplicationPortal.value.trim()
-    || elements.manualApplicationPortal.dataset.autofilled === 'true';
-  if (!shouldAutofill) return;
-  const url = elements.manualLink.value.trim();
-  elements.manualApplicationPortal.value = url ? inferApplicationPortal(url) : '';
-  elements.manualApplicationPortal.dataset.autofilled = 'true';
 }
 
 function addManualJob(event) {
@@ -1600,12 +1598,6 @@ if (elements.manualCancel) elements.manualCancel.addEventListener('click', () =>
   toggleManualPanel(false);
 });
 if (elements.manualPanel) elements.manualPanel.addEventListener('submit', addManualJob);
-if (elements.manualLink) elements.manualLink.addEventListener('input', refreshManualApplicationPortal);
-if (elements.manualApplicationPortal) {
-  elements.manualApplicationPortal.addEventListener('input', () => {
-    elements.manualApplicationPortal.dataset.autofilled = 'false';
-  });
-}
 elements.filterTabs.forEach((tab) => {
   tab.addEventListener('click', () => {
     const nextFilter = tab.dataset.filter;
@@ -1708,7 +1700,6 @@ elements.body.addEventListener('input', (event) => {
   const row = editable.closest('tr');
   const job = state.jobs[Number(row.dataset.index)];
   job[editable.dataset.key] = editable.textContent.trim();
-  if (editable.dataset.key === 'application_portal') job.source = job.application_portal;
   delete job.review_issues;
   delete job.review_notes;
   delete job.review_details;

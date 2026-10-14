@@ -4,7 +4,7 @@ When you submit several links, Linc works through them in the background. The pa
 
 ## API
 
-- `POST /api/jobs` accepts `urls` and an optional `date_applied`. It returns `202 Accepted`, a job ID, and the URL used to check progress.
+- `POST /api/jobs` accepts `urls`, an optional `date_applied`, and an optional user-selected `found_on` source. It returns `202 Accepted`, a job ID, and the URL used to check progress.
 - `GET /api/jobs/<job_id>` returns the latest status, counts, and result for each link.
 - `DELETE /api/jobs/<job_id>` cancels work that has not started. A page already being read is allowed to finish.
 - `POST /scrape` still handles one-link retries and the Excel/VBA workflow. It uses the same scraper capacity.

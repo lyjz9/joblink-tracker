@@ -12,7 +12,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter, range_boundaries
-from openpyxl.worksheet.table import Table
+from openpyxl.worksheet.table import Table, TableColumn
 
 from scraper.source_tracking import enrich_source_tracking
 
@@ -34,12 +34,13 @@ APPLICATION_HEADERS = [
     "Work Type",
     "Salary Range",
     "Follow-up",
-    "Application Portal",
+    "Found On",
+    "Job ID",
 ]
 
 SHEET_WIDTHS = {
     "Input": [70, 35, 24, 22, 55],
-    "Applications": [15, 26, 38, 70, 18, 28, 16, 24, 15, 22],
+    "Applications": [15, 26, 38, 70, 18, 28, 16, 24, 15, 22, 22, 18],
 }
 
 
@@ -57,12 +58,6 @@ def header_map(worksheet) -> dict[str, int]:
 
 def ensure_headers(worksheet, headers: list[str]) -> None:
     existing = header_map(worksheet)
-    legacy_source_column = None
-    if worksheet.title == "Applications" and "source" in existing:
-        if "application portal" not in existing:
-            legacy_source_column = existing["source"]
-            worksheet.cell(row=1, column=existing["source"], value="Application Portal")
-        existing = header_map(worksheet)
     next_column = max(existing.values(), default=0) + 1
     for header in headers:
         if normalize_header(header) not in existing:
@@ -85,40 +80,6 @@ def ensure_headers(worksheet, headers: list[str]) -> None:
         cell.fill = PatternFill("solid", fgColor="1F4E78")
         cell.alignment = Alignment(horizontal="center", vertical="center")
         worksheet.column_dimensions[cell.column_letter].width = width
-    if worksheet.title == "Applications":
-        migrate_application_portals(
-            worksheet,
-            legacy_source_column=legacy_source_column,
-        )
-
-
-def migrate_application_portals(worksheet, *, legacy_source_column: int | None = None) -> None:
-    columns = header_map(worksheet)
-    link_column = columns.get("job link")
-    portal_column = columns.get("application portal")
-    if not link_column or not portal_column:
-        return
-    for row in range(2, worksheet.max_row + 1):
-        link_cell = worksheet.cell(row=row, column=link_column)
-        link = clean_url(link_cell.hyperlink.target if link_cell.hyperlink else link_cell.value)
-        company = worksheet.cell(row=row, column=columns.get("company", 1)).value
-        title = worksheet.cell(row=row, column=columns.get("job title", 1)).value
-        if not link and not company and not title:
-            continue
-        portal = worksheet.cell(row=row, column=portal_column).value
-        if legacy_source_column:
-            tracked = enrich_source_tracking({
-                "job_link": link,
-                "source": worksheet.cell(row=row, column=legacy_source_column).value,
-            }, link)
-        else:
-            tracked = enrich_source_tracking({
-                "job_link": link,
-                "application_portal": portal,
-                "source": portal,
-            }, link)
-        if legacy_source_column or not portal:
-            worksheet.cell(row=row, column=portal_column, value=tracked["application_portal"])
 
 
 def get_or_create_sheet(workbook, name: str, headers: list[str]):
@@ -184,7 +145,7 @@ def result_status(result: dict) -> str:
     return "Done"
 
 
-def append_application(worksheet, result: dict, original_url: str) -> None:
+def append_application(worksheet, result: dict, original_url: str, found_on: str = "") -> None:
     result = enrich_source_tracking(result, result.get("job_link") or original_url)
     applied = excel_date(result.get("date_applied"))
     follow_up = result.get("follow_up", "")
@@ -198,7 +159,8 @@ def append_application(worksheet, result: dict, original_url: str) -> None:
         "work type": result.get("work_type", "n/a"),
         "salary range": result.get("salary", "n/a"),
         "follow-up": follow_up,
-        "application portal": result.get("application_portal", "Company Website"),
+        "found on": result.get("found_on") or found_on,
+        "job id": result.get("job_id", ""),
     }
     columns = header_map(worksheet)
     link_column = columns.get("job link")
@@ -264,13 +226,23 @@ def _extend_application_tables(worksheet, new_row: int, columns: dict[str, int])
         min_column, min_row, max_column, max_row = range_boundaries(table.ref)
         if min_row != 1 or not (min_column <= link_column <= max_column):
             continue
+        target_column = max(max_column, max(columns.values(), default=0))
+        for column in range(max_column + 1, target_column + 1):
+            table.tableColumns.append(
+                TableColumn(
+                    id=len(table.tableColumns) + 1,
+                    name=str(worksheet.cell(row=1, column=column).value or ""),
+                )
+            )
         table.ref = (
             f"{get_column_letter(min_column)}{min_row}:"
-            f"{get_column_letter(max_column)}{max(max_row, new_row)}"
+            f"{get_column_letter(target_column)}{max(max_row, new_row)}"
         )
+        if table.autoFilter:
+            table.autoFilter.ref = table.ref
 
 
-def process_workbook(path: Path) -> tuple[int, int, int]:
+def process_workbook(path: Path, found_on: str = "") -> tuple[int, int, int]:
     keep_vba = path.suffix.casefold() == ".xlsm"
     workbook = load_workbook(path, keep_vba=keep_vba)
     applications = get_or_create_sheet(workbook, "Applications", APPLICATION_HEADERS)
@@ -300,9 +272,10 @@ def process_workbook(path: Path) -> tuple[int, int, int]:
                 scraper = parse_job_with_browser
             result = scraper(link)
             result = enrich_source_tracking(result, link)
+            result["found_on"] = found_on
             status = result_status(result)
             if status != "Error":
-                append_application(applications, result, link)
+                append_application(applications, result, link, found_on)
                 known_links.add(link)
                 processed += 1
             else:
@@ -325,13 +298,17 @@ def process_workbook(path: Path) -> tuple[int, int, int]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Process pending job links from Excel.")
     parser.add_argument("workbook", help="Path to the .xlsx or .xlsm tracker workbook")
+    parser.add_argument("--found-on", default="", help="Where you found these jobs")
     args = parser.parse_args()
+    found_on = args.found_on.strip()
+    if not found_on and sys.stdin.isatty():
+        found_on = input("Where did you find these jobs? (for example, LinkedIn): ").strip()
     workbook_path = Path(args.workbook).expanduser().resolve()
     if not workbook_path.exists():
         print(f"I could not find that workbook: {workbook_path}")
         return 1
 
-    processed, duplicates, errors = process_workbook(workbook_path)
+    processed, duplicates, errors = process_workbook(workbook_path, found_on)
     print(f"Done. Added: {processed}. Duplicates: {duplicates}. Errors: {errors}.")
     return 0 if errors == 0 else 2
 

@@ -65,6 +65,23 @@
             <span>Date applied</span>
             <input id="appliedDate" type="date">
           </label>
+          <label class="date-field source-field" for="foundOnSource">
+            <span>Found on</span>
+            <select id="foundOnSource">
+              <option value="">Choose before scraping</option>
+              <option>LinkedIn</option>
+              <option>Indeed</option>
+              <option>Built In NYC</option>
+              <option>Hiring Cafe</option>
+              <option>Google Jobs</option>
+              <option>Glassdoor</option>
+              <option>Handshake</option>
+              <option>ZipRecruiter</option>
+              <option>Company Website</option>
+              <option>Other</option>
+              <option>Not sure</option>
+            </select>
+          </label>
           <div class="validation-message" id="validationMessage" role="status"></div>
         </div>
         <div class="input-primary-actions">
@@ -136,8 +153,8 @@
             <input id="manualSalary" name="salary" type="text" placeholder="n/a">
           </label>
           <label>
-            <span>Application portal</span>
-            <input id="manualApplicationPortal" name="application_portal" type="text" placeholder="Detected from job link">
+            <span>Found on</span>
+            <input id="manualFoundOn" name="found_on" type="text" placeholder="e.g. LinkedIn">
           </label>
           <label class="manual-link">
             <span>Job link</span>
@@ -241,7 +258,8 @@
               <th scope="col">Location</th>
               <th scope="col">Work type</th>
               <th scope="col" id="salaryColumnHeading">Salary</th>
-              <th scope="col">Application portal</th>
+              <th scope="col">Found on</th>
+              <th scope="col">Job ID</th>
               <th scope="col" class="actions-column"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
@@ -323,7 +341,8 @@
                 <th scope="col">Location</th>
                 <th scope="col">Work type</th>
                 <th scope="col">Salary</th>
-                <th scope="col">Application portal</th>
+                <th scope="col">Found on</th>
+                <th scope="col">Job ID</th>
                 <th scope="col" class="actions-column"><span class="sr-only">Actions</span></th>
               </tr>
             </thead>

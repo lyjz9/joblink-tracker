@@ -2,7 +2,7 @@
 
 ## Linc Does Not Open
 
-Linc runs only while its local launcher is open. If `http://127.0.0.1:5050/`
+Linc runs only while its local launcher is open. If `http://127.0.0.1:5051/`
 does not open, first double-click `Open_Linc_Beta.vbs` from this project folder
 and wait a few seconds for the Linc window to appear.
 

@@ -10,12 +10,12 @@ The build creates `Linc-v0.1.0-Windows.zip`. Extract it, open the `Linc` folder,
 
 The executable:
 
-1. Starts the local app at `http://127.0.0.1:5050`.
+1. Starts the local app at `http://127.0.0.1:5051`.
 2. Opens Linc in the default browser.
 3. Shows a small window with **Open Linc** and **Stop** buttons.
 4. Stops Linc when that window closes.
 
-Linc always uses port `5050` so the Chrome capture extension knows where to send a page. If another program already uses that port, the launcher explains the conflict and stops.
+Linc always uses port `5051` so the Chrome capture extension knows where to send a page. If another program already uses that port, the launcher explains the conflict and stops.
 
 ## Build In GitHub Without Docker
 
@@ -87,5 +87,5 @@ Before sharing a desktop build:
 4. Scrape one current company career-page link.
 5. Download a new tracker and open it in Excel.
 6. Upload the starter template and update it with one reviewed result.
-7. Close the control window and confirm port `5050` is released.
+7. Close the control window and confirm port `5051` is released.
 8. Start the executable a second time and confirm it opens normally.

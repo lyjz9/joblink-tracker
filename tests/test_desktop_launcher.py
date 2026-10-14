@@ -6,6 +6,10 @@ from pathlib import Path
 import desktop_launcher
 
 
+def test_desktop_launcher_opens_the_beta_port():
+    assert desktop_launcher.APP_URL == "http://127.0.0.1:5051"
+
+
 def test_desktop_environment_uses_local_app_data_and_bundled_browser(tmp_path):
     env = {"LOCALAPPDATA": str(tmp_path)}
 

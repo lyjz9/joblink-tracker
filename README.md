@@ -234,7 +234,7 @@ The portable Windows build works without Python. Double-click `Linc.exe` and it 
 
 Developers who already have the project environment can still double-click `Open_Linc_Beta.vbs` during local development.
 
-- The browser opens at `http://127.0.0.1:5050`.
+- The browser opens at `http://127.0.0.1:5051`.
 - Choose the date applied, paste up to 20 job links, select `Get job details`, fix anything that looks wrong, and save the results to Excel.
 - Use `Original`, `Hourly`, or `Yearly` above the results table. Adjust `Hours/week` for part-time roles; Linc keeps the scraped salary and uses the selected format when saving to Excel.
 - `Clear links` only clears the pasted links. Use row checkboxes, `Clear selected`, or a row remove button to remove results.

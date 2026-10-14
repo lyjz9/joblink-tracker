@@ -91,6 +91,16 @@ The failure was reproduced with the Broadridge Workday posting:
 - Changes were committed and pushed as `c306b49` on
   `agent/retire-discovery-tracking`.
 
+## 2026-10-14 Beta Launcher Port
+
+The user reported that opening Linc Beta landed on port `5050` instead of the
+currently tested app on `5051`. `desktop_launcher.py` had `5050` hard-coded;
+both local servers were responding, so it kept opening the older instance.
+Port `5051` is now the desktop launcher's stable local port. Keep the Chrome
+capture extension host permissions and request URL, Flask capture CORS origins,
+README, desktop-beta guide, and troubleshooting URL aligned to `5051`. The
+desktop launcher has a focused test asserting its app URL.
+
 ## Immediate State At Session End
 
 The 2026-08-17 Greenhouse and Lever regression pass is complete locally:
@@ -316,7 +326,7 @@ The earlier extraction pass is also complete and pushed:
   - ATC: `New York, United States`, `Onsite`
   - Elios AI: `United States`, `Remote`
 
-The local desktop app is running at `http://127.0.0.1:5050/`. Discovery source
+The local desktop app is running at `http://127.0.0.1:5051/`. Discovery source
 and application portal are now separate throughout scraping, History, manual
 entry, browser capture, and Excel. Before building the public release
 candidate, the user still needs to choose the final product name and approve a
@@ -586,7 +596,7 @@ is moved to shared storage such as Redis.
 
 ### Desktop and documentation
 
-- One-click Windows launcher at `127.0.0.1:5050`.
+- One-click Windows launcher at `127.0.0.1:5051`.
 - Existing-instance and port-conflict handling.
 - Tkinter control window with Open and Stop actions.
 - Local desktop logs currently under `%LOCALAPPDATA%\Linc\logs`; decide whether
@@ -683,9 +693,9 @@ behavior change must be traced through all of them.
 ## Important Ports
 
 - Source Flask server: `http://127.0.0.1:5000`
-- Windows desktop launcher: `http://127.0.0.1:5050`
+- Windows desktop launcher: `http://127.0.0.1:5051`
 - Chrome capture extension: currently sends only to the local app server on
-  `5050`
+  `5051`
 - Hosted container: uses `PORT`, with the current container default documented
   separately
 
@@ -764,7 +774,7 @@ For the one-click development launcher:
 python desktop_launcher.py
 ```
 
-It opens on port `5050`.
+It opens on port `5051`.
 
 In a restricted Codex shell, use a unique workspace-owned pytest temp folder if
 the default `%TEMP%\pytest-of-jzeng` directory is inaccessible:
@@ -1009,7 +1019,7 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   recoverable public job URL. Do not invent a replacement; keep the original
   link and surface the limitation for manual review.
 - **The running Flask app can serve stale code and templates:** After backend
-  or template changes, identify the exact process listening on port `5050`,
+  or template changes, identify the exact process listening on port `5051`,
   restart only that project process, and confirm `/health` starts with a fresh
   in-memory queue before live QA. A browser refresh cannot reload Python code
   in a `--no-reload` Flask process.
@@ -1089,7 +1099,7 @@ user explicitly selects it.
 8. Verify the header Tracker panel can select a workbook before scraping, then
    test new export and existing `.xlsx` and `.xlsm` updates.
 9. Verify History survives an app restart and can restore and delete a row.
-10. Confirm closing the app releases port `5050`, then start it again.
+10. Confirm closing the app releases port `5051`, then start it again.
 11. Only after those checks, create tag `v0.1.0` and a human release note.
 
 ### Phase 2: Run a small private beta

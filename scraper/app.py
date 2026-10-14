@@ -478,8 +478,8 @@ def _capture_response(payload, status=200):
     response.status_code = status
     origin = request.headers.get('Origin', '')
     allowed_local_origins = {
-        'http://127.0.0.1:5050',
-        'http://localhost:5050',
+        'http://127.0.0.1:5051',
+        'http://localhost:5051',
         'http://127.0.0.1:5000',
         'http://localhost:5000',
     }

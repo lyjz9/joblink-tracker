@@ -16,7 +16,7 @@ import webbrowser
 
 APP_NAME = "Linc"
 HOST = "127.0.0.1"
-PORT = 5050
+PORT = 5051
 APP_URL = f"http://{HOST}:{PORT}"
 _DESKTOP_LOG_STREAM = None
 
@@ -133,7 +133,7 @@ def show_existing_app() -> int:
 def show_port_error() -> int:
     show_message(
         "showerror",
-        "Linc needs local port 5050, but another program is using it. Close that program and try again.",
+        "Linc needs local port 5051, but another program is using it. Close that program and try again.",
     )
     return 1
 

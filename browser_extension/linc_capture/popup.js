@@ -266,7 +266,7 @@ async function capturePage() {
       func: readFullJobPage,
     });
 
-    const response = await fetch('http://127.0.0.1:5050/api/capture-page', {
+    const response = await fetch('http://127.0.0.1:5051/api/capture-page', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(page.result),

@@ -46,6 +46,8 @@ const elements = {
   links: document.querySelector('#jobLinks'),
   appliedDate: document.querySelector('#appliedDate'),
   foundOnSource: document.querySelector('#foundOnSource'),
+  foundOnOtherWrap: document.querySelector('#foundOnOtherWrap'),
+  foundOnOther: document.querySelector('#foundOnOther'),
   counter: document.querySelector('#linkCounter'),
   validation: document.querySelector('#validationMessage'),
   extract: document.querySelector('#extractButton'),
@@ -158,6 +160,12 @@ function selectedAppliedDate() {
 
 function trackedJob(job) {
   return normalizeJobSources(job || {});
+}
+
+function selectedFoundOn() {
+  return elements.foundOnSource.value === 'Other'
+    ? elements.foundOnOther.value.trim()
+    : elements.foundOnSource.value.trim();
 }
 
 function missingValue(value) {
@@ -964,12 +972,13 @@ function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
 async function processLinks() {
   const urls = validateInput();
   if (!urls.length || state.processing) return;
-  const foundOn = elements.foundOnSource.value === 'Other'
-    ? window.prompt('Where did you find these jobs?')?.trim()
-    : elements.foundOnSource.value.trim();
+  const foundOn = selectedFoundOn();
   if (!foundOn) {
-    elements.validation.textContent = 'Choose where you found these jobs before scraping.';
-    elements.foundOnSource.focus();
+    const needsCustomValue = elements.foundOnSource.value === 'Other';
+    elements.validation.textContent = needsCustomValue
+      ? 'Type where you found these jobs before scraping.'
+      : 'Choose where you found these jobs before scraping.';
+    (needsCustomValue ? elements.foundOnOther : elements.foundOnSource).focus();
     return;
   }
   const plan = [];
@@ -1510,7 +1519,7 @@ function manualJobFromForm() {
     work_type: elements.manualWorkType.value || 'n/a',
     salary: elements.manualSalary.value.trim() || 'n/a',
     follow_up: '',
-    found_on: elements.manualFoundOn.value.trim() || elements.foundOnSource.value.trim(),
+    found_on: elements.manualFoundOn.value.trim() || selectedFoundOn(),
     confidence: 'Manual',
     confidence_score: 100,
     manual: true,
@@ -1565,6 +1574,16 @@ elements.links.addEventListener('input', (event) => {
 elements.links.addEventListener('paste', handleLinksPaste);
 elements.links.addEventListener('keydown', handleLinksHistoryShortcut);
 elements.extract.addEventListener('click', processLinks);
+function syncFoundOnOtherField() {
+  const needsCustomValue = elements.foundOnSource.value === 'Other';
+  elements.foundOnOtherWrap.hidden = !needsCustomValue;
+}
+
+elements.foundOnSource.addEventListener('change', () => {
+  syncFoundOnOtherField();
+  if (elements.foundOnSource.value === 'Other') elements.foundOnOther.focus();
+});
+syncFoundOnOtherField();
 if (elements.cancelJob) elements.cancelJob.addEventListener('click', cancelActiveJob);
 elements.download.addEventListener('click', downloadExcel);
 elements.appendWorkbook.addEventListener('click', appendToWorkbook);

@@ -379,6 +379,7 @@ textarea::placeholder { color: #968b8f; }
 }
 
 .source-field select { width: 190px; }
+.source-other-field input { width: 190px; }
 
 .date-field input:focus,
 .date-field select:focus {
@@ -1148,7 +1149,8 @@ tbody tr:hover { background: #fff7f3; }
   .add-menu-popover { right: auto; left: 0; width: min(310px, calc(100vw - 28px)); }
   .date-field input,
   .date-field select,
-  .source-field select { width: 100%; }
+  .source-field select,
+  .source-other-field input { width: 100%; }
   .results-heading { grid-template-columns: 1fr; }
   .filter-tabs {
     grid-column: auto;

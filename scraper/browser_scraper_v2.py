@@ -325,6 +325,7 @@ def _unavailable_page_error(text):
         'the job you are looking for is no longer available',
         'this position is no longer available',
         'this posting is no longer available',
+        'this job was removed',
         'this position has been filled',
         'job posting has expired',
         'this vacancy has now expired',
@@ -1092,7 +1093,8 @@ def _looks_generic_company(value):
     low = _clean_company(value).lower()
     return low in {
         '', 'n/a', 'none', 'job', 'jobs', 'app', 'embed', 'careers',
-        'monster', 'wellfound', 'jooble', 'naukri', 'talents', 'useparallel',
+        'hiringcafe', 'hiring cafe', 'monster', 'wellfound', 'jooble',
+        'naukri', 'talents', 'useparallel',
         'ziprecruiter', 'all departments',
     }
 
@@ -1871,6 +1873,36 @@ def _extract_url_hints(url, platform=''):
             hints['location'] = _extract_location_from_url(url)
             hints['job_title'] = _title_from_slug(re.sub(r'-\d+$', '', parts[index + 2]))
     return hints
+
+
+def _hiringcafe_company_from_url(url, job_title):
+    parsed = urlparse(url)
+    parts = [unquote(part) for part in parsed.path.split('/') if part]
+    if (
+        parsed.netloc.lower().removeprefix('www.') != 'hiringcafe.com'
+        or len(parts) < 2
+        or parts[0].casefold() != 'job'
+    ):
+        return ''
+
+    slug = re.sub(r'-[a-z0-9]{12,}$', '', parts[1], flags=re.I)
+    tokens = [token.casefold() for token in slug.split('-') if token]
+    state_match = _state_match_ending_at(tokens, len(tokens))
+    if not state_match:
+        return ''
+    state_start, _, _ = state_match
+    city = _city_words_before(tokens, state_start)
+    company_end = state_start - len(city)
+    prefix = tokens[:company_end]
+    title_tokens = [
+        token.casefold()
+        for token in re.split(r'[^A-Za-z0-9]+', str(job_title or ''))
+        if token
+    ]
+    if not title_tokens or prefix[:len(title_tokens)] != title_tokens:
+        return ''
+    company_tokens = prefix[len(title_tokens):]
+    return _company_from_slug('-'.join(company_tokens)) if company_tokens else ''
 
 
 def _apply_url_hints(data, url):
@@ -2693,6 +2725,8 @@ def _extract_from_soup(soup, url, original_url=None):
         not visible_is_only_work_type or not _clean_location(data.get('location', ''))
     ):
         data['location'] = visible_labeled_location
+    if host == 'hiringcafe.com' and url_hints.get('location'):
+        data['location'] = url_hints['location']
     if not _extract_salary(data.get('salary', '')):
         labeled_plain_salary = _extract_labeled_plain_salary(salary_text, data.get('location', ''))
         if labeled_plain_salary:
@@ -2722,6 +2756,13 @@ def _extract_from_soup(soup, url, original_url=None):
         data['work_type'] = page_work_type
     if locked_site_work_type_na:
         data['work_type'] = ''
+    if host == 'hiringcafe.com':
+        company_hint = _hiringcafe_company_from_url(
+            original_url,
+            data.get('job_title', ''),
+        )
+        if company_hint:
+            url_hints['company'] = company_hint
     if not data['company']:
         data['company'] = _extract_company_from_text(full_text, platform)
     if not data['company']:

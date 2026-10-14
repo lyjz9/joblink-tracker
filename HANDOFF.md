@@ -907,10 +907,28 @@ run from source. Do not promise packaged macOS/Linux builds yet.
   browser-side normalization used for restored sessions and manual rows. A
   recognized host must replace a generic `Company Website` fallback from an
   earlier extraction pass.
-- **Hiring Cafe can mislabel locations:** Its job pages may expose `Remote` or
-  `Hybrid` as location text. For a `/job/...-city-state-id` link, use the
-  trailing city/state slug only when the extracted location is a work-type
-  label; do not overwrite a genuine page location.
+- **Hiring Cafe pages can mix job data with recommendations:** Derive company
+  from the job slug after matching the extracted title, and prefer the slug's
+  city/state over nearby recommendation locations. The Hometap Boston posting
+  otherwise returned generic `Hiringcafe` and a Worcester recommendation.
+  Still keep `Remote` or `Hybrid` as work type rather than location.
+- **Other source names should be explicit:** When the user selects `Other`,
+  show a text box and use the entered label as Found On for both batch scraping
+  and manual entry. Validate it before submission and restore the field if the
+  browser restores the `Other` selection.
+- **Expired Built In pages can retain cached job content:** Treat the visible
+  `This job was removed` message as unavailable even if stale page content
+  contains plausible job fields. Verified the Data Science Analyst link
+  (`builtinnyc.com/job/data-analyst/10804121`) now returns unavailable rather
+  than a false Ready row.
+- **Additional live link checks on 2026-10-14:** HiringCafe Hometap now
+  resolves to Hometap / Business Operations Analyst / Boston, MA; Ulta Beauty
+  resolves to Mobile, AL; Lever Nomad Marketing resolves to New York City, NY;
+  the Fanatics Collectibles Greenhouse URL is expired. A browser workflow test
+  confirmed a custom `University newsletter` Found On label is retained on a
+  Nomad result. These checks complement the earlier Broadridge Workday check.
+  Focused regression tests passed (4 passed); Python compilation, JavaScript
+  syntax, and `git diff --check` passed. The full suite was not run.
 - **Workday can list several offices:** Prefer a listed New York location and
   choose the recognized city nearest NYC. Keep multiple locations from being
   joined into one fake place.

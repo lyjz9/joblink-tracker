@@ -13,6 +13,8 @@ from scraper.browser_scraper_v2 import (
     _detect_platform,
     _direct_html_result,
     _extract_from_soup,
+    _extract_url_hints,
+    _hiringcafe_company_from_url,
     _extract_wellfound_salary,
     _extract_work_type,
     _greenhouse_api_result,
@@ -875,6 +877,10 @@ def test_ashby_job_not_found_page_is_unavailable():
             "https://careers.pnc.com/global/en/job/R224938/Operations-Associate",
             "The job you are trying to apply for is currently unavailable.",
         ),
+        (
+            "https://www.builtinnyc.com/job/data-analyst/10804121",
+            "Sorry, this job was removed at 01:27 p.m. (EST) on Monday, Aug 31, 2026.",
+        ),
     ),
 )
 def test_additional_expired_page_messages_are_unavailable(url, message):
@@ -886,6 +892,17 @@ def test_additional_expired_page_messages_are_unavailable(url, message):
 
     assert result["job_title"] == "n/a"
     assert result["error"] == "This job posting is no longer available."
+
+
+def test_hiringcafe_slug_uses_job_title_to_identify_company_and_location():
+    url = (
+        "https://hiringcafe.com/job/"
+        "business-operations-analyst-hometap-boston-massachusetts-"
+        "q3y3y9pl0rk2sdmy"
+    )
+
+    assert _hiringcafe_company_from_url(url, "Business Operations Analyst") == "Hometap"
+    assert _extract_url_hints(url, "company_website")["location"] == "Boston, MA"
 
 
 def test_cityjobs_uses_the_borough_in_the_url_when_page_location_is_only_us():

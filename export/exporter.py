@@ -7,7 +7,7 @@ from scraper.source_tracking import enrich_source_tracking
 
 HEADERS = [
     'Date Applied', 'Company', 'Job Title', 'Job link', 'Status', 'Location', 'Work Type',
-    'Salary Range', 'Follow-up', 'Found On', 'Job ID'
+    'Salary Range', 'Follow-up', 'Found On'
 ]
 
 
@@ -30,7 +30,6 @@ def export_jobs_to_xlsx(jobs, outdir='exports'):
             tracked.get('salary', ''),
             tracked.get('follow_up', ''),
             tracked.get('found_on', ''),
-            tracked.get('job_id', ''),
         ]
         ws.append(row)
     # auto-width (simple)

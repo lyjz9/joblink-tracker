@@ -35,12 +35,11 @@ APPLICATION_HEADERS = [
     "Salary Range",
     "Follow-up",
     "Found On",
-    "Job ID",
 ]
 
 SHEET_WIDTHS = {
     "Input": [70, 35, 24, 22, 55],
-    "Applications": [15, 26, 38, 70, 18, 28, 16, 24, 15, 22, 22, 18],
+    "Applications": [15, 26, 38, 70, 18, 28, 16, 24, 15, 22],
 }
 
 
@@ -160,7 +159,6 @@ def append_application(worksheet, result: dict, original_url: str, found_on: str
         "salary range": result.get("salary", "n/a"),
         "follow-up": follow_up,
         "found on": result.get("found_on") or found_on,
-        "job id": result.get("job_id", ""),
     }
     columns = header_map(worksheet)
     link_column = columns.get("job link")

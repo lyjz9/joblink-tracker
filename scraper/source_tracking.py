@@ -5,7 +5,6 @@ from __future__ import annotations
 from urllib.parse import urlparse
 
 from scraper.browser_scraper_v2 import _detect_platform, _source_label
-from scraper.job_metadata import extract_job_id
 
 
 PORTAL_DOMAIN_LABELS = (
@@ -93,8 +92,6 @@ def enrich_source_tracking(result: dict, url: object = "") -> dict:
     """Keep scraper metadata separate from the user's discovery source."""
     enriched = dict(result or {})
     job_url = str(url or enriched.get("job_link") or "").strip()
-    if not enriched.get("job_id"):
-        enriched["job_id"] = extract_job_id(job_url)
     enriched["found_on"] = " ".join(str(enriched.get("found_on") or "").split())[:100]
     legacy_source = enriched.get("source", "")
     portal = normalize_source_label(enriched.get("application_portal"))

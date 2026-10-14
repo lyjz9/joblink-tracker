@@ -24,7 +24,6 @@ CANONICAL_HEADERS = [
     "Salary Range",
     "Follow-up",
     "Found On",
-    "Job ID",
 ]
 
 HEADER_ALIASES = {
@@ -38,7 +37,6 @@ HEADER_ALIASES = {
     "Salary Range": {"salaryrange", "salary", "pay", "compensation"},
     "Follow-up": {"followup", "followupdate", "followupdate"},
     "Found On": {"foundon", "discoveredon", "foundthrough"},
-    "Job ID": {"jobid", "jobidentifier", "requisitionid", "reqid"},
 }
 
 JOB_KEYS = {
@@ -52,7 +50,6 @@ JOB_KEYS = {
     "Salary Range": "salary",
     "Follow-up": "follow_up",
     "Found On": "found_on",
-    "Job ID": "job_id",
 }
 
 
@@ -251,7 +248,7 @@ def _write_job_row(worksheet, row_number: int, columns: dict[str, int], job: dic
             value = ""
         elif header in {"Company", "Job Title", "Location", "Work Type", "Salary Range"} and not value:
             value = "n/a"
-        elif header in {"Found On", "Job ID"} and not value:
+        elif header == "Found On" and not value:
             value = ""
         worksheet.cell(row=row_number, column=column, value=value)
 
@@ -342,7 +339,6 @@ def _tidy_columns(worksheet, columns: dict[str, int]) -> None:
         "Location": 28,
         "Work Type": 14,
         "Found On": 22,
-        "Job ID": 18,
     }
     for header, width in preferred.items():
         column = columns.get(header)

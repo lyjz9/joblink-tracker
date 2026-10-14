@@ -235,7 +235,6 @@ Sub AppendJsonToApplications(ws As Worksheet, json As String, originalLink As St
     SetCellByHeader ws, rowNumber, "Salary Range", ParseJSONKey(json, "salary")
     SetCellByHeader ws, rowNumber, "Follow-up", followUp
     SetCellByHeader ws, rowNumber, "Found On", foundOn
-    SetCellByHeader ws, rowNumber, "Job ID", ParseJSONKey(json, "job_id")
 End Sub
 
 Function FindFirstEmptyApplicationRow(ws As Worksheet, linkColumn As Long) As Long
@@ -404,7 +403,6 @@ Sub WriteParsedFieldsToRow(r As Range, json As String, foundOn As String)
     WriteToHeader r, "Work Type", vWorkType
     WriteToHeader r, "Salary Range", vSalary
     WriteToHeader r, "Found On", foundOn
-    WriteToHeader r, "Job ID", ParseJSONKey(json, "job_id")
 End Sub
 
 Sub WriteToHeader(r As Range, headerName As String, value As String)

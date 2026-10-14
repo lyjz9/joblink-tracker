@@ -79,6 +79,11 @@ The 2026-08-17 Greenhouse and Lever regression pass is complete locally:
   existing session row does not update itself. Identify and restart only the
   verified project processes, confirm `/health`, then retry or rescrape the
   affected row through the running `/scrape` endpoint.
+- A local Flask server launched from the restricted coding sandbox can serve
+  the UI but fail every external posting request with
+  `ERR_NETWORK_ACCESS_DENIED`. Run the local app in a network-enabled user
+  process when verifying live scraping; do not mistake the sandbox restriction
+  for a parser regression.
 - Final live app verification returned Fanatics Collectibles with New York,
   Onsite, and `$115,000 - $143,750`; Nomad Marketing returned
   `New York City, NY`, Hybrid, and `$62,500 - $65,000 a year`.
@@ -86,9 +91,9 @@ The 2026-08-17 Greenhouse and Lever regression pass is complete locally:
   user-facing `Application Portal` field. Ask for one source per web scrape
   batch, preserve it in each result and History row, and allow row-level edits.
   Keep inferred ATS metadata internal for reliability scoring.
-- Extract `Job ID` from the posting URL when possible and write it to matching
-  Excel columns. The user's workbook has `Found On`, `Current Stage`, and
-  `Job ID`; map `Current Stage` to Status and preserve its other sheets.
+- The user removed the `Job ID` tracker field. Do not display or export it.
+  The user's workbook has `Found On` and `Current Stage`; map `Current Stage`
+  to Status and preserve its other sheets.
 - For Workday postings with multiple locations, choose a listed New York
   location nearest New York City when the city is recognized. Normalize
   Broadridge company variants to `Broadridge`.
@@ -293,7 +298,7 @@ The main workflow is:
 3. Paste up to 20 individual job-posting links.
 4. Select where the batch was found, then scrape links in a bounded background
    queue.
-5. Review company, title, location, work type, salary, Found On, and Job ID.
+5. Review company, title, location, work type, salary, and Found On.
 6. Correct uncertain fields inline or add a row manually.
 7. Use the header Tracker panel to download a new tracker or update an
    existing `.xlsx` or `.xlsm` tracker.
@@ -328,7 +333,6 @@ Keep these 11 fields compatible across every Excel workflow:
 8. Salary Range
 9. Follow-up
 10. Found On
-11. Job ID
 
 There is no Description, AI Notes, or Skills column. The user explicitly
 removed those fields.
@@ -352,8 +356,6 @@ removed those fields.
 - `follow_up` must be blank by default. Do not fill it with a future date.
 - `found_on` is selected by the user for a scrape batch and can be corrected on
   individual rows. Preserve it in History and Excel.
-- `job_id` is extracted from the original posting URL when it has a
-  recognizable identifier, including Workday requisitions and common ATS IDs.
 - Keep `source` and `application_portal` internal for reliability scoring and
   compatibility only. Do not display or export them as user-facing fields.
 - Preserve the original posting URL in `job_link`.
@@ -427,9 +429,8 @@ The results table has `Original`, `Hourly`, and `Yearly` modes.
 - Prefer an `Applications` sheet, but support other sheets with recognizable
   header aliases.
 - Add missing recognized headers rather than rebuilding the workbook.
-- Existing `Found On` and `Job ID` columns are populated when present. Add
-  missing columns without rewriting old `Source` or `Application Portal`
-  columns in uploaded workbooks.
+- Existing `Found On` columns are populated when present. Do not add or
+  populate a Job ID column; preserve existing unrelated columns untouched.
 - Support duplicate modes `skip` and `update`.
 - Use the first real empty application row; do not append after large amounts
   of formatting-only empty space.
@@ -441,10 +442,10 @@ selected original workbook. Browsers without that API receive an updated
 downloaded copy and leave the original unchanged. Do not promise in-place
 editing in every browser.
 
-The user has explicitly restored discovery source as `Found On`. Keep it
-separate from internal application-platform metadata. Ask for it before each
-web-app scrape batch, store it in History, and write it to Excel. Include `Job
-ID` in the UI and workbook output when a recognizable ID can be extracted.
+The user has explicitly restored discovery source as `Found On` and removed
+the Job ID tracker field. Keep Found On separate from internal application
+platform metadata, ask for it before each web-app scrape batch, store it in
+History, and write it to Excel. Do not display or export Job ID.
 
 ## What Has Been Completed
 
@@ -587,8 +588,6 @@ is moved to shared storage such as Redis.
     deletion, and `/api/history` routes.
 - `scraper/source_tracking.py`
   - Internal application-platform normalization and compatibility metadata.
-- `scraper/job_metadata.py`
-  - Job ID extraction from common posting URL formats.
 - `scraper/errors.py`, `scraper/logging_config.py`
   - Central error and logging behavior.
 

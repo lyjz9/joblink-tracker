@@ -495,7 +495,6 @@ function render() {
         <td>${editableCell(job, 'work_type')}</td>
         <td data-field="salary">${salaryCell(job)}</td>
         <td>${foundOnCell(job)}</td>
-        <td>${editableCell(job, 'job_id')}</td>
         <td>
           <div class="row-actions">
             <button class="icon-button retry-row" type="button" title="Retry extraction" aria-label="Retry extraction">${icon('rotate-cw')}</button>
@@ -642,7 +641,6 @@ function renderHistory() {
         <td>${escapeHtml(job.work_type || 'n/a')}</td>
         <td>${escapeHtml(job.salary || 'n/a')}</td>
         <td>${escapeHtml(job.found_on || 'n/a')}</td>
-        <td>${escapeHtml(job.job_id || 'n/a')}</td>
         <td>
           ${jobLink ? `<a class="icon-button" href="${escapeHtml(jobLink)}" target="_blank" rel="noopener noreferrer" title="Open job posting" aria-label="Open job posting">${icon('external-link')}</a>` : ''}
         </td>

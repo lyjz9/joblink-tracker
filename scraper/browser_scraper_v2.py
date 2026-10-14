@@ -834,6 +834,8 @@ def _clean_company(value):
         value = internal_code.group('name').strip()
     if re.search(r'\b(?:MS\s+Smith\s+Barney|Morgan\s+Stanley)\b', value, flags=re.I):
         return 'Morgan Stanley'
+    if re.search(r'\bBroadridge\b', value, flags=re.I):
+        return 'Broadridge'
     known = {
         'broadridge': 'Broadridge',
         'broadridge broadridge': 'Broadridge',

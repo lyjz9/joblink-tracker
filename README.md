@@ -9,7 +9,7 @@
 
 Linc is a small local app I built because copying the same details from job postings into Excel gets old fast.
 
-Paste job links, choose where you found them, and Linc fills in the details people usually track by hand: company, job title, location, work type, salary, and job ID. Review the results before adding them to your tracker.
+Paste job links, choose where you found them, and Linc fills in the details people usually track by hand: company, job title, location, work type, and salary. Review the results before adding them to your tracker.
 
 I made it with students, new grads, and anyone juggling a long application list in mind.
 
@@ -34,7 +34,6 @@ Linc handles the repetitive part and leaves the judgment to you. Nothing goes in
 
 - Pull company, job title, location, salary, and work type from job posting links.
 - Record where you found each job so you can compare which sources lead to responses.
-- Extract the job ID from the posting link when it is available.
 - Save results in an Excel-friendly application tracker format.
 - Work through up to 20 links in the background while showing progress and letting you cancel.
 - Keep a searchable job history on your computer and restore earlier results when you need them.
@@ -53,7 +52,7 @@ Linc handles the repetitive part and leaves the judgment to you. Nothing goes in
 For reference, the template already contains these columns. You do not need to copy and paste them:
 
 ```text
-Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary Range, Follow-up, Found On, Job ID
+Date Applied, Company, Job Title, Job link, Status, Location, Work Type, Salary Range, Follow-up, Found On
 ```
 
 ## Setup
@@ -270,7 +269,6 @@ Capture gives Linc more page text to work with, but it can still make mistakes. 
 - Site reliability labels are a quick heads-up: `Good` is usually clean, `Okay` deserves a look, and `Limited` often needs capture or manual edits.
 - Captured rows may show suggested values under fields; selecting one replaces the current value.
 - `Found On` is the source you select before scraping. It is saved with each result and can be edited in the results table.
-- `Job ID` is taken from the job link when the posting includes a recognizable identifier, such as `JR1086459`.
 - Work Type should be Remote, Hybrid, Onsite, or n/a. A successfully identified posting defaults to Onsite when no work type is stated; errors and incomplete rows keep n/a.
 - Salary should show n/a when no trustworthy salary is found.
 

@@ -548,9 +548,10 @@ def _oracle_candidate_experience_result(url):
             continue
         prompt = _clean_value(field.get('Prompt', '')).lower()
         if any(term in prompt for term in ('salary', 'pay', 'compensation', 'wage', 'rate')):
-            salary = _extract_contextual_salary(str(field.get('Value') or '')) or _extract_salary(
-                str(field.get('Value') or '')
-            )
+            field_value = str(field.get('Value') or '')
+            salary = _extract_contextual_salary(field_value) or _extract_salary(field_value)
+            if salary and 'base' in prompt:
+                salary = _infer_oracle_base_pay_period(salary)
             if salary:
                 break
     data.update({
@@ -1366,6 +1367,22 @@ def _salary_has_period(value):
         value or '',
         flags=re.I,
     ))
+
+
+def _infer_oracle_base_pay_period(value):
+    """Add a pay period only when Oracle base-pay amounts strongly imply one."""
+    salary = normalize_salary_display(value)
+    if not salary or _salary_has_period(salary):
+        return salary
+
+    amounts = _salary_numeric_values(salary)
+    if not amounts:
+        return salary
+    if min(amounts) >= 10000:
+        return normalize_salary_display(f'{salary}/yr')
+    if min(amounts) >= 10 and max(amounts) < 1000:
+        return normalize_salary_display(f'{salary}/hr')
+    return salary
 
 
 def _salary_has_range(value):

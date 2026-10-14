@@ -101,6 +101,19 @@ capture extension host permissions and request URL, Flask capture CORS origins,
 README, desktop-beta guide, and troubleshooting URL aligned to `5051`. The
 desktop launcher has a focused test asserting its app URL.
 
+## 2026-10-14 Oracle Salary Period
+
+The JPMorgan Oracle posting `210796412` exposed `Base Pay/Salary` as
+`New York,NY $25.00-$32.69` without a period. The result was misleadingly
+shown as `$25.00 - $32.69`. Oracle base-pay fields now infer `/hr` only when
+all parsed amounts are between 10 and 999, and `/yr` when all are at least
+10,000. Existing explicit periods are preserved, and intermediate/ambiguous
+amounts remain unannotated. The exact live posting now returns
+`$25.00 - $32.69/hr`. Focused Oracle salary tests passed; run
+`tests/test_scraper_regressions.py -k oracle` and
+`tests/test_field_normalization.py` for verification. This is a conservative
+amount-based heuristic scoped to Oracle fields explicitly labeled Base Pay.
+
 ## Immediate State At Session End
 
 The 2026-08-17 Greenhouse and Lever regression pass is complete locally:

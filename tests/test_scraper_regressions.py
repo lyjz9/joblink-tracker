@@ -494,6 +494,62 @@ def test_oracle_candidate_experience_api_returns_official_job_fields(monkeypatch
     assert result["source"] == "Company Website"
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("$25.00 - $32.69", "$25.00 - $32.69/hr"),
+        ("$65,500 - $102,500", "$65,500 - $102,500/yr"),
+        ("$1,800 - $4,500", "$1,800 - $4,500"),
+        ("$25.00 - $32.69 annually", "$25.00 - $32.69 annually"),
+    ],
+)
+def test_oracle_base_pay_period_inference_is_conservative(value, expected):
+    from scraper.browser_scraper_v2 import _infer_oracle_base_pay_period
+
+    assert _infer_oracle_base_pay_period(value) == expected
+
+
+def test_oracle_jpmc_base_pay_field_infers_hourly_period(monkeypatch):
+    url = "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210796412"
+    page_html = '''
+        <html><head>
+          <base href="/en/sites/CX_1001"
+                data-apibaseurl="https://jpmc.fa.oraclecloud.com"
+                data-sitenumber="CX_1001">
+        </head></html>
+    '''
+    payload = {"items": [{
+        "Title": "Private Client Banker - Broadway and 144th St - New York, NY",
+        "PrimaryLocation": "New York, NY, United States",
+        "requisitionFlexFields": [{
+            "Prompt": "Base Pay/Salary",
+            "Value": "New York,NY $25.00-$32.69",
+        }],
+    }]}
+
+    class PageResponse:
+        status_code = 200
+        text = page_html
+
+    class ApiResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return payload
+
+    monkeypatch.setattr(
+        "scraper.browser_scraper_v2.safe_requests_get",
+        lambda request_url, **_kwargs: (
+            ApiResponse() if "recruitingCEJobRequisitionDetails" in request_url else PageResponse()
+        ),
+    )
+
+    result = _oracle_candidate_experience_result(url)
+
+    assert result["salary"] == "$25.00 - $32.69/hr"
+
+
 def test_oracle_candidate_page_uses_tenant_brand_instead_of_shell_title(monkeypatch):
     url = (
         "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/"

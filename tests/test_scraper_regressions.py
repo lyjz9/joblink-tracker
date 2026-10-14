@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from bs4 import BeautifulSoup
 
+from scraper.field_normalization import normalize_salary_display
 from scraper.browser_scraper_v2 import (
     _blocked_page_error,
     _clean_title,
@@ -441,7 +442,7 @@ def test_greenhouse_api_decodes_escaped_salary_markup(monkeypatch):
         "https://job-boards.greenhouse.io/fanaticscollectibles/jobs/4363369009"
     )
 
-    assert result["salary"] == "$115,000 - $143,750"
+    assert result["salary"] == "$115,000 - $143,750/yr"
 
 
 def test_oracle_candidate_experience_api_returns_official_job_fields(monkeypatch):
@@ -504,9 +505,7 @@ def test_oracle_candidate_experience_api_returns_official_job_fields(monkeypatch
     ],
 )
 def test_oracle_base_pay_period_inference_is_conservative(value, expected):
-    from scraper.browser_scraper_v2 import _infer_oracle_base_pay_period
-
-    assert _infer_oracle_base_pay_period(value) == expected
+    assert normalize_salary_display(value) == expected
 
 
 def test_oracle_jpmc_base_pay_field_infers_hourly_period(monkeypatch):
@@ -1008,7 +1007,7 @@ def test_ashby_hourly_label_preserves_the_pay_period():
     assert result["job_title"] == "Quantitative Analyst Intern"
     assert result["location"] == "New York, NY"
     assert result["work_type"] == "Onsite"
-    assert result["salary"] == "$20 - $35 per hour"
+    assert result["salary"] == "$20 - $35/hr"
 
 
 def test_visible_careers_title_beats_stale_jsonld_title():
@@ -1042,7 +1041,7 @@ def test_visible_careers_title_beats_stale_jsonld_title():
     assert result["job_title"] == "Operations - Intern - 12 month"
     assert result["location"] == "New York, NY"
     assert result["work_type"] == "Hybrid"
-    assert result["salary"] == "$29.50"
+    assert result["salary"] == "$29.50/hr"
     assert result["source"] == "Company Website"
 
 
@@ -1084,7 +1083,7 @@ def test_workday_prefers_labeled_primary_location_and_salary():
     assert result["company"] == "Citi"
     assert result["location"] == "Getzville, NY"
     assert result["work_type"] == "Hybrid"
-    assert result["salary"] == "$55,341.00 - $68,270.00"
+    assert result["salary"] == "$55,341.00 - $68,270.00/yr"
 
 
 def test_workday_api_uses_public_location_and_remote_type(monkeypatch):
@@ -1131,7 +1130,7 @@ def test_workday_api_uses_public_location_and_remote_type(monkeypatch):
     assert result["location"] == "New York, NY"
     assert result["company"] == "Great American Insurance Group"
     assert result["work_type"] == "Hybrid"
-    assert result["salary"] == "$70,000.00"
+    assert result["salary"] == "$70,000.00/yr"
 
 
 def test_workday_api_removes_internal_hiring_organization_code(monkeypatch):
@@ -1430,7 +1429,7 @@ def test_explicit_base_salary_beats_total_compensation_range():
         _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
     )
 
-    assert result["salary"] == "$100,000 - $125,000"
+    assert result["salary"] == "$100,000 - $125,000/yr"
     assert result["work_type"] == "Onsite"
 
 
@@ -1530,7 +1529,7 @@ def test_workday_cleans_internal_fields_and_reads_plain_us_compensation():
     assert result["company"] == "Newrez"
     assert result["job_title"] == "Associate Growth & Commercial Strategy Analyst"
     assert result["location"] == "New York, NY"
-    assert result["salary"] == "$60,800.00 - $99,960.00"
+    assert result["salary"] == "$60,800.00 - $99,960.00/yr"
     assert result["work_type"] == "Onsite"
 
 
@@ -1565,7 +1564,7 @@ def test_visible_lockton_location_and_workplace_override_broad_schema():
 
     assert result["location"] == "New York City, NY"
     assert result["work_type"] == "Hybrid"
-    assert result["salary"] == "$70,000 - $73,000"
+    assert result["salary"] == "$70,000 - $73,000/yr"
 
 
 def test_conditional_remote_policy_is_not_treated_as_remote_work_type():
@@ -1613,7 +1612,7 @@ def test_credit_agricole_uses_canonical_brand_and_ignores_footer_policy():
     assert result["company"] == "Crédit Agricole CIB"
     assert result["location"] == "New York, United States"
     assert result["work_type"] == "Onsite"
-    assert result["salary"] == "$80K"
+    assert result["salary"] == "$80K/yr"
 
 
 def test_capgemini_reads_scoped_plain_number_compensation_range():
@@ -1647,7 +1646,7 @@ def test_capgemini_reads_scoped_plain_number_compensation_range():
     )
 
     assert result["location"] == "New York, United States"
-    assert result["salary"] == "$60,000 - $65,000"
+    assert result["salary"] == "$60,000 - $65,000/yr"
     assert result["source"] == "Company Website"
 
 
@@ -1747,7 +1746,7 @@ def test_wellfound_visible_range_beats_a_single_structured_salary_endpoint():
         _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
     )
 
-    assert result["salary"] == "$45k - $95k"
+    assert result["salary"] == "$45k - $95k/yr"
 
 
 def test_wellfound_header_salary_does_not_need_a_salary_label():
@@ -1758,7 +1757,7 @@ def test_wellfound_header_salary_does_not_need_a_salary_label():
         "Similar role $90k - $105k"
     )
 
-    assert _extract_wellfound_salary(text) == "$50k - $125k"
+    assert _extract_wellfound_salary(text) == "$50k - $125k/yr"
 
 
 def test_wellfound_browser_text_beats_a_similar_job_salary_in_page_html():
@@ -1784,7 +1783,7 @@ def test_wellfound_browser_text_beats_a_similar_job_salary_in_page_html():
         _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
     )
 
-    assert result["salary"] == "$50k - $125k"
+    assert result["salary"] == "$50k - $125k/yr"
 
 
 def test_wellfound_single_direct_salary_waits_for_the_rendered_page(monkeypatch):
@@ -1835,7 +1834,7 @@ def test_inline_labeled_location_overrides_truncated_page_location():
     assert result["job_title"] == "Operations Analyst Accounts Payable"
     assert result["location"] == "New York, NY"
     assert result["work_type"] == "Onsite"
-    assert result["salary"] == "$45,125 - $75,208"
+    assert result["salary"] == "$45,125 - $75,208/yr"
 
 
 def test_hiring_cafe_url_location_replaces_a_generic_work_type_label():

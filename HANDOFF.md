@@ -101,18 +101,21 @@ capture extension host permissions and request URL, Flask capture CORS origins,
 README, desktop-beta guide, and troubleshooting URL aligned to `5051`. The
 desktop launcher has a focused test asserting its app URL.
 
-## 2026-10-14 Oracle Salary Period
+## 2026-10-14 Cross-Site Salary Period
 
 The JPMorgan Oracle posting `210796412` exposed `Base Pay/Salary` as
 `New York,NY $25.00-$32.69` without a period. The result was misleadingly
-shown as `$25.00 - $32.69`. Oracle base-pay fields now infer `/hr` only when
-all parsed amounts are between 10 and 999, and `/yr` when all are at least
-10,000. Existing explicit periods are preserved, and intermediate/ambiguous
-amounts remain unannotated. The exact live posting now returns
-`$25.00 - $32.69/hr`. Focused Oracle salary tests passed; run
-`tests/test_scraper_regressions.py -k oracle` and
-`tests/test_field_normalization.py` for verification. This is a conservative
-amount-based heuristic scoped to Oracle fields explicitly labeled Base Pay.
+shown as `$25.00 - $32.69`. Period inference is now shared in display
+normalization, so it applies consistently across supported job sites rather
+than only Oracle. Infer `/hr` for amounts from 10 through 999 and `/yr` for
+amounts of 10,000 or more; amounts in between remain unannotated. Do not
+override explicit units. Require currency, `K` shorthand, a comma-grouped
+amount, or an explicit annual/hourly label before inferring low numeric
+amounts. The exact live JPMorgan posting returned `$25.00 - $32.69/hr` before
+the rule was generalized. Parser and salary-normalization suites passed after
+updating cross-site expectations. The full suite has unrelated existing
+failures in source-tracking, workbook/history, and the Node source-tracking
+wrapper; do not mix those fixes into salary work without a separate request.
 
 ## Immediate State At Session End
 

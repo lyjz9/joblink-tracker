@@ -30,7 +30,7 @@ def test_location_display_normalization(value, expected):
     (
         ("Base pay range $20.00/hr - $25.00/hr", "$20.00/hr - $25.00/hr"),
         ("Salary range: $70,000 - $85,000 per year", "$70,000 - $85,000 per year"),
-        ("Annual base salary: USD 80,000 - USD 95,000", "USD 80,000 - USD 95,000"),
+        ("Annual base salary: USD 80,000 - USD 95,000", "USD 80,000 - USD 95,000/yr"),
         ("Pay: $24 - $28 per hour", "$24 - $28 per hour"),
         ("USD $20.00/hr - $25.00/hr", "USD $20.00/hr - $25.00/hr"),
         ("Base pay is competitive", ""),
@@ -40,14 +40,14 @@ def test_location_display_normalization(value, expected):
         ("Base pay range $20 - $20 per hour", "$20 per hour"),
         ("$20.00/hr - $20/hr", "$20.00/hr"),
         ("$70,000 - $70,000 per year", "$70,000 per year"),
-        ("20K - 20K", "20K"),
+        ("20K - 20K", "20K/yr"),
         ("USD $20/hour - USD $20/hour", "USD $20/hour"),
         ("$20/hour - $25/hour", "$20/hour - $25/hour"),
         ("$20/hour - $20/year", "$20/hour - $20/year"),
         ("USD $20/hour - CAD $20/hour", "USD $20/hour - CAD $20/hour"),
-        ("$70,000-$73,000", "$70,000 - $73,000"),
+        ("$70,000-$73,000", "$70,000 - $73,000/yr"),
         ("$64,350 and $89,600 per year", "$64,350 - $89,600 per year"),
-        ("$60K to $90K", "$60K - $90K"),
+        ("$60K to $90K", "$60K - $90K/yr"),
         ("$23- $25 per hour", "$23 - $25 per hour"),
     ),
 )
@@ -71,6 +71,30 @@ def test_public_results_normalize_location_and_salary(clean_result):
     assert result["location"] == "New York, NY"
     assert result["work_type"] == "Onsite"
     assert result["salary"] == "$20.00/hr - $25.00/hr"
+
+
+@pytest.mark.parametrize(
+    "clean_result",
+    (_public_result, _public_scrape_result),
+    ids=("browser_result", "shared_result"),
+)
+@pytest.mark.parametrize(
+    ("salary", "expected"),
+    (
+        ("$25.00 - $32.69", "$25.00 - $32.69/hr"),
+        ("$70,000 - $85,000", "$70,000 - $85,000/yr"),
+        ("$1,800 - $4,500", "$1,800 - $4,500"),
+    ),
+)
+def test_public_results_infer_only_clear_salary_periods(clean_result, salary, expected):
+    result = clean_result({
+        "company": "Example Company",
+        "job_title": "Operations Analyst",
+        "location": "New York, NY",
+        "salary": salary,
+    })
+
+    assert result["salary"] == expected
 
 
 @pytest.mark.parametrize(

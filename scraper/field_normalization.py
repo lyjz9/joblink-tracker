@@ -55,6 +55,16 @@ _EQUAL_SALARY_RANGE_RE = re.compile(
     r'(?P<trailing>\s*(?:\([^)]*\))?\s*)$',
     re.IGNORECASE,
 )
+_SINGLE_SALARY_RE = re.compile(
+    r'^(?:(?:USD|CAD|AUD|GBP|EUR|JPY|INR)\s*[$\u00a3\u20ac\u00a5\u20b9]?|'
+    r'[$\u00a3\u20ac\u00a5\u20b9])?\s*'
+    r'(?P<amount>\d+(?:,\d{3})*(?:\.\d+)?)'
+    r'(?P<scale>\s*[kK])?'
+    r'(?P<unit>\s*(?:(?:per\s+|/\s*|an?\s*)'
+    r'(?:year|yr|hour|hr|annum|week|wk)))?'
+    r'(?:\s*\([^)]*\))?$',
+    re.IGNORECASE,
+)
 _CURRENCY_ALIASES = {
     '$': '$',
     '\u00a3': 'GBP',
@@ -108,12 +118,55 @@ def normalize_salary_display(value):
 
     prefix = _SALARY_PREFIX_RE.match(text)
     if not prefix:
-        return _collapse_equal_salary_range(text)
+        return _infer_salary_period(_collapse_equal_salary_range(text))
 
     amount = text[prefix.end():].strip(' :|-\u2013\u2014')
     if not amount or not _SALARY_AMOUNT_RE.search(amount):
         return ''
-    return _collapse_equal_salary_range(amount)
+    return _infer_salary_period(_collapse_equal_salary_range(amount), context=prefix.group(0))
+
+
+def _infer_salary_period(value, context=''):
+    """Infer only clearly hourly or annual standalone salary amounts/ranges."""
+    text = str(value or '').strip()
+    if not text:
+        return text
+
+    match = _EQUAL_SALARY_RANGE_RE.fullmatch(text)
+    if match:
+        amounts = [
+            _scaled_amount(match.group('left_amount'), match.group('left_scale')),
+            _scaled_amount(match.group('right_amount'), match.group('right_scale')),
+        ]
+        units = (match.group('left_unit'), match.group('right_unit'))
+    else:
+        match = _SINGLE_SALARY_RE.fullmatch(text)
+        if not match:
+            return text
+        amounts = [_scaled_amount(match.group('amount'), match.group('scale'))]
+        units = (match.group('unit'),)
+
+    if any(units):
+        return text
+    if re.search(r'\b(?:annual(?:ized)?|yearly)\b', context, flags=re.I):
+        return f'{text}/yr'
+    if re.search(r'\bhourly\b', context, flags=re.I):
+        return f'{text}/hr'
+    if not re.search(r'[$\u00a3\u20ac\u00a5\u20b9]|\b\d[\d,.]*\s*[kK]\b', text):
+        if max(amounts) < 1000:
+            return text
+    if min(amounts) >= 10000:
+        return f'{text}/yr'
+    if min(amounts) >= 10 and max(amounts) < 1000:
+        return f'{text}/hr'
+    return text
+
+
+def _scaled_amount(value, scale):
+    amount = Decimal(value.replace(',', ''))
+    if scale and scale.strip().lower() == 'k':
+        return amount * 1000
+    return amount
 
 
 def default_unspecified_work_type(value, result):

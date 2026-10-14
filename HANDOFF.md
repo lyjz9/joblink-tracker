@@ -1,6 +1,6 @@
 # Job Tracker Project Development Handoff
 
-Last updated: 2026-08-17
+Last updated: 2026-10-14
 
 This document is for a new development session with no prior conversation
 context. Read it before changing code. The repository is the source of truth if
@@ -13,10 +13,12 @@ anything here later becomes stale.
 - Current repository label: `Linc`, but the user has explicitly rejected it as
   the final product name.
 - Current version target: **v0.1.0 beta**
-- Current branch: `main`
+- Current branch: `agent/retire-discovery-tracking`
 - Latest code commit before this handoff update:
-  `bc4d566` (`Update workbook handoff guidance`)
+  `c306b49` (`Remove Job ID tracker field`)
 - Recent focused commits:
+  - `c306b49` (`Remove Job ID tracker field`)
+  - `84a70d1` (`Add source and job ID tracking`)
   - `bc4d566` (`Update workbook handoff guidance`)
   - `81ead37` (`Improve cross-site scraper accuracy`)
   - `f592ef7` (`Move discovery choice into result rows`)
@@ -53,6 +55,41 @@ desktop data paths, workbook filenames, and release artifacts.
 The user wants every completed change committed and pushed to GitHub. Keep each
 commit focused, explain what changed in plain language, and do not include
 unrelated files.
+
+## 2026-10-14 Scraper Recovery And Tracker Update
+
+The user reported that scraping no longer worked and asked to remove Job ID.
+The failure was reproduced with the Broadridge Workday posting:
+
+- `POST /api/jobs` accepted the link, but the browser navigation failed with
+  `net::ERR_NETWORK_ACCESS_DENIED` and the UI showed a generic unreadable-page
+  error. The Flask app launched inside the restricted coding sandbox could
+  serve HTML and API requests but could not make outbound requests to job
+  boards. This was an execution-environment/network restriction, not a parser
+  regression.
+- Restarting the app in a network-enabled user process restored outbound
+  access. Do not diagnose a scraper regression from a sandbox-launched server;
+  verify `/health`, then retry one known public posting from the network-enabled
+  process. Do not terminate an unverified existing app process to switch ports.
+- Retrying the exact posting succeeded. Final fields included company
+  `Broadridge`, title `Product Analyst - Virtual Events and Shareholder
+  Meetings`, location `Edgewood, NY`, work type `Hybrid`, and salary
+  `$90,000 - $115,000`.
+- The company string initially included an internal code and legal name
+  (`22-3844417 Broadridge Investor Comm Solutions Inc`). Normalize a detected
+  Broadridge brand to `Broadridge` in `_clean_company`.
+- Job ID was removed from the visible results and History tables, result
+  metadata, History serialization/search, tracker exports, VBA, README, and
+  starter workbook. The starter Applications table now has ten columns ending
+  in `Found On`. Existing user-uploaded workbooks are preserved: a pre-existing
+  Job ID column is not filled in or deleted as an unrelated workbook column.
+- Legacy Job ID values inside old History JSON are omitted when entries are
+  returned. The local database may retain its prior column for compatibility.
+- Verification: Python compile checks, JavaScript syntax checks, `git diff
+  --check`, app health/UI checks, History search, and a live retry of the
+  Broadridge posting passed. The full automated suite was not run.
+- Changes were committed and pushed as `c306b49` on
+  `agent/retire-discovery-tracking`.
 
 ## Immediate State At Session End
 

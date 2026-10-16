@@ -19,6 +19,7 @@ RELIABILITY = {
     'breezy': ('Good', 'Breezy usually makes the job details easy to read.'),
     'smartrecruiters': ('Good', 'SmartRecruiters usually provides clean job data.'),
     'dayforce': ('Good', 'Dayforce usually provides clean structured job data.'),
+    'statejobsny': ('Good', 'StateJobsNY provides labeled agency, worksite, and salary fields.'),
     'company_website': ('Good', 'The company career page is usually the best source.'),
     'linkedin': ('Okay', 'LinkedIn may hide work type and salary from its public page. A signed-in browser capture can read visible tags.'),
     'indeed': ('Okay', 'Indeed often works, but locations can pick up extra words.'),
@@ -57,7 +58,7 @@ def _quality_issues(result):
         issues.append('location_looks_like_work_type')
     if company.lower() in {
         'early career', 'careers', 'jobs', 'job', 'app', 'embed', 'talent',
-        'recruiting', 'monster', 'wellfound', 'jooble', 'naukri', 'talents',
+        'recruiting', 'statejobsny', 'monster', 'wellfound', 'jooble', 'naukri', 'talents',
         'useparallel', 'upwork', 'linkedin', 'indeed', 'glassdoor',
         'ziprecruiter', 'simplyhired', 'dice',
     }:

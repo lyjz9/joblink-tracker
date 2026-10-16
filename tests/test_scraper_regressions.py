@@ -14,6 +14,7 @@ from scraper.browser_scraper_v2 import (
     _detect_platform,
     _direct_html_result,
     _extract_from_soup,
+    _extract_salary,
     _extract_url_hints,
     _hiringcafe_company_from_url,
     _extract_wellfound_salary,
@@ -28,6 +29,39 @@ from scraper.browser_scraper_v2 import (
     _visible_page_text,
     _workday_api_result,
 )
+
+
+@pytest.mark.parametrize(("text", "expected"), (
+    ("Weekly pay: $500 - $750", "$500 - $750 per week"),
+    ("Monthly salary: $12,000 - $15,000", "$12,000 - $15,000 per month"),
+    ("Daily rate: $300 - $400", "$300 - $400 per day"),
+    ("Annual salary of $500 - $750", "$500 - $750 per year"),
+    ("Hourly rate: $1,000 - $1,500", "$1,000 - $1,500 per hour"),
+    ("Salary: $12,000 - $15,000 per month", "$12,000 - $15,000 per month"),
+))
+def test_explicit_salary_period_wins_over_amount_based_inference(text, expected):
+    assert _extract_salary(text) == expected
+
+
+@pytest.mark.parametrize("description", (
+    "Salary: $12,000 - $15,000 per month.",
+    "Monthly base salary: $12,000 - $15,000.",
+))
+def test_visible_monthly_pay_period_enriches_a_unitless_structured_salary(description):
+    posting = {
+        "@context": "https://schema.org", "@type": "JobPosting",
+        "title": "Data Analyst", "hiringOrganization": {"name": "Example Company"},
+        "jobLocation": {"address": {"addressLocality": "New York", "addressRegion": "NY"}},
+        "baseSalary": "$12,000 - $15,000",
+    }
+    html = (
+        f'<html><head><script type="application/ld+json">{json.dumps(posting)}</script></head>'
+        f'<body><main>{description}</main></body></html>'
+    )
+
+    result = _public_result(_extract_from_soup(BeautifulSoup(html, "html.parser"), "https://example.com/jobs/123"))
+
+    assert result["salary"] == "$12,000 - $15,000 per month"
 
 
 REGRESSION_CASES = (
@@ -1007,7 +1041,7 @@ def test_ashby_hourly_label_preserves_the_pay_period():
     assert result["job_title"] == "Quantitative Analyst Intern"
     assert result["location"] == "New York, NY"
     assert result["work_type"] == "Onsite"
-    assert result["salary"] == "$20 - $35/hr"
+    assert result["salary"] == "$20 - $35 per hour"
 
 
 def test_visible_careers_title_beats_stale_jsonld_title():
@@ -1429,7 +1463,7 @@ def test_explicit_base_salary_beats_total_compensation_range():
         _extract_from_soup(BeautifulSoup(html, "html.parser"), url)
     )
 
-    assert result["salary"] == "$100,000 - $125,000/yr"
+    assert result["salary"] == "$100,000 - $125,000 per year"
     assert result["work_type"] == "Onsite"
 
 
@@ -1757,7 +1791,7 @@ def test_wellfound_header_salary_does_not_need_a_salary_label():
         "Similar role $90k - $105k"
     )
 
-    assert _extract_wellfound_salary(text) == "$50k - $125k/yr"
+    assert _extract_wellfound_salary(text) == "$50k - $125k"
 
 
 def test_wellfound_browser_text_beats_a_similar_job_salary_in_page_html():

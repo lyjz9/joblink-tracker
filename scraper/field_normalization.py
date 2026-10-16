@@ -20,7 +20,7 @@ _LOCATION_CONNECTORS = frozenset({'AND', 'OF', 'THE'})
 _LOCATION_WORD_RE = re.compile(r"[^\W\d_]+(?:['\u2019][^\W\d_]+)*", re.UNICODE)
 _SALARY_PREFIX_RE = re.compile(
     r'^\s*(?:the\s+)?'
-    r'(?:(?:estimated|expected|annual|annualized|hourly|starting|total)\s+)*'
+    r'(?:(?:estimated|expected|annual|annualized|hourly|weekly|monthly|daily|starting|total)\s+)*'
     r'(?:base\s+)?'
     r'(?:salary|pay|compensation|wage|rate)'
     r'(?:\s+(?:range|rate))?'
@@ -36,22 +36,24 @@ _SALARY_AMOUNT_RE = re.compile(
     r'|(?:\b\d[\d,.]*\s*(?:-|\u2013|\u2014|to)\s*\d[\d,.]*\b)',
     re.IGNORECASE,
 )
+_SALARY_UNIT_PATTERN = (
+    r'(?:(?:per\s+|/\s*|an?\s+)(?:year|yr|hour|hr|annum|week|wk|month|mo|day)'
+    r'|annual(?:ly)?|yearly|hourly|weekly|monthly|daily)'
+)
 _EQUAL_SALARY_RANGE_RE = re.compile(
     r'^(?P<left_currency>'
     r'(?:(?:USD|CAD|AUD|GBP|EUR|JPY|INR)\s*[$\u00a3\u20ac\u00a5\u20b9]?'
     r'|[$\u00a3\u20ac\u00a5\u20b9])\s*)?'
     r'(?P<left_amount>\d+(?:,\d{3})*(?:\.\d+)?)'
     r'(?P<left_scale>\s*[kK])?'
-    r'(?P<left_unit>\s*(?:(?:per\s+|/\s*|an?\s+)'
-    r'(?:year|yr|hour|hr|annum|week|wk)))?'
+    rf'(?P<left_unit>\s*{_SALARY_UNIT_PATTERN})?'
     r'\s*(?P<separator>-|\u2013|\u2014|\bto\b|\band\b)\s*'
     r'(?P<right_currency>'
     r'(?:(?:USD|CAD|AUD|GBP|EUR|JPY|INR)\s*[$\u00a3\u20ac\u00a5\u20b9]?'
     r'|[$\u00a3\u20ac\u00a5\u20b9])\s*)?'
     r'(?P<right_amount>\d+(?:,\d{3})*(?:\.\d+)?)'
     r'(?P<right_scale>\s*[kK])?'
-    r'(?P<right_unit>\s*(?:(?:per\s+|/\s*|an?\s+)'
-    r'(?:year|yr|hour|hr|annum|week|wk)))?'
+    rf'(?P<right_unit>\s*{_SALARY_UNIT_PATTERN})?'
     r'(?P<trailing>\s*(?:\([^)]*\))?\s*)$',
     re.IGNORECASE,
 )
@@ -60,8 +62,7 @@ _SINGLE_SALARY_RE = re.compile(
     r'[$\u00a3\u20ac\u00a5\u20b9])?\s*'
     r'(?P<amount>\d+(?:,\d{3})*(?:\.\d+)?)'
     r'(?P<scale>\s*[kK])?'
-    r'(?P<unit>\s*(?:(?:per\s+|/\s*|an?\s*)'
-    r'(?:year|yr|hour|hr|annum|week|wk)))?'
+    rf'(?P<unit>\s*{_SALARY_UNIT_PATTERN})?'
     r'(?:\s*\([^)]*\))?$',
     re.IGNORECASE,
 )
@@ -110,20 +111,22 @@ def normalize_location_display(value):
     )
 
 
-def normalize_salary_display(value):
+def normalize_salary_display(value, *, infer_period=True):
     """Remove a leading salary label while preserving the quoted amount and unit."""
     text = re.sub(r'\s+', ' ', str(value or '')).strip()
     if not text:
         return ''
 
     prefix = _SALARY_PREFIX_RE.match(text)
-    if not prefix:
-        return _infer_salary_period(_collapse_equal_salary_range(text))
-
-    amount = text[prefix.end():].strip(' :|-\u2013\u2014')
-    if not amount or not _SALARY_AMOUNT_RE.search(amount):
-        return ''
-    return _infer_salary_period(_collapse_equal_salary_range(amount), context=prefix.group(0))
+    amount = text
+    if prefix:
+        amount = text[prefix.end():].strip(' :|-\u2013\u2014')
+        if not amount or not _SALARY_AMOUNT_RE.search(amount):
+            return ''
+    amount = _collapse_equal_salary_range(amount)
+    if not infer_period:
+        return amount
+    return _infer_salary_period(amount, context=prefix.group(0) if prefix else '')
 
 
 def _infer_salary_period(value, context=''):
@@ -152,6 +155,9 @@ def _infer_salary_period(value, context=''):
         return f'{text}/yr'
     if re.search(r'\bhourly\b', context, flags=re.I):
         return f'{text}/hr'
+    for label, period in (('weekly', 'week'), ('monthly', 'month'), ('daily', 'day')):
+        if re.search(rf'\b{label}\b', context, flags=re.I):
+            return f'{text} per {period}'
     if not re.search(r'[$\u00a3\u20ac\u00a5\u20b9]|\b\d[\d,.]*\s*[kK]\b', text):
         if max(amounts) < 1000:
             return text
@@ -253,7 +259,7 @@ def _currency_key(value):
 
 def _unit_key(value):
     match = re.search(
-        r'\b(year|yr|annum|hour|hr|week|wk)\b',
+        r'\b(year|yr|annum|annual|annually|yearly|hour|hr|hourly|week|wk|weekly|month|mo|monthly|day|daily)\b',
         str(value or ''),
         flags=re.IGNORECASE,
     )
@@ -264,6 +270,14 @@ def _unit_key(value):
         'annum': 'year',
         'hr': 'hour',
         'wk': 'week',
+        'mo': 'month',
+        'annual': 'year',
+        'annually': 'year',
+        'yearly': 'year',
+        'hourly': 'hour',
+        'weekly': 'week',
+        'monthly': 'month',
+        'daily': 'day',
     }.get(match.group(1).lower(), match.group(1).lower())
 
 

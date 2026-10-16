@@ -50,6 +50,7 @@ JOB_BOARDS = {
     'upwork': ['upwork.com'],
     'simplyhired': ['simplyhired.com'],
     'dice': ['dice.com'],
+    'statejobsny': ['statejobsny.com', 'statejobs.ny.gov'],
     'greenhouse': ['greenhouse.io', 'greenhouse.com', 'boards.greenhouse.io'],
     'lever': ['lever.co', 'jobs.lever.co'],
     'workday': ['myworkdayjobs.com', 'wd1.myworkdayjobs.com', 'wd3.myworkdayjobs.com', 'wd5.myworkdayjobs.com'],
@@ -73,6 +74,7 @@ SOURCE_LABELS = {
     'upwork': 'Upwork',
     'simplyhired': 'SimplyHired',
     'dice': 'Dice',
+    'statejobsny': 'StateJobsNY',
     'greenhouse': 'Greenhouse',
     'lever': 'Lever',
     'workday': 'Workday',
@@ -213,12 +215,12 @@ LOCATION_RE = re.compile(
 )
 SALARY_RE = re.compile(
     r'(?:Base pay range\s*)?(?:USD\s*)?\$\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)?'
-    r'\s*(?:per\s+|/|an?\s+)(?:year|yr|hour|hr|annum|week|wk)'
+    r'\s*(?:per\s+|/|an?\s+)(?:year|yr|hour|hr|annum|week|wk|month|mo|day)'
     r'\s*(?:-|\u2013|\u2014|to|and)\s*(?:USD\s*)?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\+?\s*(?:k|K)?'
-    r'\s*(?:per\s+|/|an?\s+)(?:year|yr|hour|hr|annum|week|wk)'
+    r'\s*(?:per\s+|/|an?\s+)(?:year|yr|hour|hr|annum|week|wk|month|mo|day)'
     r'|(?:Base pay range\s*)?(?:USD\s*)?\$\s*\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)?'
     r'(?:\s*(?:-|\u2013|\u2014|to|and)\s*(?:USD\s*)?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\+?\s*(?:k|K)?)?'
-    r'(?:\s*(?:(?:per|/|an?)\s*(?:year|yr|hour|hr|annum|week|wk)|annual(?:ly)?|yearly))?'
+    r'(?:\s*(?:(?:per|/|an?)\s*(?:year|yr|hour|hr|annum|week|wk|month|mo|day)|annual(?:ly)?|yearly|hourly|weekly|monthly|daily))?'
     r'|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\s*(?:-|\u2013|\u2014|to|and)\s*'
     r'\d+(?:,\d{3})*(?:\.\d+)?\s*(?:k|K)\b'
     r'|\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:-|\u2013|\u2014|to|and)\s*'
@@ -244,11 +246,11 @@ def _empty_result(url, platform='company_website'):
 
 
 def _detect_platform(url, soup=None):
-    host = urlparse(url).netloc.lower()
+    host = (urlparse(url).hostname or '').lower()
     if any(host == domain or host.endswith('.' + domain) for domain in COMPANY_HOST_OVERRIDES):
         return 'company_website'
     for board, domains in JOB_BOARDS.items():
-        if any(domain in host for domain in domains):
+        if any(host == domain or host.endswith('.' + domain) for domain in domains):
             return board
     if soup:
         html = str(soup)[:200000].lower()
@@ -330,6 +332,7 @@ def _unavailable_page_error(text):
         'job posting has expired',
         'this vacancy has now expired',
         'vacancy has expired',
+        'the vacancy you are looking for does not exist',
         'job you are trying to apply for is currently unavailable',
         'job you are trying to view is currently unavailable',
         'this job is currently unavailable',
@@ -1075,7 +1078,7 @@ def _looks_generic_title(value):
         'digitalhire', 'tal healthcare', "let's confirm you are human",
         'just a moment...', 'job', 'job details', 'search jobs', 'jobs', 'sign up',
         'job search', 'job not found', 'position not found', 'opportunity not found',
-        'current openings', 'all jobs',
+        'current openings', 'all jobs', 'review vacancy',
         'are you still with us?',
         'work summary',
         'where intelligence works',
@@ -1092,7 +1095,7 @@ def _looks_generic_company(value):
     low = _clean_company(value).lower()
     return low in {
         '', 'n/a', 'none', 'job', 'jobs', 'app', 'embed', 'careers',
-        'hiringcafe', 'hiring cafe', 'monster', 'wellfound', 'jooble',
+        'hiringcafe', 'hiring cafe', 'statejobsny', 'monster', 'wellfound', 'jooble',
         'naukri', 'talents', 'useparallel',
         'ziprecruiter', 'all departments',
     }
@@ -1293,50 +1296,54 @@ def _extract_salary(text):
 
 
 def _salary_match_value(text, match):
-    salary = normalize_salary_display(_clean_value(match.group(0)))
-    if not salary or re.search(
-        r'(?:\b(?:per|an?)\s+(?:year|yr|hour|hr|annum|week|wk)\b|'
-        r'/(?:year|yr|hour|hr|week|wk)\b|'
-        r'\b(?:annual(?:ly)?|yearly|hourly|weekly)\b)',
-        salary,
-        flags=re.I,
-    ):
+    salary = normalize_salary_display(_clean_value(match.group(0)), infer_period=False)
+    if not salary or _salary_has_period(salary):
         return salary
 
     before = text[max(0, match.start() - 80):match.start()]
     after = text[match.end():match.end() + 50]
     periods = (
         (
-            r'\bhourly(?:\s+(?:pay|rate|salary|compensation))?\s*[:\-]?\s*$',
+            r'\bhourly(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?(?:\s+range)?\s*(?:is|of|:|-)?\s*$',
             r'^\s*(?:per\s+hour|/\s*(?:hr|hour)|hourly)\b',
             'per hour',
         ),
         (
-            r'\b(?:annual(?:ized)?|yearly)(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?\s*[:\-]?\s*$',
+            r'\b(?:annual(?:ized)?|yearly)(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?(?:\s+range)?\s*(?:is|of|:|-)?\s*$',
             r'^\s*(?:per\s+year|/\s*(?:yr|year)|annual(?:ly)?|yearly)\b',
             'per year',
         ),
         (
-            r'\bweekly(?:\s+(?:pay|rate|salary|compensation))?\s*[:\-]?\s*$',
+            r'\bweekly(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?(?:\s+range)?\s*(?:is|of|:|-)?\s*$',
             r'^\s*(?:per\s+week|/\s*(?:wk|week)|weekly)\b',
             'per week',
+        ),
+        (
+            r'\bmonthly(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?(?:\s+range)?\s*(?:is|of|:|-)?\s*$',
+            r'^\s*(?:per\s+month|/\s*(?:mo|month)|monthly)\b',
+            'per month',
+        ),
+        (
+            r'\bdaily(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?(?:\s+range)?\s*(?:is|of|:|-)?\s*$',
+            r'^\s*(?:per\s+day|/\s*day|daily)\b',
+            'per day',
         ),
     )
     for before_pattern, after_pattern, period in periods:
         if re.search(before_pattern, before, flags=re.I) or re.search(after_pattern, after, flags=re.I):
             return normalize_salary_display(f'{salary} {period}')
-    return salary
+    return normalize_salary_display(salary, infer_period=False)
 
 
 def _extract_base_salary(text):
     text = text or ''
     label = re.compile(
         r'\b(?:fixed\s+annual\s+salary|annual\s+base\s+salary|'
-        r'base\s+(?:salary|pay)(?:\s+range)?)\b',
+        r'(?:(?:hourly|weekly|monthly|daily)\s+)?base\s+(?:salary|pay)(?:\s+range)?)\b',
         flags=re.I,
     )
     for match in label.finditer(text):
-        window = re.sub(r'^\s*(?:is|of|:|-)?\s*', '', text[match.end():match.end() + 180], flags=re.I)
+        window = text[match.start():match.end() + 180]
         salary = _extract_salary(window)
         if salary:
             return salary
@@ -1359,9 +1366,9 @@ def _salary_numeric_values(value):
 
 def _salary_has_period(value):
     return bool(re.search(
-        r'(?:\b(?:per|an?)\s+(?:year|yr|hour|hr|annum|week|wk)\b|'
-        r'/(?:year|yr|hour|hr|week|wk)\b|'
-        r'\b(?:annual(?:ly)?|yearly|hourly|weekly)\b)',
+        r'(?:\b(?:per|an?)\s+(?:year|yr|hour|hr|annum|week|wk|month|mo|day)\b|'
+        r'/\s*(?:year|yr|hour|hr|week|wk|month|mo|day)\b|'
+        r'\b(?:annual(?:ly)?|yearly|hourly|weekly|monthly|daily)\b)',
         value or '',
         flags=re.I,
     ))
@@ -1376,8 +1383,8 @@ def _salary_has_range(value):
 
 
 def _salary_is_more_complete(candidate, current, *, allow_expanded_range=False):
-    candidate = normalize_salary_display(candidate)
-    current = normalize_salary_display(current)
+    candidate = normalize_salary_display(candidate, infer_period=False)
+    current = normalize_salary_display(current, infer_period=False)
     if not candidate or candidate == current:
         return False
     if not current:
@@ -1423,7 +1430,7 @@ def _extract_labeled_plain_salary(text, location=''):
         or re.search(rf'(^|[,\s-]){US_STATE}([,\s-]|$)', location_text)
     )
     currency = '$' if is_us else ''
-    return normalize_salary_display(f'{currency}{low} - {currency}{high}')
+    return normalize_salary_display(f'{currency}{low} - {currency}{high}', infer_period=False)
 
 
 def _extract_contextual_salary(text):
@@ -2563,10 +2570,87 @@ def _merge(data, candidate):
             data[key] = _clean_value(str(value))
 
 
+def _extract_statejobsny_fields(soup, url):
+    data = _empty_result(url, 'statejobsny')
+    parsed = urlparse(url)
+    vacancy_id = (parse_qs(parsed.query).get('id') or [''])[0]
+    if not parsed.path.lower().endswith('/vacancydetailsview.cfm') or not vacancy_id.isdigit():
+        data['error'] = 'This link opens a list of jobs. Open one specific posting instead.'
+        return data
+
+    page_text = _normalize_text(soup.get_text(' ', strip=True))
+    error = _unavailable_page_error(page_text[:3000]) or _blocked_page_error(page_text[:3000])
+    if error:
+        data['error'] = error
+        return data
+    details = soup.select_one('#vacancyDetails')
+    if details is None:
+        data['error'] = 'StateJobsNY vacancy details could not be read from this page.'
+        return data
+
+    def fields(section):
+        values = {}
+        for row in section.select('p.row') if section is not None else []:
+            label, value = row.select_one('.leftCol'), row.select_one('.rightCol')
+            if label is not None and value is not None:
+                key = _normalize_text(label.get_text(' ', strip=True)).strip(' :?').lower()
+                values.setdefault(key, _normalize_text(value.get_text(' ', strip=True)))
+        return values
+
+    metadata = fields(details)
+    for date_format in ('%m/%d/%y', '%m/%d/%Y'):
+        try:
+            due_date = datetime.strptime(metadata.get('applications due', ''), date_format).date()
+        except ValueError:
+            continue
+        if due_date < datetime.now().date():
+            data['error'] = 'This job posting is no longer available because its application deadline has expired.'
+            return data
+        break
+
+    basics = fields(details.select_one('#information'))
+    location = fields(details.select_one('#location'))
+    schedule = fields(details.select_one('#schedule'))
+    job = fields(details.select_one('#jobspecifics'))
+    agency = basics.get('agency', '')
+    inverted_agency = re.fullmatch(
+        r'(.+?),\s*((?:Department|Division|Office|Board|Commission|Council)\s+(?:of|for)(?:\s+the)?)',
+        agency,
+        flags=re.I,
+    )
+    if inverted_agency:
+        agency = f'{inverted_agency.group(2)} {inverted_agency.group(1)}'
+    title = re.sub(rf'\s*[-\u2013\u2014]\s*{re.escape(vacancy_id)}\s*$', '', basics.get('title', ''))
+    city, state = location.get('city', ''), location.get('state', '')
+    if city and state and not re.search(rf'\b{re.escape(state)}\s*$', city, flags=re.I):
+        city = f'{city}, {state}'
+    description = ' '.join(job.get(key, '') for key in ('duties description', 'additional comments'))
+    telecommuting = schedule.get('telecommuting allowed', '').lower()
+    work_type = _extract_explicit_work_type_statement(description)
+    if telecommuting == 'no':
+        work_type = 'Onsite'
+    elif telecommuting == 'yes' and not work_type:
+        work_type = 'Hybrid'
+    salary = _extract_salary(basics.get('salary range', ''))
+    if salary and not any(_salary_numeric_values(salary)):
+        salary = ''
+    data.update({
+        'company': _clean_company(agency),
+        'job_title': _clean_title(title, agency),
+        'location': _clean_location(city),
+        'work_type': work_type,
+        'salary': salary,
+        'description': description,
+    })
+    return data
+
+
 def _extract_from_soup(soup, url, original_url=None):
     original_url = original_url or url
     platform = _detect_platform(original_url, soup)
     source_platform = _detect_platform(original_url)
+    if source_platform == 'statejobsny':
+        return _extract_statejobsny_fields(soup, original_url)
     data = _empty_result(original_url, platform)
     url_hints = _extract_url_hints(original_url, platform)
     host = urlparse(original_url).netloc.lower().replace('www.', '')

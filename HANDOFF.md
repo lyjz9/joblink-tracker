@@ -1,6 +1,6 @@
 # Job Tracker Project Development Handoff
 
-Last updated: 2026-10-14
+Last updated: 2026-10-16
 
 This document is for a new development session with no prior conversation
 context. Read it before changing code. The repository is the source of truth if
@@ -15,8 +15,12 @@ anything here later becomes stale.
 - Current version target: **v0.1.0 beta**
 - Current branch: `agent/retire-discovery-tracking`
 - Latest code commit before this handoff update:
-  `c306b49` (`Remove Job ID tracker field`)
+  `fda94bd` (`Infer salary periods across job sites`)
 - Recent focused commits:
+  - `fda94bd` (`Infer salary periods across job sites`)
+  - `cffedda` (`Infer clear Oracle salary periods`)
+  - `95b0af6` (`Open beta app on port 5051`)
+  - `ad74eb0` (`Improve source selection and job validation`)
   - `c306b49` (`Remove Job ID tracker field`)
   - `84a70d1` (`Add source and job ID tracking`)
   - `bc4d566` (`Update workbook handoff guidance`)
@@ -55,6 +59,65 @@ desktop data paths, workbook filenames, and release artifacts.
 The user wants every completed change committed and pushed to GitHub. Keep each
 commit focused, explain what changed in plain language, and do not include
 unrelated files.
+
+## 2026-10-16 StateJobsNY And Extraction Audit
+
+Current app: `http://127.0.0.1:5051/`, reloaded with this session's code. Retry
+or rescrape an old Workspace row to replace its cached extraction. Refreshing
+alone does not replace previously saved job fields.
+
+### Fixed
+
+- The user's StateJobsNY vacancy `227112` was incorrectly marked High/Ready
+  with company `Statejobsny`, title `Review Vacancy`, and location
+  `Building City Albany, NY`. Albany was the recruiting contact's address;
+  the actual worksite is New York.
+- StateJobsNY now reads the `.leftCol`/`.rightCol` rows separately inside
+  `#information`, `#location`, `#schedule`, and `#jobspecifics`. Never use
+  `#contact`, the page heading, or the Civil Service footer as job fields.
+- Correct result: `Division of Criminal Justice Services`,
+  `Crime Analyst 1/Trainee`, `New York, NY`, `Onsite`, and
+  `$69964 - $88970 Annually`. Preserve the source's explicit annual period.
+- Reorder inverted agency labels such as `Transportation, Department of` to
+  `Department of Transportation`. Remove a trailing vacancy number from the
+  title only when it exactly matches the current URL's ID; preserve role
+  levels, grades, and other title numbers. Do not restore a Job ID column.
+- Support both `statejobsny.com` and `statejobs.ny.gov`, including public and
+  employee vacancy URLs. Internal source metadata is `StateJobsNY`; the
+  user's Found On selection is still preserved separately.
+- `Telecommuting allowed? No` means Onsite. `Yes` means Hybrid eligibility
+  unless the current job explicitly states another arrangement. Do not call
+  this fully Remote merely because telecommuting is permitted.
+- Missing agency/title/worksite fields remain missing for Review. A missing
+  worksite must never fall back to the contact city. Removed-page wording
+  `The vacancy you are looking for does not exist` is now unavailable. An
+  accessible posting with a past Applications Due date is expired too.
+- Salary inference was running too early and could override explicit nearby
+  weekly/monthly/daily/annual labels. Compare actual source periods before
+  inferring a period at the final public-result step. Shared normalization now
+  handles separators and equal endpoints with `Annually` and other spelled-out
+  periods. Monthly and daily pay are preserved explicitly.
+- Platform detection now requires a real domain boundary rather than a domain
+  name appearing anywhere inside another hostname.
+
+### Verification
+
+- Focused StateJobsNY, parser, and field-normalization suites: 169 passed.
+- Live app API: vacancies `227112`, `227059`, and `227117` returned the correct
+  agencies, titles, worksites, work types, and annual salaries. Vacancy
+  `217850` returned unavailable. The official `.ny.gov` alias also passed a
+  direct live extraction check.
+- An in-memory Excel export through the running `/export` endpoint preserved
+  company, title, worksite, salary, and Found On for all three active rows;
+  no Job ID column was added. No user workbook was modified.
+- Full suite: 253 passed, 11 failed. These are the same pre-existing failures
+  from the October 14 run: ten source/history/workbook assertions still assume
+  Found On was retired or Application Portal was exported, and the Node
+  source-tracking wrapper fails because `window` is accessed under Node.
+  Update those tests to the current ten-column tracker contract and make the
+  JS module export safe under Node in follow-up work. Do not remove Found On
+  or restore Application Portal merely to satisfy the old expectations.
+- No release, tag, merge into main, or desktop package was created.
 
 ## 2026-10-14 Scraper Recovery And Tracker Update
 
@@ -117,7 +180,10 @@ updating cross-site expectations. The full suite has unrelated existing
 failures in source-tracking, workbook/history, and the Node source-tracking
 wrapper; do not mix those fixes into salary work without a separate request.
 
-## Immediate State At Session End
+## Earlier Session Notes
+
+These entries describe earlier checks. Use the latest dated update above for
+the current runtime, test results, and outstanding work.
 
 The 2026-08-17 Greenhouse and Lever regression pass is complete locally:
 
@@ -384,7 +450,7 @@ not need any personal account data.
 
 ### Canonical tracker columns
 
-Keep these 11 fields compatible across every Excel workflow:
+Keep these 10 fields compatible across every Excel workflow:
 
 1. Date Applied
 2. Company
@@ -412,7 +478,8 @@ removed those fields.
   `Onsite`. Keep `n/a` for errors and incomplete rows.
 - Missing salary must be `n/a`.
 - Remove labels such as `Base pay range:` when a clean salary amount remains.
-- Normalize salary range separators to ` - ` without inventing a pay period.
+- Normalize salary range separators to ` - `. Preserve explicit source pay
+  periods before applying the existing conservative hourly/annual inference.
 - Collapse equal ranges such as `$20 - $20 per hour` to `$20 per hour`.
 - All-caps locations should be display-normalized while preserving abbreviations
   such as NY, NJ, NYC, USA, and EMEA.
@@ -812,9 +879,10 @@ node tests\frontend_salary_conversion.test.cjs
 
 ## Where Work Is Currently Blocked
 
-There is no hard application-code blocker. The core local beta runs and the
-automated baseline passes. The immediate product blocker is the final name;
-release validation and real-world extraction quality come next.
+The core local beta runs and the focused extraction suites pass. The full
+automated baseline still has the 11 source-tracking/history failures recorded
+in the 2026-10-16 update above. The product name, baseline cleanup, release
+validation, and real-world extraction quality remain unfinished.
 
 ### 1. The final product name is undecided
 

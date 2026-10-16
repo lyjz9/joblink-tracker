@@ -49,6 +49,12 @@ def test_location_display_normalization(value, expected):
         ("$64,350 and $89,600 per year", "$64,350 - $89,600 per year"),
         ("$60K to $90K", "$60K - $90K/yr"),
         ("$23- $25 per hour", "$23 - $25 per hour"),
+        ("$69964 to $88970 Annually", "$69964 - $88970 Annually"),
+        ("$69964 to $69964 Annually", "$69964 Annually"),
+        ("Weekly pay: $500 - $750", "$500 - $750 per week"),
+        ("Monthly salary: $12,000 - $15,000", "$12,000 - $15,000 per month"),
+        ("$12,000 to $15,000/month", "$12,000 - $15,000/month"),
+        ("Daily rate: $300 - $400", "$300 - $400 per day"),
     ),
 )
 def test_salary_display_normalization(value, expected):

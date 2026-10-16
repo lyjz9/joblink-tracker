@@ -1305,27 +1305,27 @@ def _salary_match_value(text, match):
     periods = (
         (
             r'\bhourly(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?(?:\s+range)?\s*(?:is|of|:|-)?\s*$',
-            r'^\s*(?:per\s+hour|/\s*(?:hr|hour)|hourly)\b',
+            r'^\s*\(?\s*(?:per\s+hour|/\s*(?:hr|hour)|hourly)\b',
             'per hour',
         ),
         (
             r'\b(?:annual(?:ized)?|yearly)(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?(?:\s+range)?\s*(?:is|of|:|-)?\s*$',
-            r'^\s*(?:per\s+year|/\s*(?:yr|year)|annual(?:ly)?|yearly)\b',
+            r'^\s*\(?\s*(?:per\s+year|/\s*(?:yr|year)|annual(?:ly)?|yearly)\b',
             'per year',
         ),
         (
             r'\bweekly(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?(?:\s+range)?\s*(?:is|of|:|-)?\s*$',
-            r'^\s*(?:per\s+week|/\s*(?:wk|week)|weekly)\b',
+            r'^\s*\(?\s*(?:per\s+week|/\s*(?:wk|week)|weekly)\b',
             'per week',
         ),
         (
             r'\bmonthly(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?(?:\s+range)?\s*(?:is|of|:|-)?\s*$',
-            r'^\s*(?:per\s+month|/\s*(?:mo|month)|monthly)\b',
+            r'^\s*\(?\s*(?:per\s+month|/\s*(?:mo|month)|monthly)\b',
             'per month',
         ),
         (
             r'\bdaily(?:\s+(?:base\s+)?(?:pay|rate|salary|compensation))?(?:\s+range)?\s*(?:is|of|:|-)?\s*$',
-            r'^\s*(?:per\s+day|/\s*day|daily)\b',
+            r'^\s*\(?\s*(?:per\s+day|/\s*day|daily)\b',
             'per day',
         ),
     )

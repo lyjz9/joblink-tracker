@@ -38,7 +38,7 @@ def test_source_tracking_helpers_load_before_the_application_script():
     )
 
     assert template.index("../static/source_tracking.js") < template.index("../static/app.js")
-    assert 'id="foundOn"' not in template
-    assert "Found on" not in template
-    assert "found_on" not in application
+    assert 'id="foundOnSource"' in template
+    assert 'id="foundOnOther"' in template
+    assert "found_on" in application
     assert "inferFoundOn" not in application

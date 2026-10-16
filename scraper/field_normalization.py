@@ -134,6 +134,8 @@ def _infer_salary_period(value, context=''):
     text = str(value or '').strip()
     if not text:
         return text
+    if re.search(rf'(?<![A-Za-z]){_SALARY_UNIT_PATTERN}\b', text, flags=re.I):
+        return text
 
     match = _EQUAL_SALARY_RANGE_RE.fullmatch(text)
     if match:

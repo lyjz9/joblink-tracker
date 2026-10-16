@@ -54,6 +54,7 @@ def test_append_workbook_returns_valid_xlsx(client):
         "salary": "n/a",
         "application_portal": "Workday",
         "source": "Workday",
+        "found_on": "LinkedIn",
     }]
     response = client.post(
         "/append-workbook",
@@ -77,11 +78,11 @@ def test_append_workbook_returns_valid_xlsx(client):
         if cell.value
     }
     assert "Source" not in headers
-    assert "Found On" not in headers
-    assert "Application Portal" in headers
+    assert "Found On" in headers
+    assert "Application Portal" not in headers
     row = next(
         row_number
         for row_number in range(2, worksheet.max_row + 1)
         if worksheet.cell(row_number, headers["Company"]).value == "Example Company"
     )
-    assert worksheet.cell(row, headers["Application Portal"]).value == "Workday"
+    assert worksheet.cell(row, headers["Found On"]).value == "LinkedIn"

@@ -3,7 +3,7 @@ from openpyxl import Workbook
 from process_excel_links import APPLICATION_HEADERS, ensure_headers, header_map
 
 
-def test_legacy_excel_workflow_renames_source_to_application_portal():
+def test_legacy_excel_workflow_preserves_old_columns_and_adds_found_on():
     workbook = Workbook()
     worksheet = workbook.active
     worksheet.title = "Applications"
@@ -20,5 +20,6 @@ def test_legacy_excel_workflow_renames_source_to_application_portal():
     ensure_headers(worksheet, APPLICATION_HEADERS)
     columns = header_map(worksheet)
 
-    assert "source" not in columns
-    assert worksheet.cell(2, columns["application portal"]).value == "Ashby"
+    assert worksheet.cell(2, columns["source"]).value == "LinkedIn"
+    assert "application portal" not in columns
+    assert "found on" in columns

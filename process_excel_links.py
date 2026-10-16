@@ -15,6 +15,8 @@ from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.worksheet.table import Table, TableColumn
 
 from scraper.source_tracking import enrich_source_tracking
+from scraper.security import canonical_url_key
+from export.cell_values import write_literal_cell
 
 INPUT_HEADERS = [
     "Job Link",
@@ -117,7 +119,7 @@ def existing_job_links(worksheet) -> set[str]:
         cell = worksheet.cell(row=row, column=link_column)
         link = clean_url(cell.hyperlink.target if cell.hyperlink else cell.value)
         if link:
-            links.add(link)
+            links.add(canonical_url_key(link))
     return links
 
 
@@ -203,11 +205,12 @@ def append_application(worksheet, result: dict, original_url: str, found_on: str
     for header, value in values.items():
         column = columns.get(header)
         if column:
-            worksheet.cell(row=new_row, column=column, value=value)
+            write_literal_cell(worksheet.cell(row=new_row, column=column), value)
     if link_column:
         link_cell = worksheet.cell(row=new_row, column=link_column)
-        link_cell.value = "Open job"
-        link_cell.hyperlink = original_url
+        link = result.get("job_link") or original_url
+        write_literal_cell(link_cell, link)
+        link_cell.hyperlink = link
         link_cell.style = "Hyperlink"
     for header in ("date applied", "follow-up"):
         column = columns.get(header)
@@ -257,7 +260,7 @@ def process_workbook(path: Path, found_on: str = "") -> tuple[int, int, int]:
         if not link or status.casefold() not in {"", "pending"}:
             continue
 
-        if link in known_links:
+        if canonical_url_key(link) in known_links:
             input_sheet.cell(row, input_columns["process status"], "Duplicate")
             input_sheet.cell(row, input_columns["processed at"], datetime.now())
             duplicates += 1
@@ -274,7 +277,7 @@ def process_workbook(path: Path, found_on: str = "") -> tuple[int, int, int]:
             status = result_status(result)
             if status != "Error":
                 append_application(applications, result, link, found_on)
-                known_links.add(link)
+                known_links.add(canonical_url_key(link))
                 processed += 1
             else:
                 errors += 1

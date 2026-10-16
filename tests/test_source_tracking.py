@@ -34,15 +34,16 @@ def test_application_portal_is_inferred_from_the_actual_job_url():
     ) == "Hiring Cafe"
 
 
-def test_result_uses_the_url_for_its_portal_and_removes_retired_discovery_data():
+def test_result_keeps_discovery_source_separate_from_its_application_portal():
     job = enrich_source_tracking(
         {
             "job_link": "https://jobs.ashbyhq.com/example/123",
             "source": "LinkedIn",
+            "found_on": "LinkedIn",
         }
     )
 
-    assert "found_on" not in job
+    assert job["found_on"] == "LinkedIn"
     assert job["application_portal"] == "Ashby"
     assert job["source"] == "Ashby"
 

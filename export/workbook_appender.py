@@ -11,6 +11,8 @@ from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.worksheet.table import Table, TableColumn
 
 from scraper.source_tracking import enrich_source_tracking
+from scraper.security import canonical_url_key
+from export.cell_values import write_literal_cell
 
 
 CANONICAL_HEADERS = [
@@ -81,7 +83,7 @@ def append_jobs_to_workbook(
         if link_key and link_key in existing_links:
             if duplicate_mode == "update":
                 row_number = existing_links[link_key]
-                _write_job_row(worksheet, row_number, columns, job)
+                _write_job_row(worksheet, row_number, columns, job, preserve_tracking=True)
                 updated += 1
                 last_row = max(last_row, row_number)
             else:
@@ -117,7 +119,7 @@ def _clean_text(value: object) -> str:
 
 
 def _link_key(value: object) -> str:
-    return _clean_text(value).rstrip("/").casefold()
+    return canonical_url_key(value)
 
 
 def _canonical_header(value: object) -> str | None:
@@ -235,13 +237,19 @@ def _nearest_style_row(worksheet, target_row: int, columns: dict[str, int], head
     return None
 
 
-def _write_job_row(worksheet, row_number: int, columns: dict[str, int], job: dict) -> None:
+def _write_job_row(worksheet, row_number: int, columns: dict[str, int], job: dict, *, preserve_tracking=False) -> None:
     job = enrich_source_tracking(job, job.get("job_link"))
     for header, key in JOB_KEYS.items():
         column = columns.get(header)
         if not column:
             continue
         value = job.get(key, "")
+        cell = worksheet.cell(row=row_number, column=column)
+        if preserve_tracking:
+            if header == "Date Applied" and cell.value is not None and cell.value != "":
+                continue
+            if header in {"Status", "Follow-up", "Found On"} and not _clean_text(value):
+                continue
         if header == "Date Applied":
             value = _excel_date(value)
         elif header == "Follow-up" and not value:
@@ -250,12 +258,12 @@ def _write_job_row(worksheet, row_number: int, columns: dict[str, int], job: dic
             value = "n/a"
         elif header == "Found On" and not value:
             value = ""
-        worksheet.cell(row=row_number, column=column, value=value)
+        write_literal_cell(cell, value)
 
     link = _clean_text(job.get("job_link"))
     if link and columns.get("Job link"):
         link_cell = worksheet.cell(row=row_number, column=columns["Job link"])
-        link_cell.value = link
+        write_literal_cell(link_cell, link)
         link_cell.hyperlink = link
         if not link_cell.has_style:
             link_cell.style = "Hyperlink"

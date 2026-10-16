@@ -9,7 +9,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 from export.workbook_appender import append_jobs_to_workbook
 
 
-def test_legacy_source_column_is_renamed_to_portal_without_growing_the_table(tmp_path):
+def test_legacy_source_column_is_preserved_when_found_on_is_added(tmp_path):
     workbook = Workbook()
     worksheet = workbook.active
     worksheet.title = "Applications"
@@ -49,9 +49,10 @@ def test_legacy_source_column_is_renamed_to_portal_without_growing_the_table(tmp
         if cell.value
     }
 
-    assert "Source" not in headers
-    assert worksheet.cell(2, headers["Application Portal"]).value == "Workday"
-    assert worksheet.tables["ApplicationsTable"].ref == "A1:J2"
+    assert worksheet.cell(2, headers["Source"]).value == "LinkedIn"
+    assert "Application Portal" not in headers
+    assert "Found On" in headers
+    assert worksheet.tables["ApplicationsTable"].ref == "A1:K2"
 
 
 def test_append_preserves_data_row_formatting_and_legacy_found_on_column(tmp_path):
@@ -119,8 +120,9 @@ def test_append_preserves_data_row_formatting_and_legacy_found_on_column(tmp_pat
     assert "Found On" in headers
     assert sheet.cell(3, headers["Found On"]).value is None
     assert sheet.cell(4, headers["Found On"]).value is None
-    assert sheet.cell(3, headers["Application Portal"]).value == "Lever"
-    assert sheet.cell(4, headers["Application Portal"]).value == "Ashby"
+    assert sheet.cell(2, headers["Application Portal"]).value == "Workday"
+    assert sheet.cell(3, headers["Application Portal"]).value is None
+    assert sheet.cell(4, headers["Application Portal"]).value is None
     assert sheet.cell(2, 12).value == '=CONCAT(A2,"-",B2)'
     assert sheet.row_dimensions[3].height == 28
     for row in (3, 4):

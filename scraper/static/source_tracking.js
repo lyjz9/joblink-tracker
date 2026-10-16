@@ -58,12 +58,24 @@
     };
   }
 
-  window.JobSourceTracking = {
+  function mergeRefreshedJob(current, incoming) {
+    const updated = { ...incoming, selected: Boolean(current?.selected) };
+    for (const field of ['date_applied', 'found_on', 'status', 'follow_up']) {
+      if (Object.prototype.hasOwnProperty.call(current || {}, field)) {
+        updated[field] = current[field];
+      }
+    }
+    return normalizeJobSources(updated);
+  }
+
+  const helpers = {
     inferApplicationPortal,
     normalizeJobSources,
+    mergeRefreshedJob,
   };
 
+  if (typeof window !== 'undefined') window.JobSourceTracking = helpers;
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = window.JobSourceTracking;
+    module.exports = helpers;
   }
 })();

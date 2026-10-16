@@ -16,6 +16,7 @@ def _job(**overrides):
         "salary": "$70,000 - $80,000 per year",
         "application_portal": "Company Website",
         "source": "Company Website",
+        "found_on": "LinkedIn",
         "confidence": "High",
         "confidence_score": 95,
     }
@@ -45,7 +46,7 @@ def test_history_upserts_tracking_variants_without_storing_private_page_content(
     assert result["all_count"] == 1
     assert result["items"][0]["status"] == "review"
     assert result["items"][0]["job"]["salary"] == "$75,000 per year"
-    assert "found_on" not in result["items"][0]["job"]
+    assert result["items"][0]["job"]["found_on"] == "LinkedIn"
     assert result["items"][0]["job"]["application_portal"] == "Company Website"
     assert "description" not in result["items"][0]["job"]
     assert "selected" not in result["items"][0]["job"]
@@ -172,6 +173,6 @@ def test_history_migrates_legacy_source_to_application_portal(tmp_path):
 
     store = HistoryStore(database)
     item = store.list_entries()["items"][0]["job"]
-    assert "found_on" not in item
+    assert item["found_on"] == "LinkedIn"
     assert item["application_portal"] == "Workday"
     assert store.list_entries(query="Workday")["total"] == 1

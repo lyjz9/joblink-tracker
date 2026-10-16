@@ -15,8 +15,9 @@ anything here later becomes stale.
 - Current version target: **v0.1.0 beta**
 - Current branch: `agent/retire-discovery-tracking`
 - Latest code commit before this handoff update:
-  `ac17b09` (`Fix state vacancy fields and salary periods`)
+  `d1651f7` (`Expand Found On job site choices`)
 - Recent focused commits:
+  - `d1651f7` (`Expand Found On job site choices`)
   - `ac17b09` (`Fix state vacancy fields and salary periods`)
   - `fda94bd` (`Infer salary periods across job sites`)
   - `cffedda` (`Infer clear Oracle salary periods`)
@@ -60,6 +61,50 @@ desktop data paths, workbook filenames, and release artifacts.
 The user wants every completed change committed and pushed to GitHub. Keep each
 commit focused, explain what changed in plain language, and do not include
 unrelated files.
+
+## 2026-10-16 Tracking And Export Integrity Fixes
+
+The user asked to fix all six issues found in the follow-up review:
+
+- Single-row retry, Retry all, duplicate batch refreshes, and replacement
+  browser captures now merge fresh scraped fields with the existing row's
+  Date Applied, Found On, application Status, Follow-up, and selection state.
+  These fields must not be replaced by scraper defaults or the current batch
+  header. Fresh extraction confidence/review fields still come from the scrape.
+- Excel duplicate updates keep an existing Date Applied. Empty incoming
+  Status, Follow-up, and Found On values preserve the existing workbook values;
+  explicit nonempty incoming edits can update those three fields. Unrelated
+  workbook formulas, formatting, sheets, and macros remain untouched.
+- Export uses each row's saved application date. The header date is only a
+  fallback for rows with no date, so mixed-date exports remain accurate.
+- Parenthesized pay periods such as `(per week)`, `(monthly)`, and `(per day)`
+  take priority over amount-based hourly/annual inference, both during parsing
+  and shared display normalization.
+- Web-app and legacy CLI Excel duplicate detection now use the same
+  `canonical_url_key` helper as History and the job queue. Tracking parameters
+  do not create duplicates; real job IDs and case-sensitive paths still
+  distinguish postings. The saved link itself is retained.
+- `export/cell_values.py` writes external strings as literal Excel text. The
+  new export, workbook appender, and legacy CLI all use it. A job field starting
+  with `=` stays text rather than becoming a formula. Existing unrelated
+  workbook formulas are preserved. The CLI now also keeps the actual posting
+  URL as visible link text instead of replacing it with `Open job`.
+
+The eleven older test failures are resolved. Tests now verify the current
+Found On tracker contract instead of expecting its removal or export of
+Application Portal. The source-tracking helper also exports safely under Node
+without accessing a missing `window` object.
+
+Verification: full Python/Node-backed suite, 280 passed; JavaScript syntax,
+Python compilation, and `git diff --check` passed. Regression tests exercise
+actual frontend retry/export handlers and saved-workbook roundtrips, including
+formula preservation and duplicate identity. All workbook checks use synthetic
+data; no personal workbook or saved History was edited.
+The running app's `/export` and `/append-workbook` endpoints also passed
+synthetic roundtrip checks for literal job text, preserved tracking fields,
+and matching URL variants. A fresh browser tab loaded without JavaScript
+errors. The local app was reloaded on port 5051; refresh an already-open tab
+before using Retry or exporting so it loads the updated frontend helpers.
 
 ## 2026-10-16 Found On Choices
 
@@ -136,6 +181,7 @@ alone does not replace previously saved job fields.
   Update those tests to the current ten-column tracker contract and make the
   JS module export safe under Node in follow-up work. Do not remove Found On
   or restore Application Portal merely to satisfy the old expectations.
+  These failures were subsequently resolved by the integrity fixes above.
 - No release, tag, merge into main, or desktop package was created.
 
 ## 2026-10-14 Scraper Recovery And Tracker Update
@@ -898,10 +944,10 @@ node tests\frontend_salary_conversion.test.cjs
 
 ## Where Work Is Currently Blocked
 
-The core local beta runs and the focused extraction suites pass. The full
-automated baseline still has the 11 source-tracking/history failures recorded
-in the 2026-10-16 update above. The product name, baseline cleanup, release
-validation, and real-world extraction quality remain unfinished.
+The core local beta runs and the full automated suite passes (280 tests as of
+the latest 2026-10-16 integrity fixes). The product name, release validation,
+and real-world extraction quality remain unfinished. Older failure counts
+below describe historical runs, not the current baseline.
 
 ### 1. The final product name is undecided
 

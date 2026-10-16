@@ -55,6 +55,9 @@ def test_location_display_normalization(value, expected):
         ("Monthly salary: $12,000 - $15,000", "$12,000 - $15,000 per month"),
         ("$12,000 to $15,000/month", "$12,000 - $15,000/month"),
         ("Daily rate: $300 - $400", "$300 - $400 per day"),
+        ("$500 - $750 (per week)", "$500 - $750 (per week)"),
+        ("$12,000 - $15,000 (monthly)", "$12,000 - $15,000 (monthly)"),
+        ("$300 (per day)", "$300 (per day)"),
     ),
 )
 def test_salary_display_normalization(value, expected):

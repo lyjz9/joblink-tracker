@@ -38,6 +38,9 @@ from scraper.browser_scraper_v2 import (
     ("Annual salary of $500 - $750", "$500 - $750 per year"),
     ("Hourly rate: $1,000 - $1,500", "$1,000 - $1,500 per hour"),
     ("Salary: $12,000 - $15,000 per month", "$12,000 - $15,000 per month"),
+    ("Salary: $500 - $750 (per week)", "$500 - $750 per week"),
+    ("Salary: $12,000 - $15,000 (monthly)", "$12,000 - $15,000 per month"),
+    ("Salary: $300 (per day)", "$300 per day"),
 ))
 def test_explicit_salary_period_wins_over_amount_based_inference(text, expected):
     assert _extract_salary(text) == expected

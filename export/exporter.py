@@ -4,6 +4,7 @@ import datetime
 import os
 
 from scraper.source_tracking import enrich_source_tracking
+from export.cell_values import write_literal_cell
 
 HEADERS = [
     'Date Applied', 'Company', 'Job Title', 'Job link', 'Status', 'Location', 'Work Type',
@@ -31,7 +32,9 @@ def export_jobs_to_xlsx(jobs, outdir='exports'):
             tracked.get('follow_up', ''),
             tracked.get('found_on', ''),
         ]
-        ws.append(row)
+        row_number = ws.max_row + 1
+        for column, value in enumerate(row, 1):
+            write_literal_cell(ws.cell(row_number, column), value)
     # auto-width (simple)
     for i, col in enumerate(ws.columns, 1):
         maxlen = 0

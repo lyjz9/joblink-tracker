@@ -35,6 +35,7 @@ const {
   normalizeSalaryMode,
 } = window.JobSalaryDisplay;
 const {
+  mergeRefreshedJob,
   normalizeJobSources,
 } = window.JobSourceTracking;
 const linkPasteHistory = [];
@@ -951,13 +952,13 @@ function applyScrapeSnapshot(snapshot, plan, appliedItems, dateApplied) {
     if (!['completed', 'failed'].includes(item.status) || appliedItems.has(index)) return;
     const target = plan[index];
     if (!target) return;
-    const result = trackedJob({
+    let result = trackedJob({
       ...(item.result || { error: 'Linc could not read this job page.' }),
       job_link: item.result?.job_link || target.url,
     });
     if (dateApplied) result.date_applied = dateApplied;
     if (target.action === 'update') {
-      result.selected = Boolean(state.jobs[target.index]?.selected);
+      result = mergeRefreshedJob(state.jobs[target.index], result);
       state.jobs[target.index] = result;
     } else {
       result.selected = false;
@@ -1072,8 +1073,7 @@ async function retryJob(index) {
   state.processing = true;
   render();
   try {
-    const retried = await scrapeOne(current.job_link);
-    retried.selected = Boolean(current.selected);
+    const retried = mergeRefreshedJob(current, await scrapeOne(current.job_link));
     state.jobs[index] = retried;
     await saveJobsToHistory([retried]);
     showToast(jobStatus(retried) === 'ready' ? 'Job updated' : 'This job still needs a look');
@@ -1098,8 +1098,7 @@ async function retryAllErrors() {
       const current = state.jobs[index];
       if (!current.job_link) continue;
       try {
-        const retried = await scrapeOne(current.job_link);
-        retried.selected = Boolean(current.selected);
+        const retried = mergeRefreshedJob(current, await scrapeOne(current.job_link));
         state.jobs[index] = retried;
         updatedJobs.push(retried);
       } catch (error) {
@@ -1179,7 +1178,7 @@ async function loadCaptures() {
     const appliedDate = selectedAppliedDate();
 
     captures.slice().reverse().forEach((job) => {
-      const incoming = trackedJob({
+      let incoming = trackedJob({
         ...job,
         date_applied: appliedDate || job.date_applied,
       });
@@ -1189,6 +1188,7 @@ async function loadCaptures() {
       const duplicate = duplicateResultChoice(url);
       if (duplicate.action === 'skip') return;
       if (duplicate.action === 'update') {
+        incoming = mergeRefreshedJob(state.jobs[duplicate.index], incoming);
         state.jobs[duplicate.index] = incoming;
         updated += 1;
       } else {
@@ -1300,7 +1300,7 @@ function exportableJobs() {
       );
       return {
         ...displayedJob,
-        date_applied: appliedDate || displayedJob.date_applied,
+        date_applied: displayedJob.date_applied || appliedDate,
       };
     });
 }

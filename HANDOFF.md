@@ -15,8 +15,9 @@ anything here later becomes stale.
 - Current version target: **v0.1.0 beta**
 - Current branch: `agent/retire-discovery-tracking`
 - Latest code commit before this handoff update:
-  `fda94bd` (`Infer salary periods across job sites`)
+  `ac17b09` (`Fix state vacancy fields and salary periods`)
 - Recent focused commits:
+  - `ac17b09` (`Fix state vacancy fields and salary periods`)
   - `fda94bd` (`Infer salary periods across job sites`)
   - `cffedda` (`Infer clear Oracle salary periods`)
   - `95b0af6` (`Open beta app on port 5051`)
@@ -59,6 +60,24 @@ desktop data paths, workbook filenames, and release artifacts.
 The user wants every completed change committed and pushed to GitHub. Keep each
 commit focused, explain what changed in plain language, and do not include
 unrelated files.
+
+## 2026-10-16 Found On Choices
+
+- Expanded the batch Found On menu with 19 additional job-site labels,
+  including StateJobsNY, NYC Jobs, USAJOBS, NYS Job Bank, Built In, Dice,
+  eFinancialCareers, Idealist, HigherEdJobs, The Muse, Wellfound, Welcome to
+  the Jungle, FlexJobs, Remote.co, Remote OK, We Work Remotely, SimplyHired,
+  Adzuna, and Jooble.
+- Native option groups organize general, specialist/early-career, remote,
+  government, and other sources. Existing labels remain exactly as stored so
+  future response-rate comparisons do not split existing categories.
+- Other still reveals the custom Source name box. These are discovery-source
+  choices, not a claim that every site's postings can be scraped reliably.
+  Found On remains user-selected and independent of an employer's ATS URL.
+- Verification: template checks found 19 added labels with no duplicates or
+  removed existing labels. A separate browser tab confirmed StateJobsNY can
+  be selected and Other still reveals Source name. The local server was
+  reloaded on port 5051; refresh the existing app tab to see the new choices.
 
 ## 2026-10-16 StateJobsNY And Extraction Audit
 
